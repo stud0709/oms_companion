@@ -16,7 +16,7 @@ public abstract class MessageComposer {
 	 * 
 	 * @return
 	 */
-	public String getURL() {
-		return OMS_URL + Base64.getEncoder().encodeToString(getMessage().getBytes());
+	public static String asURL(String message) {
+		return OMS_URL + Base64.getEncoder().encodeToString(message.getBytes());
 	}
 }

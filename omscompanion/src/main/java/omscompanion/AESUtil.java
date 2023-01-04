@@ -18,22 +18,29 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 public final class AESUtil {
-	public static final String CIPHER_ALGORITHM = "AES/CBC/PKCS5Padding";
+	public static final String AES_TRANSFORMATION = "AES/CBC/PKCS5Padding";
 	public static final String KEY_ALGORITHM = "PBKDF2WithHmacSHA256";
 	public static final int KEY_LENGTH = 256;
 	public static final int KEYSPEC_ITERATIONS = 1024;
 	public static final int SALT_LENGTH = 16;
+	public static final String KEY_ALG_AES = "AES";
 
 	private AESUtil() {
 	}
 
-	public static SecretKey getKeyFromPassword(String password, byte[] salt)
+	public static SecretKey getSecretKeyFromPassword(String password, byte[] salt)
 			throws NoSuchAlgorithmException, InvalidKeySpecException {
 
 		SecretKeyFactory factory = SecretKeyFactory.getInstance(KEY_ALGORITHM);
 		KeySpec spec = new PBEKeySpec(password.toCharArray(), salt, KEYSPEC_ITERATIONS, KEY_LENGTH);
-		SecretKey secret = new SecretKeySpec(factory.generateSecret(spec).getEncoded(), "AES");
+		SecretKey secret = new SecretKeySpec(factory.generateSecret(spec).getEncoded(), KEY_ALG_AES);
 		return secret;
+	}
+
+	public static SecretKey generateRandomSecretKey() {
+		byte[] bArr = new byte[KEY_LENGTH / 8];
+		new SecureRandom().nextBytes(bArr);
+		return new SecretKeySpec(bArr, KEY_ALG_AES);
 	}
 
 	public static IvParameterSpec generateIv() {
@@ -48,21 +55,21 @@ public final class AESUtil {
 		return salt;
 	}
 
-	public static byte[] encrypt(byte[] input, SecretKey key, IvParameterSpec iv)
+	public static byte[] encrypt(byte[] input, SecretKey secretKey, IvParameterSpec iv, String aesTransformation)
 			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
 			InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
 
-		Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
-		cipher.init(Cipher.ENCRYPT_MODE, key, iv);
+		Cipher cipher = Cipher.getInstance(aesTransformation);
+		cipher.init(Cipher.ENCRYPT_MODE, secretKey, iv);
 		return cipher.doFinal(input);
 	}
 
-	public static byte[] decrypt(byte[] cipherText, SecretKey key, IvParameterSpec iv)
+	public static byte[] decrypt(byte[] cipherText, SecretKey secretKey, IvParameterSpec iv, String aesTransformation)
 			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
 			InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
 
-		Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
-		cipher.init(Cipher.DECRYPT_MODE, key, iv);
+		Cipher cipher = Cipher.getInstance(aesTransformation);
+		cipher.init(Cipher.DECRYPT_MODE, secretKey, iv);
 		return cipher.doFinal(cipherText);
 	}
 

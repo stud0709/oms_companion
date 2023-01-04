@@ -23,6 +23,8 @@ import java.awt.SystemTray;
 import java.awt.TrayIcon;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -49,10 +51,9 @@ import com.google.zxing.common.BitMatrix;
 import j2html.tags.specialized.PTag;
 
 public class Main {
-	public static final String KEY_ALG = "RSA";
+	public static final String KEY_ALG_RSA = "RSA";
 	public static Path PUBLIC_KEY_STORAGE = new File("public").toPath();
 	public static final int KEY_LENGTH = 2048;
-	public static final String PUBLIC_KEY_FILE_TYPE = ".x509";
 
 	public static void main(String[] args) throws Exception {
 		Files.createDirectories(PUBLIC_KEY_STORAGE);
@@ -71,6 +72,16 @@ public class Main {
 		BufferedImage bi = ImageIO.read(Main.class.getResourceAsStream("qr-code.png"));
 		Image image = bi.getScaledInstance(size.width, size.height, Image.SCALE_SMOOTH);
 		TrayIcon trayIcon = new TrayIcon(image, "omsCompanion");
+
+		trayIcon.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				// encrypt clipboard or send oms:// message per double click
+				if (e.getClickCount() > 1) {
+					new Thread(() -> ClipboardUtil.processClipboard()).start();
+				}
+			}
+		});
 
 		PopupMenu menu = new PopupMenu();
 		{
@@ -114,7 +125,7 @@ public class Main {
 				System.exit(0);
 				break;
 			case "processClipboard":
-				ClipboardUtil.checkClipboard();
+				ClipboardUtil.processClipboard();
 				break;
 			case "newKeyPair":
 				new NewKeyPair().getFrame().setVisible(true);
@@ -174,13 +185,16 @@ public class Main {
 
 		int lineLength = 75;
 
+		String messageAsUrl = MessageComposer.asURL(message);
 		PTag messageChunks = p().withStyle("font-family:monospace;");
 		int offset = 0;
-		while (offset < message.length()) {
-			String s = message.substring(offset, Math.min(offset + lineLength, message.length()));
+		while (offset < messageAsUrl.length()) {
+			String s = messageAsUrl.substring(offset, Math.min(offset + lineLength, messageAsUrl.length()));
 			messageChunks.withText(s).with(br());
 			offset += lineLength;
 		}
+
+		String sArr[] = message.split("\t");
 
 		return html(body(h1("OneMoreSecret Private Key Backup"), p(b("Keep this file / printout in a secure location")),
 				p("This is a hard copy of your Private Key for OneMoreSecret. It can be used to import your Private Key into a new device or after a reset of OneMoreSecret App. This document is encrypted with AES encryption, you will need your TRANSPORT PASSWORD to complete the import procedure."),
@@ -192,19 +206,17 @@ public class Main {
 						b("THIS DOCUMENT IS THE ONLY WAY TO RESTORE YOUR PRIVATE KEY"))),
 				p(b("Key alias: " + alias)), p(b("Fingerprint: " + byteArrayToHex(fingerprint))),
 				p("Scan this with your OneMoreSecret App:"), qrCodes, h2("Long-Term Backup and Technical Details"),
-				p("Base64 Encoded Message: "), messageChunks, p("Message format: java.io.DataOutputStream."),
-				p("Message Contents: "),
-				ol(/* 1 */li("Application Identifier: (int) 0 = AES Encrypted Key Pair Transfer"),
-						/* 2 */li("Alias length (bytes): int"), /* 3 */li("Alias: String, utf-8"),
-						/* 4 */li("Length Salt: int"), /* 5 */li("Salt: byte[]"), /* 6 */li("IV: byte[]"),
-						/* 7 */li("Length Cipher Algorithm: int"), /* 8 */li("Cipher Algorithm: String, utf-8"),
-						/* 9 */li("Length Key Algorithm: int"), /* 10 */li("Key Algorithm: String, utf-8"),
-						/* 11 */li("Keyspec Length: int"), /* 12 */li("Keyspec Iterations: int"),
-						/* 13 */li("Length Cipher Text: int"), /* 14 */li("Cipher Text: byte[] (see below)")),
-				p("Private Key Information (encrypted within Cipher Text)"),
-				ol(/* 1 */li("Key length: int"), /* 2 */li("Certificate Length: int"), /* 3 */li("Key Data: byte[]"),
-						/* 4 */li("Certificate Data: byte[]"),
-						/* 5 */li("SHA-256 over Private Key and Certificate: byte[]"))))
+				p("Base64 Encoded Message: "), messageChunks, p("Message format: oms://[base64 encoded data]"),
+				p("Data format: String (utf-8), separator: TAB"), p("Data elements:"),
+				ol(/* 1 */li("Application Identifier: " + sArr[0] + " = AES Encrypted Key Pair Transfer"),
+						/* 2 */li("Key Alias = " + sArr[1]), /* 3 */li("Salt: base64-encoded byte[]"),
+						/* 4 */li("IV: base64-encoded byte[]"), /* 5 */li("Cipher Algorithm = " + sArr[4]),
+						/* 6 */li("Key Algorithm = " + sArr[5]), /* 7 */li("Keyspec Length = " + sArr[6]),
+						/* 8 */li("Keyspec Iterations = " + sArr[7]),
+						/* 9 */li("Cipher Text: base64-encoded byte[] (see below)")),
+				p("Private Key Information (encrypted within Cipher Text. String (utf-8), separator: TAB)"),
+				ol(/* 1 */li("Key Data: base64-encoded byte[]"), /* 2 */li("Certificate Data: base64-encoded byte[]"),
+						/* 3 */li("SHA-256 over Private Key and Certificate: base64-encoded byte[]"))))
 				.render();
 	}
 
@@ -221,9 +233,8 @@ public class Main {
 		return sb.toString();
 	}
 
-	public RSAPublicKey getPublicKey(Path p) throws InvalidKeySpecException, NoSuchAlgorithmException, IOException {
-		PublicKey publicKey = KeyFactory.getInstance(KEY_ALG)
-				.generatePublic(new X509EncodedKeySpec(Files.readAllBytes(p)));
+	public static RSAPublicKey getPublicKey(byte[] encoded) throws InvalidKeySpecException, NoSuchAlgorithmException {
+		PublicKey publicKey = KeyFactory.getInstance(KEY_ALG_RSA).generatePublic(new X509EncodedKeySpec(encoded));
 
 		return (RSAPublicKey) publicKey;
 	}

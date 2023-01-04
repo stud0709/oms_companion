@@ -18,6 +18,8 @@ import javax.swing.JCheckBox;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
@@ -36,30 +38,61 @@ public class NewKeyPair {
 	private JLabel lblBackupFile;
 	private JButton btnBackupFile;
 	private JTextField txtBackupFile;
-	private JScrollPane scrollPane_PassPhrase;
-	private JTextArea txtPassPhrase;
+	private JPasswordField txtPassPhrase;
+	private JTextField txtPassPhrase2;
 	private JButton btnCreate;
-	private JButton btnCancel;
+//	private JButton btnCancel;
 	private JScrollPane scrollPane_Info;
 	private JTextArea txtInfo;
 	private JCheckBox chckbxStorePublicKey;
 	private static final Color COLOR_RED = Color.decode("#F08080");
+	private char echoChar;
 
 	/**
 	 * Create the application.
 	 */
 	public NewKeyPair() {
 		initialize();
-		btnCancel.addActionListener(e -> {
-			frmNewKeyPair.setVisible(false);
-			frmNewKeyPair.dispose();
-		});
+
+//		btnCancel.addActionListener(e -> {
+//			frmNewKeyPair.setVisible(false);
+//			frmNewKeyPair.dispose();
+//		});
+
+		// disable copy/paste for password fields
+		txtPassPhrase.setTransferHandler(null);
+		txtPassPhrase2.setTransferHandler(null);
 
 		txtKeyAlias.getDocument().addDocumentListener(documentListener);
 		txtPassPhrase.getDocument().addDocumentListener(documentListener);
 		txtBackupFile.getDocument().addDocumentListener(documentListener);
+		txtPassPhrase2.getDocument().addDocumentListener(documentListener);
+
+		echoChar = txtPassPhrase.getEchoChar();
+		txtPassPhrase.setEchoChar((char) 0);
+
 		btnBackupFile.addActionListener(e -> {
-			JFileChooser jfc = new JFileChooser();
+			JFileChooser jfc = new JFileChooser() {
+				private static final long serialVersionUID = 1L;
+
+				@Override
+				public void approveSelection() {
+					File f = getSelectedFile();
+					if (f.exists()) {
+						int result = JOptionPane.showConfirmDialog(this, "The file exists, overwrite?", "Existing file",
+								JOptionPane.YES_NO_CANCEL_OPTION);
+						switch (result) {
+						case JOptionPane.YES_OPTION:
+							super.approveSelection();
+							break;
+						case JOptionPane.CANCEL_OPTION:
+							cancelSelection();
+							break;
+						}
+					}
+				}
+
+			};
 			jfc.setFileFilter(new FileFilter() {
 
 				@Override
@@ -87,24 +120,27 @@ public class NewKeyPair {
 
 		btnCreate.addActionListener(e -> createKeyPair());
 
-		checkState();
+		checkState(null);
 	}
 
 	private void createKeyPair() {
-		try {
-			SwingUtilities.invokeLater(() -> txtInfo.setText(""));
+		SwingUtilities.invokeLater(() -> {
+			txtInfo.setText("");
+			btnCreate.setEnabled(false);
+		});
 
-			KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(Main.KEY_ALG);
+		try {
+			KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(Main.KEY_ALG_RSA);
 			keyPairGenerator.initialize(Main.KEY_LENGTH);
 			KeyPair keyPair = keyPairGenerator.generateKeyPair();
 			RSAPublicKey rsaPublicKey = (RSAPublicKey) keyPair.getPublic();
 
-			SwingUtilities.invokeLater(() -> txtInfo.append(
-					"Key pair generated (" + keyPair.getPublic().getAlgorithm() + ", " + Main.KEY_LENGTH + ")\n"));
+			SwingUtilities.invokeLater(() -> txtInfo.append("Key pair generated (" + rsaPublicKey.getAlgorithm() + ", "
+					+ Main.KEY_LENGTH + ", " + rsaPublicKey.getFormat() + ")\n"));
 
 			IvParameterSpec iv = AESUtil.generateIv();
 			byte[] salt = AESUtil.generateSalt();
-			SecretKey secretKey = AESUtil.getKeyFromPassword(txtPassPhrase.getText().trim(), salt);
+			SecretKey secretKey = AESUtil.getSecretKeyFromPassword(new String(txtPassPhrase.getPassword()), salt);
 
 			SwingUtilities.invokeLater(() -> txtInfo.append("AES initialized\n"));
 
@@ -116,17 +152,33 @@ public class NewKeyPair {
 			File backupFile = new File(txtBackupFile.getText());
 
 			try (FileWriter fw = new FileWriter(backupFile)) {
-				fw.write(
-						Main.getKeyBackupHtml(alias, Main.getFingerprint((RSAPublicKey) keyPair.getPublic()), message));
+				fw.write(Main.getKeyBackupHtml(alias, Main.getFingerprint(rsaPublicKey), message));
 			}
 
 			SwingUtilities.invokeLater(() -> txtInfo.append("Backup file generated\n"));
 
 			if (chckbxStorePublicKey.isSelected()) {
-				String fn = alias + " (" + Main.byteArrayToHex(Main.getFingerprint(rsaPublicKey)) + ")"
-						+ Main.PUBLIC_KEY_FILE_TYPE;
+				String fn = alias + "." + rsaPublicKey.getFormat().toLowerCase();
 				Path publicKeyPath = Main.PUBLIC_KEY_STORAGE.resolve(fn);
-				Files.write(publicKeyPath, keyPair.getPrivate().getEncoded());
+
+				if (Files.exists(publicKeyPath)) {
+					// create backup of the old key
+					RSAPublicKey pk = Main.getPublicKey(Files.readAllBytes(publicKeyPath));
+
+					byte[] fingerprint = Main.getFingerprint(pk);
+
+					String fn_backup = fn + "." + Main.byteArrayToHex(fingerprint).replaceAll("\\W", "") + ".bak";
+
+					Path backupPath = Main.PUBLIC_KEY_STORAGE.resolve(fn_backup);
+
+					Files.copy(publicKeyPath, backupPath);
+
+					SwingUtilities.invokeLater(
+							() -> txtInfo.append("WARNING: Overwriting existing public key file. Old file copied to: \""
+									+ backupPath.toAbsolutePath().toString() + "\"\n"));
+				}
+
+				Files.write(publicKeyPath, rsaPublicKey.getEncoded());
 
 				SwingUtilities.invokeLater(() -> txtInfo
 						.append("Public key written to: \"" + publicKeyPath.toAbsolutePath().toString() + "\"\n"));
@@ -141,11 +193,18 @@ public class NewKeyPair {
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
-				SwingUtilities.invokeLater(() -> txtInfo.append("Operation suffessfully completed\n"));
+				SwingUtilities.invokeLater(() -> {
+					txtInfo.append("Operation suffessfully completed\n");
+					btnCreate.setEnabled(true);
+				});
 			}).setVisible(true);
 
 		} catch (Exception ex) {
-			SwingUtilities.invokeLater(() -> txtInfo.append(ex.toString()));
+			ex.printStackTrace();
+			SwingUtilities.invokeLater(() -> {
+				txtInfo.append(ex.toString());
+				btnCreate.setEnabled(true);
+			});
 		}
 	}
 
@@ -153,25 +212,26 @@ public class NewKeyPair {
 
 		@Override
 		public void removeUpdate(DocumentEvent e) {
-			checkState();
+			checkState(e);
 		}
 
 		@Override
 		public void insertUpdate(DocumentEvent e) {
-			checkState();
+			checkState(e);
 		}
 
 		@Override
 		public void changedUpdate(DocumentEvent e) {
-			checkState();
+			checkState(e);
 		}
 	};
 
-	private void checkState() {
+	private void checkState(DocumentEvent e) {
 		boolean b = true;
 
 		b = checkKeyAlias();
 		b &= checkPassphrase();
+		b &= checkPassphrase2(e);
 		b &= checkBackupFile();
 
 		btnCreate.setEnabled(b);
@@ -195,14 +255,14 @@ public class NewKeyPair {
 	}
 
 	private boolean checkPassphrase() {
-		String s = txtPassPhrase.getText().trim();
+		String s = new String(txtPassPhrase.getPassword());
 		String msg = null;
 
 		if (s.isEmpty())
 			msg = "Pass Phrase is mandatory";
 
 		if (s.length() < 10)
-			msg = "10 or more symbols needed. It will take just a couple of hours to guess your pass phrase!";
+			msg = "10 or more symbols needed. It will take just a couple of hours to brute force your pass phrase!";
 
 		txtPassPhrase.setBackground(msg == null ? UIManager.getColor("TextArea.background") : COLOR_RED);
 
@@ -210,8 +270,33 @@ public class NewKeyPair {
 		return msg == null;
 	}
 
+	private boolean checkPassphrase2(DocumentEvent e) {
+		if (e != null && e.getDocument() == txtPassPhrase.getDocument()) {
+			// password has changed, start over
+			txtPassPhrase2.setText("");
+		}
+
+		String s = txtPassPhrase2.getText();
+		String msg = null;
+
+		if (s.isEmpty()) {
+			msg = "Repeat pass phrase to prevent typos";
+			txtPassPhrase.setEchoChar((char) 0); // show pass phrase
+		} else {
+			txtPassPhrase.setEchoChar(echoChar); // hide pass phrase
+
+			if (!s.equals(new String(txtPassPhrase.getPassword())))
+				msg = "Pass phrases don't match!";
+		}
+
+		txtPassPhrase2.setBackground(msg == null ? UIManager.getColor("TextArea.background") : COLOR_RED);
+
+		txtPassPhrase2.setToolTipText(msg);
+		return msg == null;
+	}
+
 	private boolean checkBackupFile() {
-		String s = txtBackupFile.getText().trim();
+		String s = txtBackupFile.getText();
 		String msg = null;
 
 		if (s.isEmpty())
@@ -236,8 +321,7 @@ public class NewKeyPair {
 		frmNewKeyPair.setTitle("New Key Pair");
 		frmNewKeyPair.setBounds(100, 100, 785, 559);
 		frmNewKeyPair.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-		frmNewKeyPair.getContentPane()
-				.setLayout(new MigLayout("", "[49px][722px,grow][]", "[top][50px:n,fill][20px,top][][][]"));
+		frmNewKeyPair.getContentPane().setLayout(new MigLayout("", "[][grow][]", ""));
 
 		JLabel lblKeyAlias = new JLabel("Key Alias");
 		frmNewKeyPair.getContentPane().add(lblKeyAlias, "cell 0 0,alignx right,growy");
@@ -249,38 +333,39 @@ public class NewKeyPair {
 		JLabel lblTransportPass = new JLabel("Transport Password");
 		frmNewKeyPair.getContentPane().add(lblTransportPass, "cell 0 1,alignx trailing,growy");
 
-		scrollPane_PassPhrase = new JScrollPane();
-		frmNewKeyPair.getContentPane().add(scrollPane_PassPhrase, "flowx,cell 1 1,grow");
+		txtPassPhrase = new JPasswordField();
+		frmNewKeyPair.getContentPane().add(txtPassPhrase, "flowx,cell 1 1,grow");
 
-		txtPassPhrase = new JTextArea();
-		txtPassPhrase.setWrapStyleWord(true);
-		txtPassPhrase.setLineWrap(true);
-		scrollPane_PassPhrase.setViewportView(txtPassPhrase);
+		JLabel lblTransportPass2 = new JLabel("Repeat Password");
+		frmNewKeyPair.getContentPane().add(lblTransportPass2, "cell 0 2,alignx trailing,growy");
+
+		txtPassPhrase2 = new JTextField();
+		frmNewKeyPair.getContentPane().add(txtPassPhrase2, "flowx,cell 1 2,grow");
 
 		lblBackupFile = new JLabel("Backup File");
-		frmNewKeyPair.getContentPane().add(lblBackupFile, "cell 0 2,alignx trailing,growy");
+		frmNewKeyPair.getContentPane().add(lblBackupFile, "cell 0 3,alignx trailing,growy");
 
 		txtBackupFile = new JTextField();
 		txtBackupFile.setEditable(false);
-		frmNewKeyPair.getContentPane().add(txtBackupFile, "cell 1 2,grow");
+		frmNewKeyPair.getContentPane().add(txtBackupFile, "cell 1 3,grow");
 		txtBackupFile.setColumns(10);
 
 		btnBackupFile = new JButton("...");
-		frmNewKeyPair.getContentPane().add(btnBackupFile, "cell 2 2");
+		frmNewKeyPair.getContentPane().add(btnBackupFile, "cell 2 3");
 
 		chckbxStorePublicKey = new JCheckBox("Store Public Key for later use");
 		chckbxStorePublicKey.setSelected(true);
-		frmNewKeyPair.getContentPane().add(chckbxStorePublicKey, "cell 1 3");
+		frmNewKeyPair.getContentPane().add(chckbxStorePublicKey, "cell 1 4");
 
 		btnCreate = new JButton("Create");
 		btnCreate.setEnabled(false);
-		frmNewKeyPair.getContentPane().add(btnCreate, "flowx,cell 1 4");
+		frmNewKeyPair.getContentPane().add(btnCreate, "flowx,cell 1 5");
 
-		btnCancel = new JButton("Cancel");
-		frmNewKeyPair.getContentPane().add(btnCancel, "cell 1 4");
+//		btnCancel = new JButton("Cancel");
+//		frmNewKeyPair.getContentPane().add(btnCancel, "cell 1 5");
 
 		scrollPane_Info = new JScrollPane();
-		frmNewKeyPair.getContentPane().add(scrollPane_Info, "cell 1 5,grow");
+		frmNewKeyPair.getContentPane().add(scrollPane_Info, "cell 1 6,grow");
 
 		txtInfo = new JTextArea();
 		txtInfo.setEditable(false);

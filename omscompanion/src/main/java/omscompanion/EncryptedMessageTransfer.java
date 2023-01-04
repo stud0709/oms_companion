@@ -1,6 +1,7 @@
 package omscompanion;
 
 import java.io.IOException;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -14,23 +15,36 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
 
 public class EncryptedMessageTransfer extends MessageComposer {
 	private final String message;
-	public static final String[] RSA_TRANSFORMATION = { "RSA/ECB/PKCS1Padding", "RSA/ECB/OAEPWithSHA-1AndMGF1Padding",
-			"RSA/ECB/OAEPWithSHA-256AndMGF1Padding" };
+	public static final String RSA_TRANSFORMATION = "RSA/ECB/PKCS1Padding";
+	// or RSA/ECB/OAEPWithSHA-1AndMGF1Padding
+	// or RSA/ECB/OAEPWithSHA-256AndMGF1Padding
 
-	public EncryptedMessageTransfer(byte[] message, String type, RSAPublicKey rsaPublicKey, int transformationIdx)
+	public EncryptedMessageTransfer(byte[] message, RSAPublicKey rsaPublicKey, String rsaTransformation)
 			throws NoSuchAlgorithmException, IOException, NoSuchPaddingException, IllegalBlockSizeException,
-			BadPaddingException, InvalidKeyException {
+			BadPaddingException, InvalidKeyException, InvalidAlgorithmParameterException {
+
+		// init AES
+		IvParameterSpec iv = AESUtil.generateIv();
+		SecretKey secretKey = AESUtil.generateRandomSecretKey();
+
+		// encrypt AES secret key with RSA
+		Cipher cipher = Cipher.getInstance(rsaTransformation);
+		cipher.init(Cipher.ENCRYPT_MODE, rsaPublicKey);
+
+		byte[] encryptedSecretKey = cipher.doFinal(secretKey.getEncoded());
 
 		List<String> list = new ArrayList<>();
 
 		// (1) application-ID
 		list.add(Integer.toString(APPLICATION_ENCRYPTED_MESSAGE_TRANSFER));
 
-		// (2) transformation No.
-		list.add(Integer.toString(transformationIdx));
+		// (2) RSA transformation
+		list.add(rsaTransformation);
 
 		// (3) fingerprint
 		MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
@@ -43,9 +57,18 @@ public class EncryptedMessageTransfer extends MessageComposer {
 
 		list.add(Base64.getEncoder().encodeToString(sha256.digest(publicExp)));
 
-		// (4) cipher text
-		byte[] cipherText = encrypt(message, type, rsaPublicKey, transformationIdx);
-		list.add(Base64.getEncoder().encodeToString(cipherText));
+		// (4) AES transformation
+		list.add(AESUtil.AES_TRANSFORMATION);
+
+		// (5) IV
+		list.add(Base64.getEncoder().encodeToString(iv.getIV()));
+
+		// (6) RSA-encrypted AES secret key
+		list.add(Base64.getEncoder().encodeToString(encryptedSecretKey));
+
+		// (7) AES-encrypted message
+		byte[] encryptedMessage = encrypt(message, AESUtil.AES_TRANSFORMATION, secretKey, iv);
+		list.add(Base64.getEncoder().encodeToString(encryptedMessage));
 
 		this.message = list.stream().collect(Collectors.joining("\t"));
 	}
@@ -55,33 +78,28 @@ public class EncryptedMessageTransfer extends MessageComposer {
 		return message;
 	}
 
-	protected byte[] encrypt(byte[] message, String type, RSAPublicKey rsaPublicKey, int transformationIdx)
-			throws NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException,
-			IOException, InvalidKeyException {
+	protected byte[] encrypt(byte[] message, String aesTransformation, SecretKey secretKey, IvParameterSpec iv)
+			throws InvalidKeyException, NoSuchPaddingException, NoSuchAlgorithmException,
+			InvalidAlgorithmParameterException, BadPaddingException, IllegalBlockSizeException {
 
 		List<String> list = new ArrayList<>();
 
 		MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
 		byte[] hash = sha256.digest(message);
 
-		// (1) type
-		list.add(type);
-
-		// (2) data
+		// (1) data
 		list.add(Base64.getEncoder().encodeToString(message));
 
-		// (3) hash
+		// (2) hash
 		list.add(Base64.getEncoder().encodeToString(hash));
 
 		String s = list.stream().collect(Collectors.joining("\t"));
 
 		byte[] mArr = s.getBytes();
 
-		Cipher cipher = Cipher.getInstance(RSA_TRANSFORMATION[transformationIdx]);
-		cipher.init(Cipher.ENCRYPT_MODE, rsaPublicKey);
-		byte[] cipherText = cipher.doFinal(mArr);
+		byte[] encryptedMessage = AESUtil.encrypt(mArr, secretKey, iv, aesTransformation);
 
-		return cipherText;
+		return encryptedMessage;
 	}
 
 }

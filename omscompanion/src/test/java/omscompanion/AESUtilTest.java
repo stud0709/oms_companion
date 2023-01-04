@@ -13,13 +13,13 @@ class AESUtilTest {
 	void testEncrypt() throws Exception {
 		IvParameterSpec iv = AESUtil.generateIv();
 		byte[] salt = AESUtil.generateSalt();
-		SecretKey secretKey = AESUtil.getKeyFromPassword("secret", salt);
+		SecretKey secretKey = AESUtil.getSecretKeyFromPassword("secret", salt);
 
 		String text = "The quick brown fox jumped over the lazy dog";
 
-		byte[] cipherText = AESUtil.encrypt(text.getBytes(), secretKey, iv);
+		byte[] cipherText = AESUtil.encrypt(text.getBytes(), secretKey, iv, AESUtil.AES_TRANSFORMATION);
 
-		String _text = new String(AESUtil.decrypt(cipherText, secretKey, iv));
+		String _text = new String(AESUtil.decrypt(cipherText, secretKey, iv, AESUtil.AES_TRANSFORMATION));
 
 		assertEquals(_text, text);
 	}

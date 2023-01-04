@@ -48,13 +48,13 @@ public class AesEncryptedKeyPairTransfer extends MessageComposer {
 		// (4) iv
 		list.add(Base64.getEncoder().encodeToString(iv.getIV()));
 
-		// (5) cipher algorithm
-		list.add(AESUtil.CIPHER_ALGORITHM);
+		// (5) AES transformation
+		list.add(AESUtil.AES_TRANSFORMATION);
 
 		// (6) key algorithm
 		list.add(AESUtil.KEY_ALGORITHM);
 
-		// (7) key length
+		// (7) keyspec length
 		list.add(Integer.toString(AESUtil.KEY_LENGTH));
 
 		// (8) keyspec iterations
@@ -91,7 +91,7 @@ public class AesEncryptedKeyPairTransfer extends MessageComposer {
 		String s = list.stream().collect(Collectors.joining("\t"));
 
 		// --- encrypting the data with AES ---
-		return AESUtil.encrypt(s.getBytes(), aesKey, iv);
+		return AESUtil.encrypt(s.getBytes(), aesKey, iv, AESUtil.AES_TRANSFORMATION);
 	}
 
 	@Override
