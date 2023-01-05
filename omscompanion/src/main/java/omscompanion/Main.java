@@ -58,7 +58,7 @@ public class Main {
 	public static void main(String[] args) throws Exception {
 		Files.createDirectories(PUBLIC_KEY_STORAGE);
 		initTrayIcon();
-		ClipboardUtil.startClipboardCheck();
+		ClipboardUtil.setAutomaticMode(true);
 	}
 
 	private static void initTrayIcon() throws IOException, AWTException {

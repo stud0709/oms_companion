@@ -123,6 +123,10 @@ public class ClipboardUtil {
 			JOptionPane.showMessageDialog(null,
 					"Clipboard text converted to oms://... format.\nPress OK to clear the clipboard and continue.");
 
+			set("");
+
+			SEMAPHORE.release();
+
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
