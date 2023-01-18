@@ -1,0 +1,164 @@
+package omscompanion;
+
+import java.awt.AWTException;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Image;
+import java.awt.Menu;
+import java.awt.MenuItem;
+import java.awt.PopupMenu;
+import java.awt.SystemTray;
+import java.awt.TrayIcon;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.KeyFactory;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
+import java.security.interfaces.RSAPublicKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.X509EncodedKeySpec;
+
+import javax.imageio.ImageIO;
+import javax.swing.JLabel;
+
+public class Main {
+	public static final String KEY_ALG_RSA = "RSA";
+	public static Path PUBLIC_KEY_STORAGE = new File("public").toPath();
+	public static final int KEY_LENGTH = 2048;
+
+	public static void main(String[] args) throws Exception {
+		Files.createDirectories(PUBLIC_KEY_STORAGE);
+		initTrayIcon();
+		ClipboardUtil.setAutomaticMode(true);
+	}
+
+	private static void initTrayIcon() throws IOException, AWTException {
+//		https://docs.oracle.com/javase/tutorial/uiswing/misc/systemtray.html
+
+		if (!SystemTray.isSupported())
+			return;
+
+		Dimension size = SystemTray.getSystemTray().getTrayIconSize();
+
+		BufferedImage bi = ImageIO.read(Main.class.getResourceAsStream("qr-code.png"));
+		Image image = bi.getScaledInstance(size.width, size.height, Image.SCALE_SMOOTH);
+		TrayIcon trayIcon = new TrayIcon(image, "omsCompanion");
+
+		trayIcon.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				// encrypt clipboard or send oms:// message per double click
+				if (e.getClickCount() > 1) {
+					new Thread(() -> ClipboardUtil.processClipboard()).start();
+				}
+			}
+		});
+
+		PopupMenu menu = new PopupMenu();
+		{
+			MenuItem processClipboard = new MenuItem("Process Clipboard");
+			processClipboard.setFont(new JLabel().getFont().deriveFont(Font.BOLD));
+			processClipboard.setActionCommand("processClipboard");
+			processClipboard.addActionListener(MENU_ACTION_LISTENER);
+			menu.add(processClipboard);
+		}
+
+		{
+			Menu crypto = new Menu("Cryptography...");
+
+			{
+				MenuItem newKey = new MenuItem("New Private Key");
+				newKey.setActionCommand("newKeyPair");
+				newKey.addActionListener(MENU_ACTION_LISTENER);
+				crypto.add(newKey);
+			}
+
+			menu.add(crypto);
+		}
+		{
+			MenuItem exitCommand = new MenuItem("Exit");
+			exitCommand.setActionCommand("exit");
+			exitCommand.addActionListener(MENU_ACTION_LISTENER);
+			menu.add(exitCommand);
+		}
+
+		trayIcon.setPopupMenu(menu);
+
+		SystemTray.getSystemTray().add(trayIcon);
+	}
+
+	private static final ActionListener MENU_ACTION_LISTENER = new ActionListener() {
+
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			switch (e.getActionCommand()) {
+			case "exit":
+				System.exit(0);
+				break;
+			case "processClipboard":
+				ClipboardUtil.processClipboard();
+				break;
+			case "newKeyPair":
+				new NewKeyPair().getFrame().setVisible(true);
+				break;
+			}
+		}
+	};
+
+	/**
+	 * Wrapper for -genkey command of java keytool.
+	 * 
+	 * @param keyalg       e.g. {@code RSA }
+	 * @param alias        key alias
+	 * @param keystorePath keystore path
+	 * @param storepass    keystore master password
+	 * @param validity     certificate validity in days
+	 * @param keysize      e.g. 2048
+	 * @param dname        e.g. {@code CN=localhost }
+	 * @return {@link Process#exitValue() }
+	 * @throws IOException
+	 * @throws InterruptedException
+	 */
+	public static int genKey(String keyalg, String alias, Path keystorePath, String storepass, int validity,
+			int keysize, String dname) throws IOException, InterruptedException {
+
+		String keytoolPath = new File(System.getProperty("java.home")).toPath().resolve("bin").resolve("keytool.exe")
+				.toAbsolutePath().toString();
+
+		String cmd = keytoolPath + " -genkey" + " -keyalg " + keyalg + " -alias " + alias + " -keystore "
+				+ keystorePath.toAbsolutePath() + " -storepass " + storepass + " -validity " + validity + " -keysize "
+				+ keysize + " -dname \"" + dname + "\"";
+
+		System.out.println(cmd);
+
+		Process keytool = Runtime.getRuntime().exec(cmd);
+		return keytool.waitFor();
+	}
+
+	public static byte[] getFingerprint(RSAPublicKey publicKey) throws NoSuchAlgorithmException {
+		MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+		sha256.update(publicKey.getModulus().toByteArray());
+		return sha256.digest(publicKey.getPublicExponent().toByteArray());
+	}
+
+	public static String byteArrayToHex(byte[] a) {
+		StringBuilder sb = new StringBuilder(a.length * 2);
+		for (byte b : a)
+			sb.append(String.format("%02x", b)).append(" ");
+		return sb.toString();
+	}
+
+	public static RSAPublicKey getPublicKey(byte[] encoded) throws InvalidKeySpecException, NoSuchAlgorithmException {
+		PublicKey publicKey = KeyFactory.getInstance(KEY_ALG_RSA).generatePublic(new X509EncodedKeySpec(encoded));
+
+		return (RSAPublicKey) publicKey;
+	}
+}
