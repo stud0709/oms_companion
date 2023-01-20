@@ -23,24 +23,23 @@ public final class AESUtil {
 	public static final int KEY_LENGTH = 256;
 	public static final int KEYSPEC_ITERATIONS = 1024;
 	public static final int SALT_LENGTH = 16;
-	public static final String KEY_ALG_AES = "AES";
 
 	private AESUtil() {
 	}
 
-	public static SecretKey getSecretKeyFromPassword(String password, byte[] salt)
+	public static SecretKey getSecretKeyFromPassword(char[] password, byte[] salt)
 			throws NoSuchAlgorithmException, InvalidKeySpecException {
 
 		SecretKeyFactory factory = SecretKeyFactory.getInstance(KEY_ALGORITHM);
-		KeySpec spec = new PBEKeySpec(password.toCharArray(), salt, KEYSPEC_ITERATIONS, KEY_LENGTH);
-		SecretKey secret = new SecretKeySpec(factory.generateSecret(spec).getEncoded(), KEY_ALG_AES);
+		KeySpec spec = new PBEKeySpec(password, salt, KEYSPEC_ITERATIONS, KEY_LENGTH);
+		SecretKey secret = new SecretKeySpec(factory.generateSecret(spec).getEncoded(), "AES");
 		return secret;
 	}
 
 	public static SecretKey generateRandomSecretKey() {
 		byte[] bArr = new byte[KEY_LENGTH / 8];
 		new SecureRandom().nextBytes(bArr);
-		return new SecretKeySpec(bArr, KEY_ALG_AES);
+		return new SecretKeySpec(bArr, "AES");
 	}
 
 	public static IvParameterSpec generateIv() {

@@ -151,8 +151,9 @@ public class Main {
 
 	public static String byteArrayToHex(byte[] a) {
 		StringBuilder sb = new StringBuilder(a.length * 2);
+		int i = 0;
 		for (byte b : a)
-			sb.append(String.format("%02x", b)).append(" ");
+			sb.append(String.format("%02x", b)).append(i++ % 2 == 1 ? " " : "");
 		return sb.toString();
 	}
 

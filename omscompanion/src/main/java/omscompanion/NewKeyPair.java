@@ -160,7 +160,7 @@ public class NewKeyPair {
 
 			IvParameterSpec iv = AESUtil.generateIv();
 			byte[] salt = AESUtil.generateSalt();
-			SecretKey secretKey = AESUtil.getSecretKeyFromPassword(new String(txtPassPhrase.getPassword()), salt);
+			SecretKey secretKey = AESUtil.getSecretKeyFromPassword(txtPassPhrase.getPassword(), salt);
 
 			SwingUtilities.invokeLater(() -> txtInfo.append("AES initialized\n"));
 
@@ -434,15 +434,18 @@ public class NewKeyPair {
 						"If you need to restore your Key, start OneMoreSecret App on your phone ", b("BY HAND"),
 						" and scan the codes. ", b("DO NOT"), " trust unexpected prompts and pop-ups.", br(),
 						b("THIS DOCUMENT IS THE ONLY WAY TO RESTORE YOUR PRIVATE KEY"))),
-				p(b("Key alias: " + alias)), p(b("Fingerprint: " + Main.byteArrayToHex(fingerprint))),
+				p(b("Key alias: " + alias)), p(b("RSA Fingerprint: " + Main.byteArrayToHex(fingerprint))),
 				p("Scan this with your OneMoreSecret App:"), qrCodes, h2("Long-Term Backup and Technical Details"),
 				p("Base64 Encoded Message: "), messageChunks, p("Message format: oms://[base64 encoded data]"),
 				p("Data format: String (utf-8), separator: TAB"), p("Data elements:"),
 				ol(/* 1 */li("Application Identifier: " + sArr[0] + " = AES Encrypted Key Pair Transfer"),
-						/* 2 */li("Key Alias = " + sArr[1]), /* 3 */li("Salt: base64-encoded byte[]"),
-						/* 4 */li("IV: base64-encoded byte[]"), /* 5 */li("Cipher Algorithm = " + sArr[4]),
-						/* 6 */li("Key Algorithm = " + sArr[5]), /* 7 */li("Keyspec Length = " + sArr[6]),
-						/* 8 */li("Keyspec Iterations = " + sArr[7]),
+						/* 2 */li("Key Alias = " + sArr[1]),
+						/* 3 */li("Salt: base64-encoded byte[] = "
+								+ Main.byteArrayToHex(Base64.getDecoder().decode(sArr[2]))),
+						/* 4 */li("IV: base64-encoded byte[] = "
+								+ Main.byteArrayToHex(Base64.getDecoder().decode(sArr[3]))),
+						/* 5 */li("Cipher Algorithm = " + sArr[4]), /* 6 */li("Key Algorithm = " + sArr[5]),
+						/* 7 */li("Keyspec Length = " + sArr[6]), /* 8 */li("Keyspec Iterations = " + sArr[7]),
 						/* 9 */li("Cipher Text: base64-encoded byte[] (see below)")),
 				p("Private Key Information (encrypted within Cipher Text. String (utf-8), separator: TAB)"),
 				ol(/* 1 */li("Key Data: base64-encoded byte[]"), /* 2 */li("Certificate Data: base64-encoded byte[]"),

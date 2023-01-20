@@ -13,7 +13,7 @@ class AESUtilTest {
 	void testEncrypt() throws Exception {
 		IvParameterSpec iv = AESUtil.generateIv();
 		byte[] salt = AESUtil.generateSalt();
-		SecretKey secretKey = AESUtil.getSecretKeyFromPassword("secret", salt);
+		SecretKey secretKey = AESUtil.getSecretKeyFromPassword("secret".toCharArray(), salt);
 
 		String text = "The quick brown fox jumped over the lazy dog";
 
