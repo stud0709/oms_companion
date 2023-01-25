@@ -56,7 +56,7 @@ public class QRFrame extends JFrame {
 			setSize(images.get(0).getIconWidth(), images.get(0).getIconHeight());
 //			setUndecorated(true);
 			setResizable(false);
-//			setAlwaysOnTop(true);
+			setAlwaysOnTop(true);
 			addKeyListener(new KeyAdapter() {
 				@Override
 				public void keyPressed(KeyEvent e) {
