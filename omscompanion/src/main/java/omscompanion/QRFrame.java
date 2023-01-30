@@ -33,7 +33,7 @@ public class QRFrame extends JFrame {
 	private int idx = 0;
 	private long delay;
 	private final Runnable andThen;
-	public static final int DELAY = 100;
+	public static final int DELAY = 100, AUTOCLOSE = 60_000;
 
 	public QRFrame(String message, long delay, Runnable andThen)
 			throws NoSuchAlgorithmException, IOException, WriterException {
@@ -104,6 +104,17 @@ public class QRFrame extends JFrame {
 		}
 
 		timer.schedule(getTimerTask(), this.delay);
+
+		// close after some time
+		if (AUTOCLOSE != 0) {
+			timer.schedule(new TimerTask() {
+
+				@Override
+				public void run() {
+					cleanup();
+				}
+			}, AUTOCLOSE);
+		}
 	}
 
 	private TimerTask getTimerTask() {
