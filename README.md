@@ -5,7 +5,7 @@ The supplementary desktop software for OneMoreSecret.
 This is a very early version of the software. Use it at your own risk.
 
 ## Setting Up
-Download and unzip the release into a folder. Use `oms.cmd` to start the application. It will appear in your system tray.
+This software requires Java Runtime Environment 8 or later. Download and unzip the release into a folder. If you have your Java runtime on your class path, use `oms.cmd` to start the application. It will appear in your system tray.
 
 ### Creating Your Private Key
 Open the context menu from the system tray icon and click on *Cryptography... -> New Private Key*. The wizard will guide you through the process.
