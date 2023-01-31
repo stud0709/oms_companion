@@ -81,7 +81,7 @@ public class NewItem extends JFrame implements WindowListener {
 		JButton btnGifClipboard = new JButton("GIF File");
 		toolBar.add(btnGifClipboard);
 
-		JButton btnImg = new JButton("BASE64");
+		JButton btnImg = new JButton("GIF BASE64");
 		toolBar.add(btnImg);
 
 		// TODO: multiple public keys

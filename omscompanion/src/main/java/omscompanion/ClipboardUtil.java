@@ -11,14 +11,14 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class ClipboardUtil {
 	public static final int CHECK_INTERVAL = 1000;
 	protected static boolean automaticMode = false;
 	private static Thread t = null;
-	private static final Semaphore SEMAPHORE = new Semaphore(1);
+	private static final AtomicBoolean AUTO_CHECK_CLIPBOARD = new AtomicBoolean(true);
 
 	public static String get() throws UnsupportedFlavorException, IOException {
 		Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
@@ -55,10 +55,8 @@ public class ClipboardUtil {
 			s = s.substring(MessageComposer.OMS_URL.length());
 			s = new String(Base64.getDecoder().decode(s));
 
-			new QRFrame(s, QRFrame.DELAY, () -> {
-				if (automaticMode)
-					startClipboardCheck();
-			}).setVisible(true);
+			AUTO_CHECK_CLIPBOARD.set(false);
+			new QRFrame(s, QRFrame.DELAY, () -> AUTO_CHECK_CLIPBOARD.set(automaticMode)).setVisible(true);
 
 			return true;
 		} catch (Exception e) {
@@ -74,18 +72,17 @@ public class ClipboardUtil {
 			return;
 
 		t = new Thread(() -> {
-			while (!Thread.interrupted() && automaticMode) {
+			while (!Thread.interrupted()) {
 				try {
 					Thread.sleep(CHECK_INTERVAL);
-					SEMAPHORE.acquire();
 				} catch (InterruptedException e) {
 					return;
-				} finally {
-					SEMAPHORE.release();
 				}
 
-				if (checkClipboard())
-					break;
+				if (!AUTO_CHECK_CLIPBOARD.get() || !automaticMode)
+					continue;
+
+				checkClipboard();
 			}
 
 			t = null;
@@ -111,13 +108,14 @@ public class ClipboardUtil {
 			if (s == null)
 				return;
 
-			SEMAPHORE.acquire();
+			AUTO_CHECK_CLIPBOARD.set(false);
 
 			try {
-				new NewItem(s, () -> SEMAPHORE.release()).setVisible(true);
+				new NewItem(s, () -> AUTO_CHECK_CLIPBOARD.set(true)).setVisible(true);
+				;
 			} catch (Exception ex) {
 				ex.printStackTrace();
-				SEMAPHORE.release();
+				AUTO_CHECK_CLIPBOARD.set(true);
 			}
 
 		} catch (Exception ex) {
