@@ -15,6 +15,8 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,6 +27,7 @@ import java.security.PublicKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Properties;
 
 import javax.imageio.ImageIO;
 import javax.swing.JLabel;
@@ -33,9 +36,24 @@ public class Main {
 	public static final String KEY_ALG_RSA = "RSA";
 	public static Path PUBLIC_KEY_STORAGE = new File("public").toPath();
 	public static final int KEY_LENGTH = 2048;
+	public static final Properties properties = new Properties();
+	public static final String PROP_DEFAULT_KEY = "default_key";
 
 	public static void main(String[] args) throws Exception {
 		Files.createDirectories(PUBLIC_KEY_STORAGE);
+		File pf = new File("omscompanion.properties");
+		if (pf.exists()) {
+			try (FileReader fr = new FileReader(pf)) {
+				properties.load(fr);
+			}
+		}
+		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+			try (FileWriter fw = new FileWriter(pf)) {
+				properties.store(fw, null);
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+		}));
 		initTrayIcon();
 		ClipboardUtil.setAutomaticMode(true);
 	}
@@ -127,6 +145,7 @@ public class Main {
 	 * @throws IOException
 	 * @throws InterruptedException
 	 */
+	@Deprecated
 	public static int genKey(String keyalg, String alias, Path keystorePath, String storepass, int validity,
 			int keysize, String dname) throws IOException, InterruptedException {
 

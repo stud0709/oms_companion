@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
 public class ClipboardUtil {
@@ -47,16 +48,15 @@ public class ClipboardUtil {
 
 			s = s.trim();
 
-			if (!s.startsWith(MessageComposer.OMS_URL))
+			String m = restoreMessage(s);
+
+			if (m == null) // not a valid OMS message
 				return false;
 
 			set("");
 
-			s = s.substring(MessageComposer.OMS_URL.length());
-			s = new String(Base64.getDecoder().decode(s));
-
 			AUTO_CHECK_CLIPBOARD.set(false);
-			new QRFrame(s, QRFrame.DELAY, () -> AUTO_CHECK_CLIPBOARD.set(automaticMode)).setVisible(true);
+			new QRFrame(m, QRFrame.DELAY, () -> AUTO_CHECK_CLIPBOARD.set(automaticMode)).setVisible(true);
 
 			return true;
 		} catch (Exception e) {
@@ -65,6 +65,34 @@ public class ClipboardUtil {
 
 		return false;
 
+	}
+
+	private static String restoreMessage(String s) {
+		String result = null;
+
+		Matcher m = MessageComposer.OMS_PATTERN.matcher(s);
+
+		if (!m.find()) // not a valid OMS message
+			return result;
+
+		int version = Integer.parseInt(m.group(1));
+
+		// (1) remove prefix
+		s = s.substring(m.group().length());
+
+		switch (version) {
+		case 0:
+			// (2) convert to byte array
+			byte[] bArr = Base64.getDecoder().decode(s);
+
+			// (3) convert to string
+			result = new String(bArr);
+			break;
+		default:
+			throw new UnsupportedOperationException("Unsupported version: " + version);
+		}
+
+		return result;
 	}
 
 	protected static synchronized void startClipboardCheck() {
