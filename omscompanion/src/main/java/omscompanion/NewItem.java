@@ -75,6 +75,7 @@ public class NewItem extends JFrame implements WindowListener {
 		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
 
 		JTextArea txtrUseTheTool = new JTextArea();
+		txtrUseTheTool.setEditable(false);
 		txtrUseTheTool.setWrapStyleWord(true);
 		txtrUseTheTool.setLineWrap(true);
 		txtrUseTheTool.setText("We have encrypted your data and copied them in " + MessageComposer.OMS_PREFIX
@@ -105,8 +106,6 @@ public class NewItem extends JFrame implements WindowListener {
 		} else {
 			comboUseKey.setSelectedItem(defaultKey);
 		}
-
-		comboUseKey.setEnabled(publicKeys.size() > 1);
 
 		comboUseKey.addItemListener(e -> onKeySelected(comboUseKey, s));
 
