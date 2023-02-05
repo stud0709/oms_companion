@@ -415,7 +415,7 @@ public class NewKeyPair {
 
 		int lineLength = 75;
 
-		String messageAsUrl = MessageComposer.asText(message);
+		String messageAsUrl = MessageComposer.encodeAsOmsText(message);
 		PTag messageChunks = p().withStyle("font-family:monospace;");
 		int offset = 0;
 		while (offset < messageAsUrl.length()) {

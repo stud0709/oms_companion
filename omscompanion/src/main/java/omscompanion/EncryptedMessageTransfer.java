@@ -20,9 +20,16 @@ import javax.crypto.spec.IvParameterSpec;
 
 public class EncryptedMessageTransfer extends MessageComposer {
 	private final String message;
+	/**
+	 * See https://docs.oracle.com/javase/7/docs/api/javax/crypto/Cipher.html for
+	 * the list of supported transformations
+	 * 
+	 * See https://developer.android.com/reference/javax/crypto/Cipher for Android
+	 */
 	public static final String RSA_TRANSFORMATION = "RSA/ECB/PKCS1Padding";
 	// or RSA/ECB/OAEPWithSHA-1AndMGF1Padding
 	// or RSA/ECB/OAEPWithSHA-256AndMGF1Padding
+	// or RSA/ECB/PKCS1Padding
 
 	public EncryptedMessageTransfer(byte[] message, RSAPublicKey rsaPublicKey, String rsaTransformation)
 			throws NoSuchAlgorithmException, IOException, NoSuchPaddingException, IllegalBlockSizeException,

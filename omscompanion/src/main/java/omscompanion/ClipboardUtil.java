@@ -9,17 +9,15 @@ import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
 public class ClipboardUtil {
 	public static final int CHECK_INTERVAL = 1000;
 	protected static boolean automaticMode = false;
 	private static Thread t = null;
-	private static final AtomicBoolean AUTO_CHECK_CLIPBOARD = new AtomicBoolean(true);
+	private static final AtomicBoolean CHECK_CLIPBOARD = new AtomicBoolean(false);
 
 	public static String get() throws UnsupportedFlavorException, IOException {
 		Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
@@ -48,15 +46,15 @@ public class ClipboardUtil {
 
 			s = s.trim();
 
-			String m = restoreMessage(s);
+			String m = MessageComposer.decode(s);
 
 			if (m == null) // not a valid OMS message
 				return false;
 
 			set("");
 
-			AUTO_CHECK_CLIPBOARD.set(false);
-			new QRFrame(m, QRFrame.DELAY, () -> AUTO_CHECK_CLIPBOARD.set(automaticMode)).setVisible(true);
+			CHECK_CLIPBOARD.set(false);
+			new QRFrame(m, QRFrame.DELAY, () -> CHECK_CLIPBOARD.set(automaticMode)).setVisible(true);
 
 			return true;
 		} catch (Exception e) {
@@ -65,34 +63,6 @@ public class ClipboardUtil {
 
 		return false;
 
-	}
-
-	private static String restoreMessage(String s) {
-		String result = null;
-
-		Matcher m = MessageComposer.OMS_PATTERN.matcher(s);
-
-		if (!m.find()) // not a valid OMS message
-			return result;
-
-		int version = Integer.parseInt(m.group(1));
-
-		// (1) remove prefix
-		s = s.substring(m.group().length());
-
-		switch (version) {
-		case 0:
-			// (2) convert to byte array
-			byte[] bArr = Base64.getDecoder().decode(s);
-
-			// (3) convert to string
-			result = new String(bArr);
-			break;
-		default:
-			throw new UnsupportedOperationException("Unsupported version: " + version);
-		}
-
-		return result;
 	}
 
 	protected static synchronized void startClipboardCheck() {
@@ -107,7 +77,7 @@ public class ClipboardUtil {
 					return;
 				}
 
-				if (!AUTO_CHECK_CLIPBOARD.get() || !automaticMode)
+				if (!CHECK_CLIPBOARD.get())
 					continue;
 
 				checkClipboard();
@@ -116,11 +86,14 @@ public class ClipboardUtil {
 			t = null;
 		});
 
+		t.setDaemon(true);
+
 		t.start();
 	}
 
 	public static void setAutomaticMode(boolean b) {
 		automaticMode = b;
+		CHECK_CLIPBOARD.set(b);
 
 		if (automaticMode)
 			startClipboardCheck();
@@ -136,14 +109,13 @@ public class ClipboardUtil {
 			if (s == null)
 				return;
 
-			AUTO_CHECK_CLIPBOARD.set(false);
+			CHECK_CLIPBOARD.set(false);
 
 			try {
-				new NewItem(s, () -> AUTO_CHECK_CLIPBOARD.set(true)).setVisible(true);
-				;
+				new NewItem(s, () -> CHECK_CLIPBOARD.set(automaticMode)).setVisible(true);
 			} catch (Exception ex) {
 				ex.printStackTrace();
-				AUTO_CHECK_CLIPBOARD.set(true);
+				CHECK_CLIPBOARD.set(automaticMode);
 			}
 
 		} catch (Exception ex) {

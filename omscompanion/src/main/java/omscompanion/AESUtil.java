@@ -18,6 +18,12 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 public final class AESUtil {
+	/**
+	 * See https://docs.oracle.com/javase/7/docs/api/javax/crypto/Cipher.html for
+	 * the list of supported transformations in Java
+	 * 
+	 * See https://developer.android.com/reference/javax/crypto/Cipher for Android
+	 */
 	public static final String AES_TRANSFORMATION = "AES/CBC/PKCS5Padding";
 	public static final String KEY_ALGORITHM = "PBKDF2WithHmacSHA256";
 	public static final int KEY_LENGTH = 256;

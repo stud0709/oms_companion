@@ -54,7 +54,9 @@ public class Main {
 				ex.printStackTrace();
 			}
 		}));
+
 		initTrayIcon();
+
 		ClipboardUtil.setAutomaticMode(true);
 	}
 

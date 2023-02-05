@@ -174,7 +174,7 @@ public class NewItem extends JFrame implements WindowListener {
 	}
 
 	private void createTextLink() {
-		String omsURL = MessageComposer.asText(message);
+		String omsURL = MessageComposer.encodeAsOmsText(message);
 		ClipboardUtil.set(omsURL);
 	}
 

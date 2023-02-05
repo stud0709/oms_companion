@@ -1,6 +1,7 @@
 package omscompanion;
 
 import java.util.Base64;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public abstract class MessageComposer {
@@ -18,6 +19,34 @@ public abstract class MessageComposer {
 
 	public abstract String getMessage();
 
+	public static String decode(String omsText) {
+		String result = null;
+
+		Matcher m = OMS_PATTERN.matcher(omsText);
+
+		if (!m.find()) // not a valid OMS message
+			return result;
+
+		int version = Integer.parseInt(m.group(1));
+
+		// (1) remove prefix
+		omsText = omsText.substring(m.group().length());
+
+		switch (version) {
+		case 0:
+			// (2) convert to byte array
+			byte[] bArr = Base64.getDecoder().decode(omsText);
+
+			// (3) convert to string
+			result = new String(bArr);
+			break;
+		default:
+			throw new UnsupportedOperationException("Unsupported version: " + version);
+		}
+
+		return result;
+	}
+
 	/**
 	 * You can pass messages through the clipboard. A message begins with
 	 * {@link MessageComposer#OMS_PREFIX}. Version 00 of OMS protocol:
@@ -29,7 +58,7 @@ public abstract class MessageComposer {
 	 * 
 	 * @return
 	 */
-	public static String asText(String message) {
+	public static String encodeAsOmsText(String message) {
 		return OMS_PREFIX + Base64.getEncoder().encodeToString(message.getBytes());
 	}
 }
