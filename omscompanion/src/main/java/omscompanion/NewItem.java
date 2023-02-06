@@ -29,7 +29,7 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextArea;
-import javax.swing.JToolBar;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 
 import com.google.zxing.common.BitMatrix;
@@ -63,7 +63,7 @@ public class NewItem extends JFrame implements WindowListener {
 		setResizable(false);
 		setAlwaysOnTop(true);
 		setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-		setBounds(100, 100, 450, 300);
+		setBounds(100, 100, 500, 300);
 		contentPane = new JPanel();
 		contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
 
@@ -82,14 +82,20 @@ public class NewItem extends JFrame implements WindowListener {
 				+ "...  format back to the clipboard. \r\n\r\nUse the tool bar below to generate other formats (they will be copied to the clipboard as well).\r\n\r\nThe clipboard will be cleared as soon as you close this window. ");
 		contentPane.add(txtrUseTheTool, BorderLayout.CENTER);
 
-		JToolBar toolBar_1 = new JToolBar();
-		toolBar_1.setRollover(true);
-		toolBar_1.setFloatable(false);
-		toolBar_1.setAlignmentX(LEFT_ALIGNMENT);
-		panel.add(toolBar_1);
+		JPanel panel_1 = new JPanel();
+		contentPane.add(panel_1, BorderLayout.SOUTH);
+		panel_1.setLayout(new BoxLayout(panel_1, BoxLayout.Y_AXIS));
 
-		JLabel lblNewLabel = new JLabel("Use Key:");
-		toolBar_1.add(lblNewLabel);
+		JPanel panel_2 = new JPanel();
+		panel_2.setLayout(new BoxLayout(panel_2, BoxLayout.X_AXIS));
+		panel_1.add(panel_2);
+
+		JPanel panel_3 = new JPanel();
+		panel_3.setLayout(new BoxLayout(panel_3, BoxLayout.X_AXIS));
+		panel_1.add(panel_3);
+
+		JLabel lblNewLabel = new JLabel("Key: ");
+		panel_2.add(lblNewLabel);
 
 		List<String> publicKeys = Files.list(Main.PUBLIC_KEY_STORAGE).map(p -> p.getFileName().toString())
 				.filter(fn -> fn.toLowerCase().endsWith(FILE_TYPE_PUCLIC_KEY)).collect(Collectors.toList());
@@ -109,30 +115,29 @@ public class NewItem extends JFrame implements WindowListener {
 
 		comboUseKey.addItemListener(e -> onKeySelected(comboUseKey, s));
 
-		toolBar_1.add(comboUseKey);
+		panel_2.add(comboUseKey);
 
 		JButton btnSetDefault = new JButton("Set Default");
 		btnSetDefault.addActionListener(e -> onSetDefault(comboUseKey));
 		btnSetDefault.setEnabled(publicKeys.size() > 1);
-		toolBar_1.add(btnSetDefault);
-
-		JToolBar toolBar = new JToolBar();
-		toolBar.setRollover(true);
-		toolBar.setFloatable(false);
-		toolBar.setAlignmentX(LEFT_ALIGNMENT);
-		panel.add(toolBar);
+		panel_3.add(btnSetDefault);
 
 		JButton btnText = new JButton(MessageComposer.OMS_PREFIX);
 		btnText.setEnabled(!publicKeys.isEmpty());
-		toolBar.add(btnText);
+		panel_3.add(btnText);
 
 		JButton btnGifClipboard = new JButton("GIF File");
 		btnGifClipboard.setEnabled(!publicKeys.isEmpty());
-		toolBar.add(btnGifClipboard);
+		panel_3.add(btnGifClipboard);
 
 		JButton btnImg = new JButton("GIF BASE64");
 		btnImg.setEnabled(!publicKeys.isEmpty());
-		toolBar.add(btnImg);
+		panel_3.add(btnImg);
+
+		JButton btnPreview = new JButton("Preview QR");
+		btnPreview.setEnabled(!publicKeys.isEmpty());
+		btnPreview.addActionListener(e -> onPreview(btnPreview));
+		panel_3.add(btnPreview);
 
 		btnText.addActionListener(e -> onBtnText());
 		btnGifClipboard.addActionListener(e -> onBtnGif());
@@ -148,6 +153,16 @@ public class NewItem extends JFrame implements WindowListener {
 		} else {
 			encryptMessage(comboUseKey, s);
 			createTextLink();
+		}
+	}
+
+	private void onPreview(JButton btn) {
+		btn.setEnabled(false);
+		try {
+			new QRFrame(message, AnimatedQrHelper.DELAY, () -> SwingUtilities.invokeLater(() -> btn.setEnabled(true)))
+					.setVisible(true);
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 
@@ -191,7 +206,7 @@ public class NewItem extends JFrame implements WindowListener {
 
 		try (FileImageOutputStream fios = new FileImageOutputStream(f)) {
 			List<BitMatrix> list = QRUtil.getQrSequence(message, QRUtil.CHUNK_SIZE, QRUtil.BARCODE_SIZE);
-			AnimatedGifWriter.createGif(list, fios, QRFrame.DELAY);
+			AnimatedGifWriter.createGif(list, fios, AnimatedQrHelper.DELAY);
 			fios.flush();
 		} catch (Exception ex) {
 			ex.printStackTrace();

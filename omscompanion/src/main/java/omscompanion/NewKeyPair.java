@@ -206,7 +206,7 @@ public class NewKeyPair {
 
 			SwingUtilities.invokeLater(() -> txtInfo.append("Displaying QR sequence... "));
 
-			new QRFrame(message, QRFrame.DELAY, () -> {
+			new QRFrame(message, AnimatedQrHelper.DELAY, () -> {
 				SwingUtilities.invokeLater(() -> txtInfo.append("Showing backup file\n"));
 				try {
 					Desktop.getDesktop().open(backupFile);

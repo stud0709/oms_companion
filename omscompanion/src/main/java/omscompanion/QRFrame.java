@@ -7,13 +7,10 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Timer;
 import java.util.TimerTask;
-import java.util.stream.Collectors;
 
 import javax.swing.ImageIcon;
 import javax.swing.JFrame;
@@ -21,26 +18,20 @@ import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 
 import com.google.zxing.WriterException;
-import com.google.zxing.client.j2se.MatrixToImageWriter;
-import com.google.zxing.common.BitMatrix;
 
 public class QRFrame extends JFrame {
 	private static final long serialVersionUID = -6749732054569148998L;
 	private static QRFrame instance = null;
-	private List<ImageIcon> images = new ArrayList<>();
 	private final JLabel lbl;
-	private final Timer timer = new Timer();
-	private int idx = 0;
-	private long delay;
 	private final Runnable andThen;
-	public static final int DELAY = 100, AUTOCLOSE = 60_000;
+	public static final int AUTOCLOSE = 60_000;
 
 	public QRFrame(String message, long delay, Runnable andThen)
 			throws NoSuchAlgorithmException, IOException, WriterException {
 
-		List<BitMatrix> list = QRUtil.getQrSequence(message, QRUtil.CHUNK_SIZE, QRUtil.BARCODE_SIZE);
+		AnimatedQrHelper qrHelper = new AnimatedQrHelper(message, delay, () -> instance == QRFrame.this,
+				bi -> setImage(bi));
 
-		this.delay = delay;
 		this.andThen = andThen;
 
 		synchronized (QRFrame.class) {
@@ -48,12 +39,9 @@ public class QRFrame extends JFrame {
 				instance.cleanup();
 			}
 
-			images = list.stream().map(m -> MatrixToImageWriter.toBufferedImage(m)).map(bi -> new ImageIcon(bi))
-					.collect(Collectors.toList());
-
 			setTitle("omsCompanion");
 			setLayout(new BorderLayout());
-			setSize(images.get(0).getIconWidth(), images.get(0).getIconHeight());
+			setSize(qrHelper.getImages().get(0).getWidth(), qrHelper.getImages().get(0).getHeight());
 //			setUndecorated(true);
 			setResizable(false);
 			setAlwaysOnTop(true);
@@ -96,18 +84,18 @@ public class QRFrame extends JFrame {
 			setAutoRequestFocus(true);
 			setFocusableWindowState(true);
 
-			lbl = new JLabel(images.get(0));
+			lbl = new JLabel(new ImageIcon(qrHelper.getImages().get(0)));
 			add(lbl, BorderLayout.CENTER);
 			pack();
 
 			instance = this;
 		}
 
-		timer.schedule(getTimerTask(), this.delay);
+		qrHelper.start();
 
 		// close after some time
 		if (AUTOCLOSE != 0) {
-			timer.schedule(new TimerTask() {
+			qrHelper.getTimer().schedule(new TimerTask() {
 
 				@Override
 				public void run() {
@@ -117,26 +105,8 @@ public class QRFrame extends JFrame {
 		}
 	}
 
-	private TimerTask getTimerTask() {
-		return new TimerTask() {
-
-			@Override
-			public void run() {
-				synchronized (QRFrame.class) {
-					if (instance != QRFrame.this)
-						return;
-
-					idx++;
-
-					if (idx >= images.size())
-						idx = 0;
-
-					SwingUtilities.invokeLater(() -> lbl.setIcon(images.get(idx)));
-
-					timer.schedule(getTimerTask(), QRFrame.this.delay);
-				}
-			}
-		};
+	private void setImage(BufferedImage bi) {
+		SwingUtilities.invokeLater(() -> lbl.setIcon(new ImageIcon(bi)));
 	}
 
 	private void cleanup() {

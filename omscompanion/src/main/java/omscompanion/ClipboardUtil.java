@@ -54,7 +54,7 @@ public class ClipboardUtil {
 			set("");
 
 			CHECK_CLIPBOARD.set(false);
-			new QRFrame(m, QRFrame.DELAY, () -> CHECK_CLIPBOARD.set(automaticMode)).setVisible(true);
+			new QRFrame(m, AnimatedQrHelper.DELAY, () -> CHECK_CLIPBOARD.set(automaticMode)).setVisible(true);
 
 			return true;
 		} catch (Exception e) {
@@ -106,7 +106,7 @@ public class ClipboardUtil {
 
 			// try to encrypt clipboard content
 			String s = get();
-			if (s == null)
+			if (s == null || s.trim().isEmpty())
 				return;
 
 			CHECK_CLIPBOARD.set(false);
