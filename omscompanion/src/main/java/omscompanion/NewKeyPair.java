@@ -70,6 +70,7 @@ public class NewKeyPair {
 	private JCheckBox chckbxStorePublicKey;
 	private static final Color COLOR_RED = Color.decode("#F08080");
 	private char echoChar;
+	public static final int KEY_LENGTH = 2048;
 
 	/**
 	 * Create the application.
@@ -150,13 +151,13 @@ public class NewKeyPair {
 		});
 
 		try {
-			KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(Main.KEY_ALG_RSA);
-			keyPairGenerator.initialize(Main.KEY_LENGTH);
+			KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+			keyPairGenerator.initialize(KEY_LENGTH);
 			KeyPair keyPair = keyPairGenerator.generateKeyPair();
 			RSAPublicKey rsaPublicKey = (RSAPublicKey) keyPair.getPublic();
 
 			SwingUtilities.invokeLater(() -> txtInfo.append("Key pair generated (" + rsaPublicKey.getAlgorithm() + ", "
-					+ Main.KEY_LENGTH + ", " + rsaPublicKey.getFormat() + ")\n"));
+					+ KEY_LENGTH + ", " + rsaPublicKey.getFormat() + ")\n"));
 
 			IvParameterSpec iv = AESUtil.generateIv();
 			byte[] salt = AESUtil.generateSalt();

@@ -31,13 +31,12 @@ import java.util.Properties;
 
 import javax.imageio.ImageIO;
 import javax.swing.JLabel;
+import javax.swing.SwingUtilities;
 
 public class Main {
-	public static final String KEY_ALG_RSA = "RSA";
 	public static Path PUBLIC_KEY_STORAGE = new File("public").toPath();
-	public static final int KEY_LENGTH = 2048;
 	public static final Properties properties = new Properties();
-	public static final String PROP_DEFAULT_KEY = "default_key";
+	public static final String PROP_DEFAULT_KEY = "default_key", PROP_AUTO_CLIPBOARD_CHECK = "auto_clipboard_check";
 
 	public static void main(String[] args) throws Exception {
 		Files.createDirectories(PUBLIC_KEY_STORAGE);
@@ -57,7 +56,8 @@ public class Main {
 
 		initTrayIcon();
 
-		ClipboardUtil.setAutomaticMode(true);
+		ClipboardUtil
+				.setAutomaticMode(properties.getProperty(PROP_AUTO_CLIPBOARD_CHECK, "true").equalsIgnoreCase("true"));
 	}
 
 	private static void initTrayIcon() throws IOException, AWTException {
@@ -89,6 +89,20 @@ public class Main {
 			processClipboard.setActionCommand("processClipboard");
 			processClipboard.addActionListener(MENU_ACTION_LISTENER);
 			menu.add(processClipboard);
+		}
+
+		{
+			String menuItemText = "Monitor clipboard";
+			MenuItem monitorClipboard = new MenuItem(menuItemText);
+			monitorClipboard.setActionCommand("autoClipboardCheck");
+			monitorClipboard.addActionListener(MENU_ACTION_LISTENER);
+			ClipboardUtil.setOnAutomaticModeChanged(b -> {
+				properties.setProperty(PROP_AUTO_CLIPBOARD_CHECK, Boolean.toString(b));
+				SwingUtilities.invokeLater(() -> {
+					monitorClipboard.setLabel(menuItemText + (b ? " \u2713" : ""));
+				});
+			});
+			menu.add(monitorClipboard);
 		}
 
 		{
@@ -129,6 +143,8 @@ public class Main {
 			case "newKeyPair":
 				new NewKeyPair().getFrame().setVisible(true);
 				break;
+			case "autoClipboardCheck":
+				ClipboardUtil.setAutomaticMode(!ClipboardUtil.isAutomaticMode());
 			}
 		}
 	};
@@ -179,7 +195,7 @@ public class Main {
 	}
 
 	public static RSAPublicKey getPublicKey(byte[] encoded) throws InvalidKeySpecException, NoSuchAlgorithmException {
-		PublicKey publicKey = KeyFactory.getInstance(KEY_ALG_RSA).generatePublic(new X509EncodedKeySpec(encoded));
+		PublicKey publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(encoded));
 
 		return (RSAPublicKey) publicKey;
 	}

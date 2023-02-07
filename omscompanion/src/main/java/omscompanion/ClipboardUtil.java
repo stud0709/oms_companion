@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class ClipboardUtil {
@@ -18,6 +19,7 @@ public class ClipboardUtil {
 	protected static boolean automaticMode = false;
 	private static Thread t = null;
 	private static final AtomicBoolean CHECK_CLIPBOARD = new AtomicBoolean(false);
+	private static Consumer<Boolean> onAutomaticModeChanged = null;
 
 	public static String get() throws UnsupportedFlavorException, IOException {
 		Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
@@ -29,6 +31,14 @@ public class ClipboardUtil {
 
 	public static void set(String s) {
 		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(s), null);
+	}
+
+	public static boolean isAutomaticMode() {
+		return automaticMode;
+	}
+
+	public static void setOnAutomaticModeChanged(Consumer<Boolean> onAutomaticModeChanged) {
+		ClipboardUtil.onAutomaticModeChanged = onAutomaticModeChanged;
 	}
 
 	public static void set(File... fArr) {
@@ -95,8 +105,11 @@ public class ClipboardUtil {
 		automaticMode = b;
 		CHECK_CLIPBOARD.set(b);
 
+		onAutomaticModeChanged.accept(b);
+
 		if (automaticMode)
 			startClipboardCheck();
+
 	}
 
 	public static void processClipboard() {
