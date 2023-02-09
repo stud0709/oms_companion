@@ -27,7 +27,9 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPublicKey;
+import java.time.Instant;
 import java.util.Base64;
+import java.util.Date;
 import java.util.List;
 
 import javax.crypto.SecretKey;
@@ -167,7 +169,7 @@ public class NewKeyPair {
 
 			String alias = txtKeyAlias.getText().trim();
 
-			String message = new AesEncryptedKeyPairTransfer(alias, keyPair.getPrivate(), null, secretKey, iv, salt)
+			String message = new AesEncryptedKeyPairTransfer(alias, keyPair.getPrivate(), null, secretKey, iv, salt, 0)
 					.getMessage();
 
 			File backupFile = new File(txtBackupFile.getText());
@@ -426,9 +428,13 @@ public class NewKeyPair {
 		}
 
 		String sArr[] = message.split("\t");
+		long validityEnd = Long.parseLong(sArr[8]);
 
 		return html(body(h1("OneMoreSecret Private Key Backup"), p(b("Keep this file / printout in a secure location")),
-				p("This is a hard copy of your Private Key for OneMoreSecret. It can be used to import your Private Key into a new device or after a reset of OneMoreSecret App. This document is encrypted with AES encryption, you will need your TRANSPORT PASSWORD to complete the import procedure."),
+				p("This is a hard copy of your Private Key for OneMoreSecret. "
+						+ "It can be used to import your Private Key into a new device "
+						+ "or after a reset of OneMoreSecret App. This document is encrypted with AES encryption, "
+						+ "you will need your TRANSPORT PASSWORD to complete the import procedure."),
 				h2("WARNING:"),
 				p(join(b("DO NOT"), " share this document with other persons.", br(), b("DO NOT"),
 						" provide its content to untrusted apps, on the Internet etc.", br(),
@@ -437,7 +443,8 @@ public class NewKeyPair {
 						b("THIS DOCUMENT IS THE ONLY WAY TO RESTORE YOUR PRIVATE KEY"))),
 				p(b("Key alias: " + alias)), p(b("RSA Fingerprint: " + Main.byteArrayToHex(fingerprint))),
 				p("Scan this with your OneMoreSecret App:"), qrCodes, h2("Long-Term Backup and Technical Details"),
-				p("Base64 Encoded Message: "), messageChunks, p("Message format: oms://[base64 encoded data]"),
+				p("Base64 Encoded Message: "), messageChunks,
+				p("Message format: " + MessageComposer.OMS_PREFIX + "[base64 encoded data]"),
 				p("Data format: String (utf-8), separator: TAB"), p("Data elements:"),
 				ol(/* 1 */li("Application Identifier: " + sArr[0] + " = AES Encrypted Key Pair Transfer"),
 						/* 2 */li("Key Alias = " + sArr[1]),
@@ -447,10 +454,14 @@ public class NewKeyPair {
 								+ Main.byteArrayToHex(Base64.getDecoder().decode(sArr[3]))),
 						/* 5 */li("Cipher Algorithm = " + sArr[4]), /* 6 */li("Key Algorithm = " + sArr[5]),
 						/* 7 */li("Keyspec Length = " + sArr[6]), /* 8 */li("Keyspec Iterations = " + sArr[7]),
-						/* 9 */li("Cipher Text: base64-encoded byte[] (see below)")),
+						/* 9 */li("Validity end: epoch-milliseconds = " + sArr[8] + " ("
+								+ (validityEnd == 0 ? "undefined" : Date.from(Instant.ofEpochMilli(validityEnd)))
+								+ ")"),
+						/* 10 */li("Cipher Text: base64-encoded byte[] (see below)")),
 				p("Private Key Information (encrypted within Cipher Text. String (utf-8), separator: TAB)"),
-				ol(/* 1 */li("Key Data: base64-encoded byte[]"), /* 2 */li("Certificate Data: base64-encoded byte[]"),
-						/* 3 */li("SHA-256 over Private Key and Certificate: base64-encoded byte[]"))))
+				ol(/* 1 */li("Private Key Data: base64-encoded byte[]"),
+						/* 2 */li("Certificate Data: base64-encoded byte[]"),
+						/* 4 */li("SHA-256 over Private Key, Certificate, Validity end: base64-encoded byte[]"))))
 				.render();
 	}
 
