@@ -1,6 +1,7 @@
 package omscompanion;
 
 import java.awt.AWTException;
+import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Image;
@@ -109,10 +110,24 @@ public class Main {
 			Menu crypto = new Menu("Cryptography...");
 
 			{
-				MenuItem newKey = new MenuItem("New Private Key");
-				newKey.setActionCommand("newKeyPair");
-				newKey.addActionListener(MENU_ACTION_LISTENER);
-				crypto.add(newKey);
+				MenuItem menuItem = new MenuItem("New Private Key");
+				menuItem.setActionCommand("newKeyPair");
+				menuItem.addActionListener(MENU_ACTION_LISTENER);
+				crypto.add(menuItem);
+			}
+
+			{
+				MenuItem menuItem = new MenuItem("Import Public Key");
+				menuItem.setActionCommand("importPublicKey");
+				menuItem.addActionListener(MENU_ACTION_LISTENER);
+				crypto.add(menuItem);
+			}
+
+			{
+				MenuItem menuItem = new MenuItem("Public Key Folder");
+				menuItem.setActionCommand("publicKeyFolder");
+				menuItem.addActionListener(MENU_ACTION_LISTENER);
+				crypto.add(menuItem);
 			}
 
 			menu.add(crypto);
@@ -145,6 +160,17 @@ public class Main {
 				break;
 			case "autoClipboardCheck":
 				ClipboardUtil.setAutomaticMode(!ClipboardUtil.isAutomaticMode());
+				break;
+			case "importPublicKey":
+				new PublicKeyImport().setVisible(true);
+				break;
+			case "publicKeyFolder":
+				try {
+					Desktop.getDesktop().open(PUBLIC_KEY_STORAGE.toFile());
+				} catch (IOException ex) {
+					ex.printStackTrace();
+				}
+				break;
 			}
 		}
 	};

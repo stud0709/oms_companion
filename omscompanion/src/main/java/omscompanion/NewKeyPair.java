@@ -26,11 +26,13 @@ import java.nio.file.Path;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
 import java.util.List;
+import java.util.function.Function;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
@@ -181,30 +183,15 @@ public class NewKeyPair {
 			SwingUtilities.invokeLater(() -> txtInfo.append("Backup file generated\n"));
 
 			if (chckbxStorePublicKey.isSelected()) {
-				String fn = alias + "." + rsaPublicKey.getFormat().toLowerCase();
-				Path publicKeyPath = Main.PUBLIC_KEY_STORAGE.resolve(fn);
-
-				if (Files.exists(publicKeyPath)) {
-					// create backup of the old key
-					RSAPublicKey pk = Main.getPublicKey(Files.readAllBytes(publicKeyPath));
-
-					byte[] fingerprint = Main.getFingerprint(pk);
-
-					String fn_backup = fn + "." + Main.byteArrayToHex(fingerprint).replaceAll("\\W", "") + ".bak";
-
-					Path backupPath = Main.PUBLIC_KEY_STORAGE.resolve(fn_backup);
-
-					Files.copy(publicKeyPath, backupPath);
-
+				Path p = savePublicKey(alias, rsaPublicKey, backupPath -> {
 					SwingUtilities.invokeLater(
 							() -> txtInfo.append("WARNING: Overwriting existing public key file. Old file copied to: \""
 									+ backupPath.toAbsolutePath().toString() + "\"\n"));
-				}
+					return true;
+				});
 
-				Files.write(publicKeyPath, rsaPublicKey.getEncoded());
-
-				SwingUtilities.invokeLater(() -> txtInfo
-						.append("Public key written to: \"" + publicKeyPath.toAbsolutePath().toString() + "\"\n"));
+				SwingUtilities.invokeLater(
+						() -> txtInfo.append("Public key written to: \"" + p.toAbsolutePath().toString() + "\"\n"));
 			}
 
 			SwingUtilities.invokeLater(() -> txtInfo.append("Displaying QR sequence... "));
@@ -463,6 +450,32 @@ public class NewKeyPair {
 						/* 2 */li("Certificate Data: base64-encoded byte[]"),
 						/* 4 */li("SHA-256 over Private Key, Certificate, Validity end: base64-encoded byte[]"))))
 				.render();
+	}
+
+	public static Path savePublicKey(String alias, PublicKey rsaPublicKey, Function<Path, Boolean> onOverwrite)
+			throws Exception {
+		String fn = alias + "." + rsaPublicKey.getFormat().toLowerCase();
+		Path publicKeyPath = Main.PUBLIC_KEY_STORAGE.resolve(fn);
+
+		if (Files.exists(publicKeyPath)) {
+			// create backup of the old key
+			RSAPublicKey pk = Main.getPublicKey(Files.readAllBytes(publicKeyPath));
+
+			byte[] fingerprint = Main.getFingerprint(pk);
+
+			String fn_backup = fn + "." + Main.byteArrayToHex(fingerprint).replaceAll("\\W", "") + ".bak";
+
+			Path backupPath = Main.PUBLIC_KEY_STORAGE.resolve(fn_backup);
+
+			if (!onOverwrite.apply(backupPath))
+				return null;
+
+			Files.copy(publicKeyPath, backupPath);
+
+		}
+
+		Files.write(publicKeyPath, rsaPublicKey.getEncoded());
+		return publicKeyPath;
 	}
 
 }
