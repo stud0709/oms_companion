@@ -1,4 +1,4 @@
-package omscompanion;
+package omscompanion.crypto;
 
 import java.io.IOException;
 import java.security.InvalidAlgorithmParameterException;
@@ -18,6 +18,8 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
+
+import omscompanion.MessageComposer;
 
 public class AesEncryptedKeyPairTransfer extends MessageComposer {
 	private final String message;
@@ -100,7 +102,7 @@ public class AesEncryptedKeyPairTransfer extends MessageComposer {
 		list.add(Base64.getEncoder().encodeToString(hash));
 
 		String s = list.stream().collect(Collectors.joining("\t"));
-		System.out.println(s);
+		// System.out.println(s);
 
 		// --- encrypting the data with AES ---
 		return AESUtil.encrypt(s.getBytes(), aesKey, iv, AESUtil.AES_TRANSFORMATION);

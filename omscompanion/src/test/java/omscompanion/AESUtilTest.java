@@ -7,6 +7,8 @@ import javax.crypto.spec.IvParameterSpec;
 
 import org.junit.jupiter.api.Test;
 
+import omscompanion.crypto.AESUtil;
+
 class AESUtilTest {
 
 	@Test

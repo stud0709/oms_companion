@@ -200,7 +200,7 @@ public class Main {
 				+ keystorePath.toAbsolutePath() + " -storepass " + storepass + " -validity " + validity + " -keysize "
 				+ keysize + " -dname \"" + dname + "\"";
 
-		System.out.println(cmd);
+		// System.out.println(cmd);
 
 		Process keytool = Runtime.getRuntime().exec(cmd);
 		return keytool.waitFor();

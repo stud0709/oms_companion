@@ -1,4 +1,4 @@
-package omscompanion;
+package omscompanion.crypto;
 
 import java.math.BigInteger;
 import java.security.KeyPair;

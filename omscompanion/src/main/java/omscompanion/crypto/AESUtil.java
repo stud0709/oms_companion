@@ -1,4 +1,4 @@
-package omscompanion;
+package omscompanion.crypto;
 
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -33,11 +33,11 @@ public final class AESUtil {
 	private AESUtil() {
 	}
 
-	public static SecretKey getSecretKeyFromPassword(char[] password, byte[] salt)
-			throws NoSuchAlgorithmException, InvalidKeySpecException {
+	public static SecretKey getSecretKeyFromPassword(char[] password, byte[] salt, String keyAlgorithm, int keyLength,
+			int keySpecIterations) throws NoSuchAlgorithmException, InvalidKeySpecException {
 
-		SecretKeyFactory factory = SecretKeyFactory.getInstance(KEY_ALGORITHM);
-		KeySpec spec = new PBEKeySpec(password, salt, KEYSPEC_ITERATIONS, KEY_LENGTH);
+		SecretKeyFactory factory = SecretKeyFactory.getInstance(keyAlgorithm);
+		KeySpec spec = new PBEKeySpec(password, salt, keySpecIterations, keyLength);
 		SecretKey secret = new SecretKeySpec(factory.generateSecret(spec).getEncoded(), "AES");
 		return secret;
 	}

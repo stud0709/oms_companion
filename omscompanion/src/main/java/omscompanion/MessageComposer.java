@@ -29,8 +29,9 @@ public abstract class MessageComposer {
 
 		int version = Integer.parseInt(m.group(1));
 
-		// (1) remove prefix
+		// (1) remove prefix and line breaks
 		omsText = omsText.substring(m.group().length());
+		omsText = omsText.replaceAll("\\s+", "");
 
 		switch (version) {
 		case 0:

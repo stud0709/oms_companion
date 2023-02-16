@@ -34,6 +34,10 @@ import javax.swing.border.EmptyBorder;
 
 import com.google.zxing.common.BitMatrix;
 
+import omscompanion.qr.AnimatedQrHelper;
+import omscompanion.qr.QRFrame;
+import omscompanion.qr.QRUtil;
+
 public class NewItem extends JFrame implements WindowListener {
 	private static final long serialVersionUID = 6915397327082537786L;
 

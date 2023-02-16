@@ -14,6 +14,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import omscompanion.qr.AnimatedQrHelper;
+import omscompanion.qr.QRFrame;
+
 public class ClipboardUtil {
 	public static final int CHECK_INTERVAL = 1000;
 	protected static boolean automaticMode = false;

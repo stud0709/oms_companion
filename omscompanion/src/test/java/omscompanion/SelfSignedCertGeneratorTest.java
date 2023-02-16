@@ -13,6 +13,8 @@ import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.junit.Test;
 
+import omscompanion.crypto.SelfSignedCertGenerator;
+
 public class SelfSignedCertGeneratorTest {
 
 	@Test

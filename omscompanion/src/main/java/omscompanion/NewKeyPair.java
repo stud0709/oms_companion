@@ -58,6 +58,11 @@ import com.google.zxing.common.BitMatrix;
 
 import j2html.tags.specialized.PTag;
 import net.miginfocom.swing.MigLayout;
+import omscompanion.crypto.AESUtil;
+import omscompanion.crypto.AesEncryptedKeyPairTransfer;
+import omscompanion.qr.AnimatedQrHelper;
+import omscompanion.qr.QRFrame;
+import omscompanion.qr.QRUtil;
 
 public class NewKeyPair {
 
@@ -75,6 +80,7 @@ public class NewKeyPair {
 	private static final Color COLOR_RED = Color.decode("#F08080");
 	private char echoChar;
 	public static final int KEY_LENGTH = 2048;
+	public static final int BASE64_LINE_LENGTH = 75;
 
 	/**
 	 * Create the application.
@@ -165,7 +171,8 @@ public class NewKeyPair {
 
 			IvParameterSpec iv = AESUtil.generateIv();
 			byte[] salt = AESUtil.generateSalt();
-			SecretKey secretKey = AESUtil.getSecretKeyFromPassword(txtPassPhrase.getPassword(), salt);
+			SecretKey secretKey = AESUtil.getSecretKeyFromPassword(txtPassPhrase.getPassword(), salt,
+					AESUtil.KEY_ALGORITHM, AESUtil.KEY_LENGTH, AESUtil.KEYSPEC_ITERATIONS);
 
 			SwingUtilities.invokeLater(() -> txtInfo.append("AES initialized\n"));
 
@@ -403,15 +410,13 @@ public class NewKeyPair {
 			}
 		}
 
-		int lineLength = 75;
-
 		String messageAsUrl = MessageComposer.encodeAsOmsText(message);
 		PTag messageChunks = p().withStyle("font-family:monospace;");
 		int offset = 0;
 		while (offset < messageAsUrl.length()) {
-			String s = messageAsUrl.substring(offset, Math.min(offset + lineLength, messageAsUrl.length()));
+			String s = messageAsUrl.substring(offset, Math.min(offset + BASE64_LINE_LENGTH, messageAsUrl.length()));
 			messageChunks.withText(s).with(br());
-			offset += lineLength;
+			offset += BASE64_LINE_LENGTH;
 		}
 
 		String sArr[] = message.split("\t");
@@ -420,7 +425,7 @@ public class NewKeyPair {
 		return html(body(h1("OneMoreSecret Private Key Backup"), p(b("Keep this file / printout in a secure location")),
 				p("This is a hard copy of your Private Key for OneMoreSecret. "
 						+ "It can be used to import your Private Key into a new device "
-						+ "or after a reset of OneMoreSecret App. This document is encrypted with AES encryption, "
+						+ "or after a reset of OneMoreSecret App. This document is encrypted with AES, "
 						+ "you will need your TRANSPORT PASSWORD to complete the import procedure."),
 				h2("WARNING:"),
 				p(join(b("DO NOT"), " share this document with other persons.", br(), b("DO NOT"),
@@ -434,7 +439,7 @@ public class NewKeyPair {
 				p("Message format: " + MessageComposer.OMS_PREFIX + "[base64 encoded data]"),
 				p("Data format: String (utf-8), separator: TAB"), p("Data elements:"),
 				ol(/* 1 */li("Application Identifier: " + sArr[0] + " = AES Encrypted Key Pair Transfer"),
-						/* 2 */li("Key Alias = " + sArr[1]),
+						/* 2 */li("Key Alias = " + alias),
 						/* 3 */li("Salt: base64-encoded byte[] = "
 								+ Main.byteArrayToHex(Base64.getDecoder().decode(sArr[2]))),
 						/* 4 */li("IV: base64-encoded byte[] = "

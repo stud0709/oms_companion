@@ -18,6 +18,8 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 
+import omscompanion.crypto.AESUtil;
+
 public class EncryptedMessageTransfer extends MessageComposer {
 	private final String message;
 	/**

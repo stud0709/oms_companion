@@ -1,4 +1,4 @@
-package omscompanion;
+package omscompanion.qr;
 
 import java.awt.BorderLayout;
 import java.awt.event.ComponentAdapter;
@@ -29,6 +29,10 @@ import javax.swing.SwingUtilities;
 
 import com.google.zxing.WriterException;
 import com.google.zxing.common.BitMatrix;
+
+import omscompanion.AnimatedGifWriter;
+import omscompanion.ClipboardUtil;
+import omscompanion.MessageComposer;
 
 public class QRFrame extends JFrame {
 	private static final long serialVersionUID = -6749732054569148998L;
@@ -62,7 +66,7 @@ public class QRFrame extends JFrame {
 			addKeyListener(new KeyAdapter() {
 				@Override
 				public void keyPressed(KeyEvent e) {
-					System.out.println(e);
+					// System.out.println(e);
 					switch (e.getKeyCode()) {
 					case KeyEvent.VK_ESCAPE:
 						cleanup();
