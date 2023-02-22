@@ -34,6 +34,9 @@ import javax.swing.border.EmptyBorder;
 
 import com.google.zxing.common.BitMatrix;
 
+import omscompanion.crypto.AESUtil;
+import omscompanion.crypto.EncryptedMessageTransfer;
+import omscompanion.crypto.RSAUtils;
 import omscompanion.qr.AnimatedQrHelper;
 import omscompanion.qr.QRFrame;
 import omscompanion.qr.QRUtil;
@@ -184,8 +187,8 @@ public class NewItem extends JFrame implements WindowListener {
 
 		RSAPublicKey pk = Main.getPublicKey(Files.readAllBytes(pkPath));
 
-		message = new EncryptedMessageTransfer(s.getBytes(), pk, EncryptedMessageTransfer.RSA_TRANSFORMATION)
-				.getMessage();
+		message = new EncryptedMessageTransfer(s.getBytes(), AESUtil.getKeyLength(), pk,
+				RSAUtils.getRsaTransformationIdx(), AESUtil.getAesTransformationIdx()).getMessage();
 	}
 
 	private void onSetDefault(JComboBox<String> comboUseKey) {

@@ -5,7 +5,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public abstract class MessageComposer {
-	public static final int APPLICATION_AES_ENCRYPTED_KEY_PAIR_TRANSFER = 0, APPLICATION_ENCRYPTED_MESSAGE_TRANSFER = 1;
+	public static final int APPLICATION_AES_ENCRYPTED_PRIVATE_KEY_TRANSFER = 0, APPLICATION_ENCRYPTED_MESSAGE_TRANSFER = 1;
 
 	/**
 	 * Prefix of a text encoded message.

@@ -18,9 +18,9 @@ import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 
 public class AnimatedGifWriter {
-	protected ImageWriter writer;
-	protected ImageWriteParam params;
-	protected IIOMetadata metadata;
+	protected final ImageWriter writer;
+	protected final ImageWriteParam params;
+	protected final IIOMetadata metadata;
 
 	public AnimatedGifWriter(ImageOutputStream out, int imageType, long delay, boolean loop) throws IOException {
 		writer = ImageIO.getImageWritersBySuffix("gif").next();

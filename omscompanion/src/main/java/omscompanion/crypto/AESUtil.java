@@ -18,18 +18,6 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 public final class AESUtil {
-	/**
-	 * See https://docs.oracle.com/javase/7/docs/api/javax/crypto/Cipher.html for
-	 * the list of supported transformations in Java
-	 * 
-	 * See https://developer.android.com/reference/javax/crypto/Cipher for Android
-	 */
-	public static final String AES_TRANSFORMATION = "AES/CBC/PKCS5Padding";
-	public static final String KEY_ALGORITHM = "PBKDF2WithHmacSHA256";
-	public static final int KEY_LENGTH = 256;
-	public static final int KEYSPEC_ITERATIONS = 1024;
-	public static final int SALT_LENGTH = 16;
-
 	private AESUtil() {
 	}
 
@@ -42,8 +30,8 @@ public final class AESUtil {
 		return secret;
 	}
 
-	public static SecretKey generateRandomSecretKey() {
-		byte[] bArr = new byte[KEY_LENGTH / 8];
+	public static SecretKey generateRandomSecretKey(int keyLength) {
+		byte[] bArr = new byte[keyLength / 8];
 		new SecureRandom().nextBytes(bArr);
 		return new SecretKeySpec(bArr, "AES");
 	}
@@ -54,8 +42,8 @@ public final class AESUtil {
 		return new IvParameterSpec(iv);
 	}
 
-	public static byte[] generateSalt() {
-		byte[] salt = new byte[SALT_LENGTH];
+	public static byte[] generateSalt(int saltLength) {
+		byte[] salt = new byte[saltLength];
 		new SecureRandom().nextBytes(salt);
 		return salt;
 	}
@@ -76,6 +64,39 @@ public final class AESUtil {
 		Cipher cipher = Cipher.getInstance(aesTransformation);
 		cipher.init(Cipher.DECRYPT_MODE, secretKey, iv);
 		return cipher.doFinal(cipherText);
+	}
+
+	public static int getAesTransformationIdx() {
+		// todo: make configurable
+		return 0;
+	}
+
+	public static AesTransformation getAesTransformation() {
+		return AesTransformation.values()[getAesTransformationIdx()];
+	}
+
+	public static int getAesKeyAlgorithmIdx() {
+		// todo: make configurable
+		return 0;
+	}
+
+	public static AesKeyAlgorithm getAesKeyAlgorithm() {
+		return AesKeyAlgorithm.values()[getAesKeyAlgorithmIdx()];
+	}
+
+	public static int getSaltLength() {
+		// todo: make configurable
+		return 16;
+	}
+
+	public static int getKeyspecIterations() {
+		// todo: make configurable
+		return 1024;
+	}
+
+	public static int getKeyLength() {
+		// todo: make configurable
+		return 256;
 	}
 
 }

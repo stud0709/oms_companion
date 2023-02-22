@@ -1,0 +1,73 @@
+package omscompanion.crypto;
+
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.Key;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
+
+import omscompanion.MessageComposer;
+
+public class AesEncryptedPrivateKeyTransfer extends MessageComposer {
+	private final String message;
+
+	public AesEncryptedPrivateKeyTransfer(String alias, Key rsaPrivateKey, SecretKey aesKey, IvParameterSpec iv,
+			byte[] salt, String aesTransformation, String aesKeyAlgorithm, int keyLength, int keyIterations)
+			throws NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException,
+			InvalidAlgorithmParameterException, BadPaddingException, IllegalBlockSizeException {
+
+		byte[] privateKeyEncoded = rsaPrivateKey.getEncoded();
+		byte[] cipherText = AESUtil.encrypt(privateKeyEncoded, aesKey, iv, aesTransformation);
+
+		// --- create message ---
+		List<String> list = new ArrayList<>();
+
+		// (1) application-ID
+		list.add(Integer.toString(APPLICATION_AES_ENCRYPTED_PRIVATE_KEY_TRANSFER));
+
+		// (2) alias
+		list.add(alias);
+
+		// --- AES parameter ---
+
+		// (3) salt
+		list.add(Base64.getEncoder().encodeToString(salt));
+
+		// (4) iv
+		list.add(Base64.getEncoder().encodeToString(iv.getIV()));
+
+		// (5) AES transformation
+		list.add(aesTransformation);
+
+		// (6) key algorithm
+		list.add(aesKeyAlgorithm);
+
+		// (7) keyspec length
+		list.add(Integer.toString(keyLength));
+
+		// (8) keyspec iterations
+		list.add(Integer.toString(keyIterations));
+
+		// --- encrypted data ---
+
+		// (9) cipher text
+		list.add(Base64.getEncoder().encodeToString(cipherText));
+
+		this.message = list.stream().collect(Collectors.joining("\t"));
+	}
+
+	@Override
+	public String getMessage() {
+		return message;
+	}
+
+}

@@ -28,9 +28,7 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.interfaces.RSAPublicKey;
-import java.time.Instant;
 import java.util.Base64;
-import java.util.Date;
 import java.util.List;
 import java.util.function.Function;
 
@@ -59,7 +57,8 @@ import com.google.zxing.common.BitMatrix;
 import j2html.tags.specialized.PTag;
 import net.miginfocom.swing.MigLayout;
 import omscompanion.crypto.AESUtil;
-import omscompanion.crypto.AesEncryptedKeyPairTransfer;
+import omscompanion.crypto.AesEncryptedPrivateKeyTransfer;
+import omscompanion.crypto.RSAUtils;
 import omscompanion.qr.AnimatedQrHelper;
 import omscompanion.qr.QRFrame;
 import omscompanion.qr.QRUtil;
@@ -79,7 +78,6 @@ public class NewKeyPair {
 	private JCheckBox chckbxStorePublicKey;
 	private static final Color COLOR_RED = Color.decode("#F08080");
 	private char echoChar;
-	public static final int KEY_LENGTH = 2048;
 	public static final int BASE64_LINE_LENGTH = 75;
 
 	/**
@@ -162,24 +160,31 @@ public class NewKeyPair {
 
 		try {
 			KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-			keyPairGenerator.initialize(KEY_LENGTH);
+			int rsaKeyLength = RSAUtils.getKeyLength();
+			keyPairGenerator.initialize(rsaKeyLength);
 			KeyPair keyPair = keyPairGenerator.generateKeyPair();
 			RSAPublicKey rsaPublicKey = (RSAPublicKey) keyPair.getPublic();
 
 			SwingUtilities.invokeLater(() -> txtInfo.append("Key pair generated (" + rsaPublicKey.getAlgorithm() + ", "
-					+ KEY_LENGTH + ", " + rsaPublicKey.getFormat() + ")\n"));
+					+ rsaKeyLength + ", " + rsaPublicKey.getFormat() + ")\n"));
 
 			IvParameterSpec iv = AESUtil.generateIv();
-			byte[] salt = AESUtil.generateSalt();
-			SecretKey secretKey = AESUtil.getSecretKeyFromPassword(txtPassPhrase.getPassword(), salt,
-					AESUtil.KEY_ALGORITHM, AESUtil.KEY_LENGTH, AESUtil.KEYSPEC_ITERATIONS);
+			byte[] salt = AESUtil.generateSalt(AESUtil.getSaltLength());
+
+			String aesKeyAlg = AESUtil.getAesKeyAlgorithm().keyAlgorithm;
+			int aesKeyLength = AESUtil.getKeyLength();
+			int aesKeyspecIterations = AESUtil.getKeyspecIterations();
+
+			SecretKey secretKey = AESUtil.getSecretKeyFromPassword(txtPassPhrase.getPassword(), salt, aesKeyAlg,
+					aesKeyLength, aesKeyspecIterations);
 
 			SwingUtilities.invokeLater(() -> txtInfo.append("AES initialized\n"));
 
 			String alias = txtKeyAlias.getText().trim();
+			String aesTransformation = AESUtil.getAesTransformation().transformation;
 
-			String message = new AesEncryptedKeyPairTransfer(alias, keyPair.getPrivate(), null, secretKey, iv, salt, 0)
-					.getMessage();
+			String message = new AesEncryptedPrivateKeyTransfer(alias, keyPair.getPrivate(), secretKey, iv, salt,
+					aesTransformation, aesKeyAlg, aesKeyLength, aesKeyspecIterations).getMessage();
 
 			File backupFile = new File(txtBackupFile.getText());
 
@@ -420,7 +425,6 @@ public class NewKeyPair {
 		}
 
 		String sArr[] = message.split("\t");
-		long validityEnd = Long.parseLong(sArr[8]);
 
 		return html(body(h1("OneMoreSecret Private Key Backup"), p(b("Keep this file / printout in a secure location")),
 				p("This is a hard copy of your Private Key for OneMoreSecret. "
@@ -428,17 +432,17 @@ public class NewKeyPair {
 						+ "or after a reset of OneMoreSecret App. This document is encrypted with AES, "
 						+ "you will need your TRANSPORT PASSWORD to complete the import procedure."),
 				h2("WARNING:"),
-				p(join(b("DO NOT"), " share this document with other persons.", br(), b("DO NOT"),
-						" provide its content to untrusted apps, on the Internet etc.", br(),
-						"If you need to restore your Key, start OneMoreSecret App on your phone ", b("BY HAND"),
-						" and scan the codes. ", b("DO NOT"), " trust unexpected prompts and pop-ups.", br(),
+				p(join("DO NOT share this document with other persons.", br(),
+						"DO NOT provide its content to untrusted apps, on the Internet etc.", br(),
+						"If you need to restore your Key, start OneMoreSecret App on your phone BY HAND and scan the codes. ",
+						"DO NOT trust unexpected prompts and pop-ups.", br(),
 						b("THIS DOCUMENT IS THE ONLY WAY TO RESTORE YOUR PRIVATE KEY"))),
 				p(b("Key alias: " + alias)), p(b("RSA Fingerprint: " + Main.byteArrayToHex(fingerprint))),
 				p("Scan this with your OneMoreSecret App:"), qrCodes, h2("Long-Term Backup and Technical Details"),
 				p("Base64 Encoded Message: "), messageChunks,
 				p("Message format: " + MessageComposer.OMS_PREFIX + "[base64 encoded data]"),
 				p("Data format: String (utf-8), separator: TAB"), p("Data elements:"),
-				ol(/* 1 */li("Application Identifier: " + sArr[0] + " = AES Encrypted Key Pair Transfer"),
+				ol(/* 1 */li("Application Identifier = " + sArr[0] + " (AES Encrypted Key Pair Transfer)"),
 						/* 2 */li("Key Alias = " + alias),
 						/* 3 */li("Salt: base64-encoded byte[] = "
 								+ Main.byteArrayToHex(Base64.getDecoder().decode(sArr[2]))),
@@ -446,14 +450,7 @@ public class NewKeyPair {
 								+ Main.byteArrayToHex(Base64.getDecoder().decode(sArr[3]))),
 						/* 5 */li("Cipher Algorithm = " + sArr[4]), /* 6 */li("Key Algorithm = " + sArr[5]),
 						/* 7 */li("Keyspec Length = " + sArr[6]), /* 8 */li("Keyspec Iterations = " + sArr[7]),
-						/* 9 */li("Validity end: epoch-milliseconds = " + sArr[8] + " ("
-								+ (validityEnd == 0 ? "undefined" : Date.from(Instant.ofEpochMilli(validityEnd)))
-								+ ")"),
-						/* 10 */li("Cipher Text: base64-encoded byte[] (see below)")),
-				p("Private Key Information (encrypted within Cipher Text. String (utf-8), separator: TAB)"),
-				ol(/* 1 */li("Private Key Data: base64-encoded byte[]"),
-						/* 2 */li("Certificate Data: base64-encoded byte[]"),
-						/* 4 */li("SHA-256 over Private Key, Certificate, Validity end: base64-encoded byte[]"))))
+						/* 9 */li("AES encrypted Private Key material: base64-encoded byte[]"))))
 				.render();
 	}
 
