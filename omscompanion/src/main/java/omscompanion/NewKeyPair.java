@@ -147,12 +147,12 @@ public class NewKeyPair {
 			txtBackupFile.setText(s);
 		});
 
-		btnCreate.addActionListener(e -> createKeyPair());
+		btnCreate.addActionListener(e -> createPrivateKey());
 
 		checkState(null);
 	}
 
-	private void createKeyPair() {
+	private void createPrivateKey() {
 		SwingUtilities.invokeLater(() -> {
 			txtInfo.setText("");
 			btnCreate.setEnabled(false);

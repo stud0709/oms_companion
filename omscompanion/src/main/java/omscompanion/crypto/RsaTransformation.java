@@ -14,7 +14,7 @@ public enum RsaTransformation {
 
 	public final String transformation;
 
-	private RsaTransformation(String transformation) {
+	RsaTransformation(String transformation) {
 		this.transformation = transformation;
 	}
 }

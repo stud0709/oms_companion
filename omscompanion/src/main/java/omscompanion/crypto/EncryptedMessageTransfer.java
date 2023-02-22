@@ -21,9 +21,10 @@ import omscompanion.MessageComposer;
 public class EncryptedMessageTransfer extends MessageComposer {
 	private final String message;
 
-	public EncryptedMessageTransfer(byte[] message, int aesKeyLength, RSAPublicKey rsaPublicKey,
-			int rsaTransformationIdx, int aesTransformationIdx) throws NoSuchAlgorithmException, NoSuchPaddingException,
+	public EncryptedMessageTransfer(byte[] message, RSAPublicKey rsaPublicKey, int rsaTransformationIdx,
+			int aesKeyLength, int aesTransformationIdx) throws NoSuchAlgorithmException, NoSuchPaddingException,
 			IllegalBlockSizeException, BadPaddingException, InvalidKeyException, InvalidAlgorithmParameterException {
+		super();
 
 		// init AES
 		IvParameterSpec iv = AESUtil.generateIv();
@@ -46,7 +47,7 @@ public class EncryptedMessageTransfer extends MessageComposer {
 		// (3) fingerprint
 		list.add(Base64.getEncoder().encodeToString(getFingerprint(rsaPublicKey)));
 
-		// (4) AES transformation
+		// (4) AES transformation index
 		list.add(Integer.toString(aesTransformationIdx));
 
 		// (5) IV
@@ -58,6 +59,7 @@ public class EncryptedMessageTransfer extends MessageComposer {
 		// (7) AES-encrypted message
 		byte[] encryptedMessage = AESUtil.encrypt(message, secretKey, iv,
 				AesTransformation.values()[aesTransformationIdx].transformation);
+
 		list.add(Base64.getEncoder().encodeToString(encryptedMessage));
 
 		this.message = String.join("\t", list);

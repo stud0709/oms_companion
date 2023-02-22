@@ -12,7 +12,7 @@ public enum AesKeyAlgorithm {
 
 	public final String keyAlgorithm;
 
-	private AesKeyAlgorithm(String transformation) {
+	AesKeyAlgorithm(String transformation) {
 		this.keyAlgorithm = transformation;
 	}
 }

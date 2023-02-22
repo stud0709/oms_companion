@@ -187,8 +187,8 @@ public class NewItem extends JFrame implements WindowListener {
 
 		RSAPublicKey pk = Main.getPublicKey(Files.readAllBytes(pkPath));
 
-		message = new EncryptedMessageTransfer(s.getBytes(), AESUtil.getKeyLength(), pk,
-				RSAUtils.getRsaTransformationIdx(), AESUtil.getAesTransformationIdx()).getMessage();
+		message = new EncryptedMessageTransfer(s.getBytes(), pk, RSAUtils.getRsaTransformationIdx(),
+				AESUtil.getKeyLength(), AESUtil.getAesTransformationIdx()).getMessage();
 	}
 
 	private void onSetDefault(JComboBox<String> comboUseKey) {

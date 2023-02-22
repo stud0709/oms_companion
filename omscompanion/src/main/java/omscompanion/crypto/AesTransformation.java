@@ -12,7 +12,7 @@ public enum AesTransformation {
 
 	public final String transformation;
 
-	private AesTransformation(String transformation) {
+	AesTransformation(String transformation) {
 		this.transformation = transformation;
 	}
 }
