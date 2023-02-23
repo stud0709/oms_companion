@@ -58,6 +58,8 @@ import j2html.tags.specialized.PTag;
 import net.miginfocom.swing.MigLayout;
 import omscompanion.crypto.AESUtil;
 import omscompanion.crypto.AesEncryptedPrivateKeyTransfer;
+import omscompanion.crypto.AesKeyAlgorithm;
+import omscompanion.crypto.AesTransformation;
 import omscompanion.crypto.RSAUtils;
 import omscompanion.qr.AnimatedQrHelper;
 import omscompanion.qr.QRFrame;
@@ -171,20 +173,19 @@ public class NewKeyPair {
 			IvParameterSpec iv = AESUtil.generateIv();
 			byte[] salt = AESUtil.generateSalt(AESUtil.getSaltLength());
 
-			String aesKeyAlg = AESUtil.getAesKeyAlgorithm().keyAlgorithm;
 			int aesKeyLength = AESUtil.getKeyLength();
 			int aesKeyspecIterations = AESUtil.getKeyspecIterations();
 
-			SecretKey secretKey = AESUtil.getSecretKeyFromPassword(txtPassPhrase.getPassword(), salt, aesKeyAlg,
-					aesKeyLength, aesKeyspecIterations);
+			SecretKey secretKey = AESUtil.getSecretKeyFromPassword(txtPassPhrase.getPassword(), salt,
+					AESUtil.getAesKeyAlgorithm().keyAlgorithm, aesKeyLength, aesKeyspecIterations);
 
 			SwingUtilities.invokeLater(() -> txtInfo.append("AES initialized\n"));
 
 			String alias = txtKeyAlias.getText().trim();
-			String aesTransformation = AESUtil.getAesTransformation().transformation;
 
 			String message = new AesEncryptedPrivateKeyTransfer(alias, keyPair.getPrivate(), secretKey, iv, salt,
-					aesTransformation, aesKeyAlg, aesKeyLength, aesKeyspecIterations).getMessage();
+					AESUtil.getAesTransformationIdx(), AESUtil.getAesKeyAlgorithmIdx(), aesKeyLength,
+					aesKeyspecIterations).getMessage();
 
 			File backupFile = new File(txtBackupFile.getText());
 
@@ -448,7 +449,10 @@ public class NewKeyPair {
 								+ Main.byteArrayToHex(Base64.getDecoder().decode(sArr[2]))),
 						/* 4 */li("IV: base64-encoded byte[] = "
 								+ Main.byteArrayToHex(Base64.getDecoder().decode(sArr[3]))),
-						/* 5 */li("Cipher Algorithm = " + sArr[4]), /* 6 */li("Key Algorithm = " + sArr[5]),
+						/* 5 */li("Cipher Algorithm = " + sArr[4] + " ("
+								+ AesTransformation.values()[Integer.parseInt(sArr[4])].transformation + ")"),
+						/* 6 */li("Key Algorithm = " + sArr[5] + " ("
+								+ AesKeyAlgorithm.values()[Integer.parseInt(sArr[5])].keyAlgorithm + ")"),
 						/* 7 */li("Keyspec Length = " + sArr[6]), /* 8 */li("Keyspec Iterations = " + sArr[7]),
 						/* 9 */li("AES encrypted Private Key material: base64-encoded byte[]"))))
 				.render();

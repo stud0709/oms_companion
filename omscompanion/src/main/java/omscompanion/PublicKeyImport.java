@@ -68,7 +68,7 @@ public class PublicKeyImport extends JFrame {
 					throw new Exception("Key Alias may not be empty");
 				}
 
-				byte[] bArr = Base64.getDecoder().decode(textAreaKeyEntry.getText().trim());
+				byte[] bArr = Base64.getDecoder().decode(textAreaKeyEntry.getText().trim().replaceAll("[\\r\\n]", ""));
 				PublicKey publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(bArr));
 
 				Path p = NewKeyPair.savePublicKey(alias, publicKey, backupPath -> {

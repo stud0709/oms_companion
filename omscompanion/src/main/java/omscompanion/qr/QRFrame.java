@@ -196,7 +196,7 @@ public class QRFrame extends JFrame {
 
 		cleanupOnDeactivate.set(false);
 		JOptionPane.showMessageDialog(this,
-				"QR code sequence has been generated and copied to the clipboard as GIF image");
+				"QR code sequence has been generated and copied to the clipboard as GIF image.\nClick OK to clear the clipboard.");
 		cleanupOnDeactivate.set(true);
 	}
 
@@ -221,7 +221,7 @@ public class QRFrame extends JFrame {
 
 		cleanupOnDeactivate.set(false);
 		JOptionPane.showMessageDialog(this,
-				"QR code sequence has been generated and copied to the clipboard as BASE64");
+				"QR code sequence has been generated and copied to the clipboard as BASE64.\nClick OK to clear the clipboard.");
 		cleanupOnDeactivate.set(true);
 
 	}
@@ -230,8 +230,8 @@ public class QRFrame extends JFrame {
 		createTextLink();
 
 		cleanupOnDeactivate.set(false);
-		JOptionPane.showMessageDialog(this,
-				"Data (" + MessageComposer.OMS_PREFIX + "...) has been copied to the clipboard");
+		JOptionPane.showMessageDialog(this, "Data (" + MessageComposer.OMS_PREFIX
+				+ "...) has been copied to the clipboard.\nClick OK to clear the clipboard.");
 		cleanupOnDeactivate.set(true);
 	}
 

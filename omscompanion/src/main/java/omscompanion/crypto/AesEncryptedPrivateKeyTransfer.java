@@ -21,7 +21,7 @@ public class AesEncryptedPrivateKeyTransfer extends MessageComposer {
 	private final String message;
 
 	public AesEncryptedPrivateKeyTransfer(String alias, Key rsaPrivateKey, SecretKey aesKey, IvParameterSpec iv,
-			byte[] salt, String aesTransformation, String aesKeyAlgorithm, int aesKeyLength, int aesKeyspecIterations)
+			byte[] salt, int aesTransformationIdx, int aesKeyAlgorithmIdx, int aesKeyLength, int aesKeyspecIterations)
 			throws NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException,
 			InvalidAlgorithmParameterException, BadPaddingException, IllegalBlockSizeException {
 		super();
@@ -45,11 +45,11 @@ public class AesEncryptedPrivateKeyTransfer extends MessageComposer {
 		// (4) iv
 		list.add(Base64.getEncoder().encodeToString(iv.getIV()));
 
-		// (5) AES transformation
-		list.add(aesTransformation);
+		// (5) AES transformation index
+		list.add(Integer.toString(aesTransformationIdx));
 
-		// (6) key algorithm
-		list.add(aesKeyAlgorithm);
+		// (6) key algorithm index
+		list.add(Integer.toString(aesKeyAlgorithmIdx));
 
 		// (7) keyspec length
 		list.add(Integer.toString(aesKeyLength));
@@ -60,7 +60,8 @@ public class AesEncryptedPrivateKeyTransfer extends MessageComposer {
 		// --- encrypted data ---
 
 		// (9) cipher text
-		list.add(Base64.getEncoder().encodeToString(AESUtil.encrypt(privateKeyEncoded, aesKey, iv, aesTransformation)));
+		list.add(Base64.getEncoder().encodeToString(AESUtil.encrypt(privateKeyEncoded, aesKey, iv,
+				AesTransformation.values()[aesTransformationIdx].transformation)));
 
 		this.message = list.stream().collect(Collectors.joining("\t"));
 	}
