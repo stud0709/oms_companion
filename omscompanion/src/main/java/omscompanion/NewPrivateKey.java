@@ -65,7 +65,7 @@ import omscompanion.qr.AnimatedQrHelper;
 import omscompanion.qr.QRFrame;
 import omscompanion.qr.QRUtil;
 
-public class NewKeyPair {
+public class NewPrivateKey {
 
 	private JFrame frmNewKeyPair;
 	private JTextField txtKeyAlias;
@@ -85,7 +85,7 @@ public class NewKeyPair {
 	/**
 	 * Create the application.
 	 */
-	public NewKeyPair() {
+	public NewPrivateKey() {
 		initialize();
 
 		// disable copy/paste for password fields
@@ -190,7 +190,7 @@ public class NewKeyPair {
 			File backupFile = new File(txtBackupFile.getText());
 
 			try (FileWriter fw = new FileWriter(backupFile)) {
-				fw.write(NewKeyPair.getKeyBackupHtml(alias, Main.getFingerprint(rsaPublicKey), message));
+				fw.write(NewPrivateKey.getKeyBackupHtml(alias, Main.getFingerprint(rsaPublicKey), message));
 			}
 
 			SwingUtilities.invokeLater(() -> txtInfo.append("Backup file generated\n"));

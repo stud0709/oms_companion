@@ -71,7 +71,7 @@ public class PublicKeyImport extends JFrame {
 				byte[] bArr = Base64.getDecoder().decode(textAreaKeyEntry.getText().trim().replaceAll("[\\r\\n]", ""));
 				PublicKey publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(bArr));
 
-				Path p = NewKeyPair.savePublicKey(alias, publicKey, backupPath -> {
+				Path p = NewPrivateKey.savePublicKey(alias, publicKey, backupPath -> {
 					int choice = JOptionPane.showConfirmDialog(PublicKeyImport.this, "Create backup and overwrite?",
 							"Key '" + alias + "' already exists.", JOptionPane.YES_NO_OPTION);
 

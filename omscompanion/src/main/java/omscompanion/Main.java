@@ -156,7 +156,7 @@ public class Main {
 				ClipboardUtil.processClipboard();
 				break;
 			case "newKeyPair":
-				new NewKeyPair().getFrame().setVisible(true);
+				new NewPrivateKey().getFrame().setVisible(true);
 				break;
 			case "autoClipboardCheck":
 				ClipboardUtil.setAutomaticMode(!ClipboardUtil.isAutomaticMode());
