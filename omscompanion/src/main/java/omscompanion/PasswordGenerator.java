@@ -57,8 +57,8 @@ public class PasswordGenerator extends JFrame implements WindowListener, ItemLis
 			PROP_LCASE = "pwgen_lcase", PROP_LCASE_LIST = "pwgen_lcase_list", PROP_DIGITS = "pwgen_digits",
 			PROP_DIGITS_LIST = "pwgen_digits_list", PROP_SPECIALS = "pwgen_specials",
 			PROP_SPECIALS_LIST = "pwgen_specials_list", PROP_SIMILAR = "pwgen_similar",
-			PROP_SIMILAR_LIST = "pwgen_similar_LIST", PROP_LAYOUT = "pwgen_layout", PROP_PWD_LENGTH = "pwgen_length",
-			PROP_OCCURS = "pwgen_occurrs", DEFAULT_DIGITS = "0123456789", DEFAULT_LCASE = "abcdefghijklmnopqrstuvwxyz",
+			PROP_SIMILAR_LIST = "pwgen_similar_LIST", PROP_PWD_LENGTH = "pwgen_length", PROP_OCCURS = "pwgen_occurrs",
+			DEFAULT_DIGITS = "0123456789", DEFAULT_LCASE = "abcdefghijklmnopqrstuvwxyz",
 			DEFAULT_SPECIALS = "!#$%&'*+,-.:;<=>?@_~", DEFAULT_SIMILAR = "01IOl|";
 
 	private static final int PWD_LEN_DEFAULT = 10, PWD_LEN_MIN = 5, PWD_LEN_MAX = 50, OCCURS_DEFAULT = 1,
@@ -80,6 +80,9 @@ public class PasswordGenerator extends JFrame implements WindowListener, ItemLis
 	 */
 	public PasswordGenerator() throws IOException {
 		setTitle("Password Generator");
+		setType(Type.UTILITY);
+		setResizable(false);
+		setAlwaysOnTop(true);
 		setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 		setBounds(100, 100, 511, 312);
 
