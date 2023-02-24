@@ -50,7 +50,7 @@ public class NewItem extends JFrame implements WindowListener {
 
 	private Runnable andThen;
 
-	private static final String FILE_TYPE_PUCLIC_KEY = ".x.509";
+	public static final String FILE_TYPE_PUCLIC_KEY = ".x.509";
 
 	/**
 	 * Create the frame.
@@ -112,7 +112,7 @@ public class NewItem extends JFrame implements WindowListener {
 		comboUseKey.setEditable(false);
 		comboUseKey.setModel(new DefaultComboBoxModel<>(items));
 
-		String defaultKey = Main.properties.getProperty(Main.PROP_DEFAULT_KEY);
+		String defaultKey = Main.getDefaultKey();
 
 		if (items.length == 1 || defaultKey == null || !publicKeys.contains(defaultKey)) {
 			comboUseKey.setSelectedIndex(0);
@@ -126,7 +126,7 @@ public class NewItem extends JFrame implements WindowListener {
 
 		JButton btnSetDefault = new JButton("Set Default");
 		btnSetDefault.addActionListener(e -> onSetDefault(comboUseKey));
-		btnSetDefault.setEnabled(publicKeys.size() > 1);
+		btnSetDefault.setEnabled(!publicKeys.isEmpty());
 		panel_3.add(btnSetDefault);
 
 		JButton btnText = new JButton(MessageComposer.OMS_PREFIX);
@@ -166,8 +166,8 @@ public class NewItem extends JFrame implements WindowListener {
 	private void onPreview(JButton btn) {
 		btn.setEnabled(false);
 		try {
-			new QRFrame(message, AnimatedQrHelper.DELAY, () -> SwingUtilities.invokeLater(() -> btn.setEnabled(true)))
-					.setVisible(true);
+			new QRFrame(message, AnimatedQrHelper.getSequenceDelay(),
+					() -> SwingUtilities.invokeLater(() -> btn.setEnabled(true))).setVisible(true);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -192,7 +192,7 @@ public class NewItem extends JFrame implements WindowListener {
 	}
 
 	private void onSetDefault(JComboBox<String> comboUseKey) {
-		Main.properties.put(Main.PROP_DEFAULT_KEY, comboUseKey.getSelectedItem());
+		Main.setDefaultKeyAlias((String) comboUseKey.getSelectedItem());
 	}
 
 	private void createTextLink() {
@@ -212,8 +212,8 @@ public class NewItem extends JFrame implements WindowListener {
 		f.deleteOnExit();
 
 		try (FileImageOutputStream fios = new FileImageOutputStream(f)) {
-			List<BitMatrix> list = QRUtil.getQrSequence(message, QRUtil.CHUNK_SIZE, QRUtil.BARCODE_SIZE);
-			AnimatedGifWriter.createGif(list, fios, AnimatedQrHelper.DELAY);
+			List<BitMatrix> list = QRUtil.getQrSequence(message, QRUtil.getChunkSize(), QRUtil.getBarcodeSize());
+			AnimatedGifWriter.createGif(list, fios, AnimatedQrHelper.getSequenceDelay());
 			fios.flush();
 		} catch (Exception ex) {
 			ex.printStackTrace();

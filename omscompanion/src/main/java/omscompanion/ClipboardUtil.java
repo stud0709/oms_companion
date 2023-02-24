@@ -67,7 +67,8 @@ public class ClipboardUtil {
 			set("");
 
 			CHECK_CLIPBOARD.set(false);
-			new QRFrame(m, AnimatedQrHelper.DELAY, () -> CHECK_CLIPBOARD.set(automaticMode)).setVisible(true);
+			new QRFrame(m, AnimatedQrHelper.getSequenceDelay(), () -> CHECK_CLIPBOARD.set(automaticMode))
+					.setVisible(true);
 
 			return true;
 		} catch (Exception e) {

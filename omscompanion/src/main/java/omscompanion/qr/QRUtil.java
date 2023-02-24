@@ -9,8 +9,11 @@ import com.google.zxing.WriterException;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 
+import omscompanion.Main;
+
 public class QRUtil {
-	public static final int CHUNK_SIZE = 200, BARCODE_SIZE = 400;
+	private static final int CHUNK_SIZE = 200, BARCODE_SIZE = 400;
+	private static final String PROP_CHUNK_SIZE = "barcode_chunk_size", PROP_BARCODE_SIZE = "barcode_size";
 
 	/**
 	 * Cuts a message into chunks and creates a barcode for every chunk. Every
@@ -52,6 +55,14 @@ public class QRUtil {
 		}
 
 		return list;
+	}
+
+	public static int getChunkSize() {
+		return Integer.parseInt(Main.properties.getProperty(PROP_CHUNK_SIZE, "" + CHUNK_SIZE));
+	}
+
+	public static int getBarcodeSize() {
+		return Integer.parseInt(Main.properties.getProperty(PROP_BARCODE_SIZE, "" + BARCODE_SIZE));
 	}
 
 }

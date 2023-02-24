@@ -209,7 +209,7 @@ public class NewPrivateKey {
 
 			SwingUtilities.invokeLater(() -> txtInfo.append("Displaying QR sequence... "));
 
-			new QRFrame(message, AnimatedQrHelper.DELAY, () -> {
+			new QRFrame(message, AnimatedQrHelper.getSequenceDelay(), () -> {
 				SwingUtilities.invokeLater(() -> txtInfo.append("Showing backup file\n"));
 				try {
 					Desktop.getDesktop().open(backupFile);
@@ -400,7 +400,7 @@ public class NewPrivateKey {
 			throws NoSuchAlgorithmException, IOException, WriterException {
 		PTag qrCodes = p();
 
-		List<BitMatrix> list = QRUtil.getQrSequence(message, QRUtil.CHUNK_SIZE, QRUtil.BARCODE_SIZE);
+		List<BitMatrix> list = QRUtil.getQrSequence(message, QRUtil.getChunkSize(), QRUtil.getBarcodeSize());
 
 		for (int i = 0; i < list.size(); i++) {
 			try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
@@ -408,8 +408,8 @@ public class NewPrivateKey {
 				baos.flush();
 				qrCodes.with(table(tr(td(Integer.toString(i + 1)), td(
 						img().withSrc("data:image/png;base64," + Base64.getEncoder().encodeToString(baos.toByteArray()))
-								.withStyle("width:" + (QRUtil.BARCODE_SIZE / 2) + "px;height:"
-										+ (QRUtil.BARCODE_SIZE / 2) + "px;")))
+								.withStyle("width:" + (QRUtil.getBarcodeSize() / 2) + "px;height:"
+										+ (QRUtil.getBarcodeSize() / 2) + "px;")))
 						.withStyle("vertical-align: bottom;")).withStyle("display: inline-block;"));
 			} catch (Exception ex) {
 				ex.printStackTrace();

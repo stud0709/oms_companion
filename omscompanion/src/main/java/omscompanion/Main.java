@@ -37,7 +37,7 @@ import javax.swing.SwingUtilities;
 public class Main {
 	public static Path PUBLIC_KEY_STORAGE = new File("public").toPath();
 	public static final Properties properties = new Properties();
-	public static final String PROP_DEFAULT_KEY = "default_key", PROP_AUTO_CLIPBOARD_CHECK = "auto_clipboard_check";
+	private static final String PROP_DEFAULT_KEY = "default_key", PROP_AUTO_CLIPBOARD_CHECK = "auto_clipboard_check";
 
 	public static void main(String[] args) throws Exception {
 		Files.createDirectories(PUBLIC_KEY_STORAGE);
@@ -57,8 +57,15 @@ public class Main {
 
 		initTrayIcon();
 
-		ClipboardUtil
-				.setAutomaticMode(properties.getProperty(PROP_AUTO_CLIPBOARD_CHECK, "true").equalsIgnoreCase("true"));
+		ClipboardUtil.setAutomaticMode(Boolean.parseBoolean(properties.getProperty(PROP_AUTO_CLIPBOARD_CHECK, "true")));
+	}
+
+	public static String getDefaultKey() {
+		return properties.getProperty(PROP_DEFAULT_KEY);
+	}
+
+	public static void setDefaultKeyAlias(String alias) {
+		properties.setProperty(PROP_DEFAULT_KEY, alias);
 	}
 
 	private static void initTrayIcon() throws IOException, AWTException {
@@ -104,6 +111,13 @@ public class Main {
 				});
 			});
 			menu.add(monitorClipboard);
+		}
+
+		{
+			MenuItem menuItem = new MenuItem("Password Generator");
+			menuItem.setActionCommand("pwdGen");
+			menuItem.addActionListener(MENU_ACTION_LISTENER);
+			menu.add(menuItem);
 		}
 
 		{
@@ -164,6 +178,13 @@ public class Main {
 			case "importPublicKey":
 				new PublicKeyImport().setVisible(true);
 				break;
+			case "pwdGen":
+				try {
+					new PasswordGenerator().setVisible(true);
+				} catch (IOException e1) {
+					e1.printStackTrace();
+				}
+				break;
 			case "publicKeyFolder":
 				try {
 					Desktop.getDesktop().open(PUBLIC_KEY_STORAGE.toFile());
@@ -175,37 +196,6 @@ public class Main {
 		}
 	};
 
-	/**
-	 * Wrapper for -genkey command of java keytool.
-	 * 
-	 * @param keyalg       e.g. {@code RSA }
-	 * @param alias        key alias
-	 * @param keystorePath keystore path
-	 * @param storepass    keystore master password
-	 * @param validity     certificate validity in days
-	 * @param keysize      e.g. 2048
-	 * @param dname        e.g. {@code CN=localhost }
-	 * @return {@link Process#exitValue() }
-	 * @throws IOException
-	 * @throws InterruptedException
-	 */
-	@Deprecated
-	public static int genKey(String keyalg, String alias, Path keystorePath, String storepass, int validity,
-			int keysize, String dname) throws IOException, InterruptedException {
-
-		String keytoolPath = new File(System.getProperty("java.home")).toPath().resolve("bin").resolve("keytool.exe")
-				.toAbsolutePath().toString();
-
-		String cmd = keytoolPath + " -genkey" + " -keyalg " + keyalg + " -alias " + alias + " -keystore "
-				+ keystorePath.toAbsolutePath() + " -storepass " + storepass + " -validity " + validity + " -keysize "
-				+ keysize + " -dname \"" + dname + "\"";
-
-		// System.out.println(cmd);
-
-		Process keytool = Runtime.getRuntime().exec(cmd);
-		return keytool.waitFor();
-	}
-
 	public static byte[] getFingerprint(RSAPublicKey publicKey) throws NoSuchAlgorithmException {
 		MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
 		sha256.update(publicKey.getModulus().toByteArray());
@@ -214,10 +204,10 @@ public class Main {
 
 	public static String byteArrayToHex(byte[] a) {
 		StringBuilder sb = new StringBuilder(a.length * 2);
-		int i = 0;
-		for (byte b : a)
-			sb.append(String.format("%02x", b)).append(i++ % 2 == 1 ? " " : "");
-		return sb.toString();
+		for (int i = 0; i < a.length; i++) {
+			sb.append(String.format("%02x", a[i])).append(i % 2 == 1 ? " " : "");
+		}
+		return sb.toString().trim();
 	}
 
 	public static RSAPublicKey getPublicKey(byte[] encoded) throws InvalidKeySpecException, NoSuchAlgorithmException {

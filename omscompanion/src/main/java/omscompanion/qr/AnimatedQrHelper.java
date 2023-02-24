@@ -12,8 +12,11 @@ import java.util.stream.Collectors;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 
+import omscompanion.Main;
+
 public class AnimatedQrHelper {
-	public static long DELAY = 100;
+	private static long DEFAULT_DELAY = 100;
+	private static final String PROP_DELAY = "qr_seq_delay";
 
 	private int idx = 0;
 	List<BufferedImage> images = new ArrayList<>();
@@ -28,7 +31,7 @@ public class AnimatedQrHelper {
 		this.imageConsumer = imageConsumer;
 
 		try {
-			List<BitMatrix> list = QRUtil.getQrSequence(message, QRUtil.CHUNK_SIZE, QRUtil.BARCODE_SIZE);
+			List<BitMatrix> list = QRUtil.getQrSequence(message, QRUtil.getChunkSize(), QRUtil.getBarcodeSize());
 			images = list.stream().map(m -> MatrixToImageWriter.toBufferedImage(m)).collect(Collectors.toList());
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -37,6 +40,10 @@ public class AnimatedQrHelper {
 
 	public List<BufferedImage> getImages() {
 		return images;
+	}
+
+	public static long getSequenceDelay() {
+		return Long.parseLong(Main.properties.getProperty(PROP_DELAY, "" + DEFAULT_DELAY));
 	}
 
 	public void start() {

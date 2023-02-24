@@ -170,8 +170,8 @@ public class QRFrame extends JFrame {
 		f.deleteOnExit();
 
 		try (FileImageOutputStream fios = new FileImageOutputStream(f)) {
-			List<BitMatrix> list = QRUtil.getQrSequence(message, QRUtil.CHUNK_SIZE, QRUtil.BARCODE_SIZE);
-			AnimatedGifWriter.createGif(list, fios, AnimatedQrHelper.DELAY);
+			List<BitMatrix> list = QRUtil.getQrSequence(message, QRUtil.getChunkSize(), QRUtil.getBarcodeSize());
+			AnimatedGifWriter.createGif(list, fios, AnimatedQrHelper.getSequenceDelay());
 			fios.flush();
 		} catch (Exception ex) {
 			ex.printStackTrace();
