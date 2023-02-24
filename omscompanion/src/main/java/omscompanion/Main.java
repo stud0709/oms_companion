@@ -19,6 +19,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyFactory;
@@ -146,6 +147,14 @@ public class Main {
 
 			menu.add(crypto);
 		}
+
+		{
+			MenuItem menuItem = new MenuItem("Project Home Page");
+			menuItem.setActionCommand("home");
+			menuItem.addActionListener(MENU_ACTION_LISTENER);
+			menu.add(menuItem);
+		}
+
 		{
 			MenuItem exitCommand = new MenuItem("Exit");
 			exitCommand.setActionCommand("exit");
@@ -189,6 +198,13 @@ public class Main {
 				try {
 					Desktop.getDesktop().open(PUBLIC_KEY_STORAGE.toFile());
 				} catch (IOException ex) {
+					ex.printStackTrace();
+				}
+				break;
+			case "home":
+				try {
+					Desktop.getDesktop().browse(new URI("https://github.com/stud0709/oms_companion"));
+				} catch (Exception ex) {
 					ex.printStackTrace();
 				}
 				break;

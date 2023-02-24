@@ -1,14 +1,19 @@
-# omsCompanion
-The supplementary desktop software for [OneMoreSecret](https://github.com/stud0709/OneMoreSecret).
+# ![App Icon](/readme_images/qr-code.png)  omsCompanion
+The supplementary desktop software for [OneMoreSecret](https://github.com/stud0709/OneMoreSecret). Its main purpose is to close the gap between your desktop PC and the OneMoreSecret app on your phone.
 
-### Disclaimer
-This is a very early version of the software. Use it at your own risk.
+It also mirrors some features of the smartphone app, which may better fit your workflow.
 
-## Setting Things Up
-This software requires Java Runtime Environment 8 or later. Download and unzip the release into a folder. If you have your Java runtime on your class path, use `oms.cmd` to start the application. It will appear in your system tray.
+## Disclaimer
+This is a very ~~ugly~~ early version of the software. Use it at your own risk.
 
-### Creating Your Private Key
-Open the context menu from the system tray icon and click on *Cryptography... -> New Private Key*. The wizard will guide you through the process.
+## Setting Up
+This software requires Java Runtime Environment 8 or later. Download the release file into a subfolder of your user folder. If you have your Java runtime on your class path, use `oms.cmd` to start the application. It will appear in your system tray.
+
+## Creating a Private Key
+
+This is a desktop implementation of the OneMoreSecret [New Private Key](https://github.com/stud0709/OneMoreSecret/blob/master/new_private_key.md) feature. You can either generate a private key on your smartphone directly or create it in omsCompanion and import it into your smartphone. 
+
+Open the context menu from the system tray icon and click on *Cryptography... -> New Private Key*. 
 
 ![New Private Key](/readme_images/new_private_key.png)
 
@@ -16,24 +21,51 @@ Open the context menu from the system tray icon and click on *Cryptography... ->
 
 **Store the generated HTML file in a secure location or print it out**. Also do not forget to remember the transport password - you will need it to import your private key into the phone, so the next time you will be using it may be in a couple of years from now. 
 
-### Importing the private key.
+### Importing the Public Key into the Phone.
 
-The key generation wizard will show you the sequence of QR codes to be scanned with *OneMoreSecret* app immediately after you click on *Create*. Please refer to *OneMoreSecret* documentation for the import procedure.
+The key generation wizard will show you the sequence of QR codes to be [scanned](https://github.com/stud0709/OneMoreSecret/blob/master/qr_scanner.md) with OneMoreSecret app immediately after you click *Create*. After the successful scan, the [import screen](https://github.com/stud0709/OneMoreSecret/blob/master/key_import.md) will open.
 
 ## Encrypting Data
-If you double click on the tray icon, omsCompanion will check the clipboard for text. If the text starts with `oms00_`, the QR codes for decryption will be generated (see below). Otherwise, the text will be encrypted with your public key and copied back to the clipboard. A sample result is:
-
-`oms00_MQlSU0EvRUNCL1BLQ1MxUGFkZGluZwlta1g4cHdYanNtT2FSSkl2dHRuZUJUTEVBUHA3dHY4QVorMkZmT0J5dVZzPQlBRVMvQ0JDL1BLQ1M1UGFkZGluZwlRYlB6L2hBTVlDVzFJL1VQMTdlWGZRPT0JcTltaDI3aHIvVWtNUE84NnNsa0ZpZjdCRy9Bb1FsYTBUYWtkbXdRcWtKY2ZEL1VjOFBFaUN0Y041Uy8yeFhsdm9jYkV0SUtyRmkwMzQrd2FrbUJqejRETXdkV01VQ2pGSnpVVDNUUFN6WnZ1Z2lIdVkxYlczYVAxNU5LWE50eGNIZkl3cUZHOWF5M0VSREhIbm4zSEVLWjYyN3RsRHpJZHlBcHA5WlduQXNXQTF4QTdaZUNUTzBBTG5XSmtMVTNPTHNVNkIrSk1kZzNWaVM1ckZZQ0E4TkFHLzZWcytYRHpTK1gzZFIvY3dWOEFXRE9Mc3k5TVE4bXN5eWljUExvT1V2aGI4b2pSTDh4TVV3ZmZXb2loWWg0SWFnRzF4YmRES0M4WlJNViswUmNzaUZZaTZOaitLSGphajM4YllDM3RDWEdlZi9IK01CSGhtZ0lhK0VoZ1ZBPT0JQXZqakE3TFRzQzVPbjFtK0hqSi9qdHVJbWVjemVON0tHN0V4TW5CeEQyMXFua2sxY1ZndnVyMGRyeEpLOEw4ZkRKK3FoeDR2M0t4MXN3ZHBzY0N2Tk53V0dIS3pQWVJtR3VlWmEwZTVWeVU9`
+If you double click the tray icon, omsCompanion will check the clipboard for text. If the text starts with `oms00_`, a QR code sequence will be generated (see the [OneMoreSecret Tutotial](https://github.com/stud0709/OneMoreSecret/blob/master/hello_world.md) for a sample). Any other text found in the clipboard will be encrypted with the public key you selected and copied back to the clipboard. *Set Default* will make the selected public your default one. 
 
 In addition to the text format, you can also generate an animated `.gif` file or a BASE64 encoded `GIF` data, which is useful if you want to embed the image into the `<img src="data:image/gif;base64,...]/>` tag (replacing `...` with the BASE64 encoded data).
 
 ![Encrypting Data](/readme_images/encrypting.png)
 
 ## Decrypting Data
-*omsCompanion* is continuously monitoring your clipboard (you can disable this feature by clicking *Monitor clipboard* in the context menu of the tray icon). If it finds a text starting with `oms00_`, it will generate an QR code sequence out of it, empty the clipboard and show a pop-up window:
+By default, *omsCompanion* is continuously monitoring your clipboard (you can disable this feature by clicking *Monitor clipboard* in the context menu of the tray icon). If it finds a text starting with `oms00_`, it will generate an QR code sequence out of it, empty the clipboard and show a pop-up window:
 
 ![QR pop-up](readme_images/QR_pop_up.png)
 
+The pop-up also offers a context menu for `.gif` file creation and text output of the data.
+
 You can also scan the `.gif` files created earlier by the encryption dialog.
 
-For more information on decripting see *OneMoreSecret* documentation. 
+For more information on decripting see OneMoreSecret [documentation](https://github.com/stud0709/OneMoreSecret/blob/master/decrypted_message.md). 
+
+## Password Generator
+![Password Generator](/readme_images/password_generator.png)
+
+Here you can generate a password according to the guidelines:
+- A...Z - upper-case letters
+- a...z - lower-case letters
+- 0...9 - digits
+- !"&#... - special characters
+- Similar - characters, that can be easily confused (like `capital I` and `one` or `zero` and `capital O`)
+
+You can also edit the password suggestion manually. Once you are finished, the password can be encrypted with the tools you already know from the [encryption dialog](#encrypting-data).
+
+## Importing Public Key
+
+![public_key_import](/readme_images/public_key_import.png)
+
+Public keys are needed to encrypt data. Only the person who owns the corresponding private key will be able to decrypt it. 
+
+If you generate your public key [in omsCompanion](#creating-a-private-key) and *store public key for later use*, you are fine. If you [restore](https://github.com/stud0709/OneMoreSecret/blob/master/key_import.md) the key from the backup document onto your smartphone, you will need to import the public key into omsCompanion. You can do it from the [Key Management](https://github.com/stud0709/OneMoreSecret/blob/master/key_management.md) screen. The BASE64 encoded data from your smartphone must be copied or [auto-typed](https://github.com/stud0709/OneMoreSecret/blob/master/autotype.md) into the *Key Data (BASE64)* field. Enter an *alias* for the key and *save*.
+
+Now you can use this key to encrypt the data.
+
+The public key storage is accessible from the *Cryptography -> Public Key Folder* context menu of the tray icon.
+
+## Roadmap and Bugs
+For feature requests and bug report, please open a [GitHub Issue](https://github.com/stud0709/oms_companion/issues). 
