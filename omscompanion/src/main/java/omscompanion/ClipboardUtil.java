@@ -1,7 +1,6 @@
 package omscompanion;
 
 import java.awt.Toolkit;
-import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
@@ -11,64 +10,83 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import omscompanion.qr.AnimatedQrHelper;
-import omscompanion.qr.QRFrame;
+import javafx.beans.property.SimpleBooleanProperty;
+import omscompanion.openjfx.NewItemController;
+import omscompanion.openjfx.QRFrameController;
 
 public class ClipboardUtil {
-	public static final int CHECK_INTERVAL = 1000;
-	protected static boolean automaticMode = false;
 	private static Thread t = null;
 	private static final AtomicBoolean CHECK_CLIPBOARD = new AtomicBoolean(false);
-	private static Consumer<Boolean> onAutomaticModeChanged = null;
+	private static final SimpleBooleanProperty automaticModeProperty = new SimpleBooleanProperty(false);
+	private static final String PROP_AUTO_CLIPBOARD_CHECK = "auto_clipboard_check",
+			PROP_CLIPBOARD_CHECK_INTERVAL = "clipboard_check_interval";
+
+	public static void init() {
+		automaticModeProperty.addListener((observable, oldValue, newValue) -> {
+			Main.properties.setProperty(PROP_AUTO_CLIPBOARD_CHECK, Boolean.toString(newValue));
+
+			CHECK_CLIPBOARD.set(newValue);
+
+			if (newValue)
+				startClipboardCheck();
+
+		});
+
+		automaticModeProperty.set(isAutoClipboardCheck());
+	}
 
 	public static String get() throws UnsupportedFlavorException, IOException {
-		Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+		var clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 
 		return clipboard.isDataFlavorAvailable(DataFlavor.stringFlavor)
 				? (String) clipboard.getData(DataFlavor.stringFlavor)
 				: null;
 	}
 
+	public static SimpleBooleanProperty getAutomaticmodeProperty() {
+		return automaticModeProperty;
+	}
+
 	public static void set(String s) {
 		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(s), null);
 	}
 
-	public static boolean isAutomaticMode() {
-		return automaticMode;
+	private static long getCheckInterval() {
+		return Long.parseLong(Main.properties.getProperty(PROP_CLIPBOARD_CHECK_INTERVAL, "1000"));
 	}
 
-	public static void setOnAutomaticModeChanged(Consumer<Boolean> onAutomaticModeChanged) {
-		ClipboardUtil.onAutomaticModeChanged = onAutomaticModeChanged;
+	public static boolean isAutoClipboardCheck() {
+		return Boolean.parseBoolean(Main.properties.getProperty(PROP_AUTO_CLIPBOARD_CHECK, "true"));
 	}
 
 	public static void set(File... fArr) {
-		List<File> files = Arrays.stream(fArr).collect(Collectors.toList());
-		FileTransferable ft = new FileTransferable(files);
+		var files = Arrays.stream(fArr).collect(Collectors.toList());
+		var ft = new FileTransferable(files);
 		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(ft, null);
 	}
 
 	public static synchronized boolean checkClipboard() {
 		try {
-			String s = get();
+			var s = get();
 
 			if (s == null)
 				return false;
 
 			s = s.trim();
 
-			String m = MessageComposer.decode(s);
+			var message = MessageComposer.decode(s);
 
-			if (m == null) // not a valid OMS message
+			if (message == null) // not a valid OMS message
 				return false;
 
-			set("");
-
 			CHECK_CLIPBOARD.set(false);
-			new QRFrame(m, AnimatedQrHelper.getSequenceDelay(), () -> CHECK_CLIPBOARD.set(automaticMode))
-					.setVisible(true);
+
+			QRFrameController.showForMessage(message, () -> {
+				set(""); // clear the clipboard
+				CHECK_CLIPBOARD.set(automaticModeProperty.get());
+			});
 
 			return true;
 		} catch (Exception e) {
@@ -86,7 +104,7 @@ public class ClipboardUtil {
 		t = new Thread(() -> {
 			while (!Thread.interrupted()) {
 				try {
-					Thread.sleep(CHECK_INTERVAL);
+					Thread.sleep(getCheckInterval());
 				} catch (InterruptedException e) {
 					return;
 				}
@@ -105,40 +123,26 @@ public class ClipboardUtil {
 		t.start();
 	}
 
-	public static void setAutomaticMode(boolean b) {
-		automaticMode = b;
-		CHECK_CLIPBOARD.set(b);
-
-		onAutomaticModeChanged.accept(b);
-
-		if (automaticMode)
-			startClipboardCheck();
-
-	}
-
 	public static void processClipboard() {
 		try {
 			if (ClipboardUtil.checkClipboard()) // found oms:// in the clipboard
 				return;
 
 			// try to encrypt clipboard content
-			String s = get();
+			var s = get();
 			if (s == null || s.trim().isEmpty())
 				return;
 
 			CHECK_CLIPBOARD.set(false);
 
-			try {
-				new NewItem(s, () -> CHECK_CLIPBOARD.set(automaticMode)).setVisible(true);
-			} catch (Exception ex) {
-				ex.printStackTrace();
-				CHECK_CLIPBOARD.set(automaticMode);
-			}
+			NewItemController.showForMessage(s.getBytes(), () -> {
+				set(""); // clear the clipboard
+				CHECK_CLIPBOARD.set(automaticModeProperty.get());
+			});
 
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
-
 	}
 
 	public static class FileTransferable implements Transferable {

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.ContextMenu?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.MenuItem?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox xmlns="http://javafx.com/javafx/19" xmlns:fx="http://javafx.com/fxml/1" fx:controller="omscompanion.openjfx.QRFrameController">
+   <children>
+      <Label fx:id="lblQrCode" alignment="CENTER" minHeight="100.0" minWidth="100.0">
+         <contextMenu>
+            <ContextMenu fx:id="ctxMenu">
+              <items>
+                <MenuItem fx:id="mItmAsText" mnemonicParsing="false" onAction="#onMenuItemAction" text="text" />
+                <MenuItem fx:id="mItmAsGifFile" mnemonicParsing="false" onAction="#onMenuItemAction" text="gif file" />
+                <MenuItem fx:id="mItmAsBase64" mnemonicParsing="false" onAction="#onMenuItemAction" text="base64 gif" />
+              </items>
+            </ContextMenu>
+         </contextMenu>
+      </Label>
+   </children>
+</VBox>

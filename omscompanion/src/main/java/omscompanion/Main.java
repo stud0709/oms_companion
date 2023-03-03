@@ -38,7 +38,7 @@ import javax.swing.SwingUtilities;
 public class Main {
 	public static Path PUBLIC_KEY_STORAGE = new File("public").toPath();
 	public static final Properties properties = new Properties();
-	private static final String PROP_DEFAULT_KEY = "default_key", PROP_AUTO_CLIPBOARD_CHECK = "auto_clipboard_check";
+	private static final String PROP_DEFAULT_KEY = "default_key";
 
 	public static void main(String[] args) throws Exception {
 		Files.createDirectories(PUBLIC_KEY_STORAGE);
@@ -58,7 +58,9 @@ public class Main {
 
 		initTrayIcon();
 
-		ClipboardUtil.setAutomaticMode(Boolean.parseBoolean(properties.getProperty(PROP_AUTO_CLIPBOARD_CHECK, "true")));
+		ClipboardUtil.init();
+
+		FxMain.main(args);
 	}
 
 	public static String getDefaultKey() {
@@ -105,10 +107,9 @@ public class Main {
 			MenuItem monitorClipboard = new MenuItem(menuItemText);
 			monitorClipboard.setActionCommand("autoClipboardCheck");
 			monitorClipboard.addActionListener(MENU_ACTION_LISTENER);
-			ClipboardUtil.setOnAutomaticModeChanged(b -> {
-				properties.setProperty(PROP_AUTO_CLIPBOARD_CHECK, Boolean.toString(b));
+			ClipboardUtil.getAutomaticmodeProperty().addListener((observable, oldValue, newValue) -> {
 				SwingUtilities.invokeLater(() -> {
-					monitorClipboard.setLabel(menuItemText + (b ? " \u2713" : ""));
+					monitorClipboard.setLabel(menuItemText + (newValue ? " \u2713" : ""));
 				});
 			});
 			menu.add(monitorClipboard);
@@ -182,7 +183,9 @@ public class Main {
 				new NewPrivateKey().getFrame().setVisible(true);
 				break;
 			case "autoClipboardCheck":
-				ClipboardUtil.setAutomaticMode(!ClipboardUtil.isAutomaticMode());
+				// revert value
+				boolean b = ClipboardUtil.getAutomaticmodeProperty().get();
+				ClipboardUtil.getAutomaticmodeProperty().set(!b);
 				break;
 			case "importPublicKey":
 				new PublicKeyImport().setVisible(true);

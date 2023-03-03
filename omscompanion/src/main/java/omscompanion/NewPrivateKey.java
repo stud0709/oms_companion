@@ -61,8 +61,7 @@ import omscompanion.crypto.AesEncryptedPrivateKeyTransfer;
 import omscompanion.crypto.AesKeyAlgorithm;
 import omscompanion.crypto.AesTransformation;
 import omscompanion.crypto.RSAUtils;
-import omscompanion.qr.AnimatedQrHelper;
-import omscompanion.qr.QRFrame;
+import omscompanion.openjfx.QRFrameController;
 import omscompanion.qr.QRUtil;
 
 public class NewPrivateKey {
@@ -209,7 +208,7 @@ public class NewPrivateKey {
 
 			SwingUtilities.invokeLater(() -> txtInfo.append("Displaying QR sequence... "));
 
-			new QRFrame(message, AnimatedQrHelper.getSequenceDelay(), () -> {
+			QRFrameController.showForMessage(message, () -> {
 				SwingUtilities.invokeLater(() -> txtInfo.append("Showing backup file\n"));
 				try {
 					Desktop.getDesktop().open(backupFile);
@@ -220,7 +219,7 @@ public class NewPrivateKey {
 					txtInfo.append("Operation suffessfully completed\n");
 					btnCreate.setEnabled(true);
 				});
-			}).setVisible(true);
+			});
 
 		} catch (Exception ex) {
 			ex.printStackTrace();
@@ -400,7 +399,8 @@ public class NewPrivateKey {
 			throws NoSuchAlgorithmException, IOException, WriterException {
 		PTag qrCodes = p();
 
-		List<BitMatrix> list = QRUtil.getQrSequence(message, QRUtil.getChunkSize(), QRUtil.getBarcodeSize());
+		List<BitMatrix> list = QRUtil.getQrSequence(message.toCharArray(), QRUtil.getChunkSize(),
+				QRUtil.getBarcodeSize());
 
 		for (int i = 0; i < list.size(); i++) {
 			try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
@@ -416,7 +416,7 @@ public class NewPrivateKey {
 			}
 		}
 
-		String messageAsUrl = MessageComposer.encodeAsOmsText(message);
+		String messageAsUrl = MessageComposer.encodeAsOmsText(message.getBytes());
 		PTag messageChunks = p().withStyle("font-family:monospace;");
 		int offset = 0;
 		while (offset < messageAsUrl.length()) {

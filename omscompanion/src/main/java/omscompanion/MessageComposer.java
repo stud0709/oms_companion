@@ -5,7 +5,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public abstract class MessageComposer {
-	public static final int APPLICATION_AES_ENCRYPTED_PRIVATE_KEY_TRANSFER = 0, APPLICATION_ENCRYPTED_MESSAGE_TRANSFER = 1;
+	public static final int APPLICATION_AES_ENCRYPTED_PRIVATE_KEY_TRANSFER = 0,
+			APPLICATION_ENCRYPTED_MESSAGE_TRANSFER = 1;
 
 	/**
 	 * Prefix of a text encoded message.
@@ -49,17 +50,17 @@ public abstract class MessageComposer {
 	}
 
 	/**
-	 * You can pass messages through the clipboard. A message begins with
-	 * {@link MessageComposer#OMS_PREFIX}. Version 00 of OMS protocol:
+	 * A OneMoreSecret text format begins with {@link MessageComposer#OMS_PREFIX}.
+	 * Version 00 of OMS protocol:
 	 * <ol>
-	 * <li>converts the message to byte array</li>
-	 * <li>BASE64 encode (1)</li></li>prepend (2) with
-	 * {@link MessageComposer#OMS_PREFIX}
+	 * <li>BASE64 encode {@code message}</li>
+	 * <li>prepend (2) with {@link MessageComposer#OMS_PREFIX}</li>
 	 * </ol>
 	 * 
+	 * @param message
 	 * @return
 	 */
-	public static String encodeAsOmsText(String message) {
-		return OMS_PREFIX + Base64.getEncoder().encodeToString(message.getBytes());
+	public static String encodeAsOmsText(byte[] message) {
+		return OMS_PREFIX + Base64.getEncoder().encodeToString(message);
 	}
 }

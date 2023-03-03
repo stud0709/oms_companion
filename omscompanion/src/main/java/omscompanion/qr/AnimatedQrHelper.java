@@ -1,6 +1,9 @@
 package omscompanion.qr;
 
 import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
@@ -9,9 +12,13 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import javax.imageio.stream.FileImageOutputStream;
+
+import com.google.zxing.WriterException;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 
+import omscompanion.AnimatedGifWriter;
 import omscompanion.Main;
 
 public class AnimatedQrHelper {
@@ -22,12 +29,10 @@ public class AnimatedQrHelper {
 	List<BufferedImage> images = new ArrayList<>();
 	private final Timer timer = new Timer();
 	private final Supplier<Boolean> test;
-	private final long delay;
 	Consumer<BufferedImage> imageConsumer;
 
-	public AnimatedQrHelper(String message, long delay, Supplier<Boolean> test, Consumer<BufferedImage> imageConsumer) {
+	public AnimatedQrHelper(char[] message, Supplier<Boolean> test, Consumer<BufferedImage> imageConsumer) {
 		this.test = test;
-		this.delay = delay;
 		this.imageConsumer = imageConsumer;
 
 		try {
@@ -48,20 +53,21 @@ public class AnimatedQrHelper {
 
 	public void start() {
 		imageConsumer.accept(images.get(0));
+		long delay = getSequenceDelay();
 
-		timer.schedule(getTimerTask(), this.delay);
+		timer.schedule(getTimerTask(delay), delay);
 	}
 
 	public Timer getTimer() {
 		return timer;
 	}
 
-	private TimerTask getTimerTask() {
+	private TimerTask getTimerTask(long delay) {
 		return new TimerTask() {
 
 			@Override
 			public void run() {
-				synchronized (QRFrame.class) {
+				synchronized (AnimatedQrHelper.class) {
 					if (!test.get())
 						return;
 
@@ -72,9 +78,22 @@ public class AnimatedQrHelper {
 
 					imageConsumer.accept(images.get(idx));
 
-					timer.schedule(getTimerTask(), delay);
+					timer.schedule(getTimerTask(delay), delay);
 				}
 			}
 		};
+	}
+
+	public static File generateGif(char[] message) throws FileNotFoundException, IOException, WriterException {
+		File f = new File("qr.gif");
+		f.deleteOnExit();
+
+		try (FileImageOutputStream fios = new FileImageOutputStream(f)) {
+			List<BitMatrix> list = QRUtil.getQrSequence(message, QRUtil.getChunkSize(), QRUtil.getBarcodeSize());
+			AnimatedGifWriter.createGif(list, fios, getSequenceDelay());
+			fios.flush();
+		}
+
+		return f;
 	}
 }

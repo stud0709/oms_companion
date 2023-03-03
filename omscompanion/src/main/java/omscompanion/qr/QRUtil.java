@@ -28,18 +28,17 @@ public class QRUtil {
 	 * 
 	 * @throws WriterException
 	 */
-	public static List<BitMatrix> getQrSequence(String message, int chunkSize, int barcodeSize) throws WriterException {
-		char[] data = message.toCharArray();
+	public static List<BitMatrix> getQrSequence(char[] message, int chunkSize, int barcodeSize) throws WriterException {
 		QRCodeWriter writer = new QRCodeWriter();
 		List<BitMatrix> list = new ArrayList<>();
 		char[] cArr;
-		int chunks = (int) Math.ceil(data.length / (double) chunkSize);
-		int charsToSend = data.length;
+		int chunks = (int) Math.ceil(message.length / (double) chunkSize);
+		int charsToSend = message.length;
 		String transactionId = Integer.toHexString((int) (Math.random() * 0xffff));
 
 		for (int chunkNo = 0; chunkNo < chunks; chunkNo++) {
 			// copy with padding to keep all barcodes equal in size
-			cArr = Arrays.copyOfRange(data, chunkSize * chunkNo, chunkSize * (chunkNo + 1));
+			cArr = Arrays.copyOfRange(message, chunkSize * chunkNo, chunkSize * (chunkNo + 1));
 
 			List<String> bc = new ArrayList<>();
 			bc.add(transactionId);

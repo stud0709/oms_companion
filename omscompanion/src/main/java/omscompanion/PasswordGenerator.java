@@ -42,8 +42,9 @@ import com.google.zxing.common.BitMatrix;
 import omscompanion.crypto.AESUtil;
 import omscompanion.crypto.EncryptedMessageTransfer;
 import omscompanion.crypto.RSAUtils;
+import omscompanion.openjfx.NewItemController;
+import omscompanion.openjfx.QRFrameController;
 import omscompanion.qr.AnimatedQrHelper;
-import omscompanion.qr.QRFrame;
 import omscompanion.qr.QRUtil;
 
 public class PasswordGenerator extends JFrame implements WindowListener, ItemListener, ActionListener {
@@ -206,7 +207,8 @@ public class PasswordGenerator extends JFrame implements WindowListener, ItemLis
 		panel_2.add(lblKeyLabel);
 
 		List<String> publicKeys = Files.list(Main.PUBLIC_KEY_STORAGE).map(p -> p.getFileName().toString())
-				.filter(fn -> fn.toLowerCase().endsWith(NewItem.FILE_TYPE_PUCLIC_KEY)).collect(Collectors.toList());
+				.filter(fn -> fn.toLowerCase().endsWith(NewItemController.FILE_TYPE_PUCLIC_KEY))
+				.collect(Collectors.toList());
 		String[] items = publicKeys.toArray(new String[] {});
 
 		comboUseKey = new JComboBox<>();
@@ -268,10 +270,11 @@ public class PasswordGenerator extends JFrame implements WindowListener, ItemLis
 	private void onPreview(JButton btn) {
 		btn.setEnabled(false);
 		try {
-			new QRFrame(encryptMessage(), AnimatedQrHelper.getSequenceDelay(),
-					() -> SwingUtilities.invokeLater(() -> btn.setEnabled(true))).setVisible(true);
+			QRFrameController.showForMessage(encryptMessage(),
+					() -> SwingUtilities.invokeLater(() -> btn.setEnabled(true)));
 		} catch (Exception e) {
 			e.printStackTrace();
+			SwingUtilities.invokeLater(() -> btn.setEnabled(true));
 		}
 	}
 
@@ -291,7 +294,7 @@ public class PasswordGenerator extends JFrame implements WindowListener, ItemLis
 
 	private void createTextLink() {
 		try {
-			String omsURL = MessageComposer.encodeAsOmsText(encryptMessage());
+			String omsURL = MessageComposer.encodeAsOmsText(encryptMessage().getBytes());
 			ClipboardUtil.set(omsURL);
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -311,7 +314,7 @@ public class PasswordGenerator extends JFrame implements WindowListener, ItemLis
 		f.deleteOnExit();
 
 		try (FileImageOutputStream fios = new FileImageOutputStream(f)) {
-			List<BitMatrix> list = QRUtil.getQrSequence(encryptMessage(), QRUtil.getChunkSize(),
+			List<BitMatrix> list = QRUtil.getQrSequence(encryptMessage().toCharArray(), QRUtil.getChunkSize(),
 					QRUtil.getBarcodeSize());
 			AnimatedGifWriter.createGif(list, fios, AnimatedQrHelper.getSequenceDelay());
 			fios.flush();
