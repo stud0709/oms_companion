@@ -24,7 +24,7 @@ import omscompanion.Main;
 import omscompanion.qr.AnimatedQrHelper;
 import omscompanion.qr.QRUtil;
 
-public class QRFrameController {
+public class QRFrame {
 	private String message;
 	private static final Timer timer = new Timer();
 	private static Stage instance;
@@ -53,7 +53,7 @@ public class QRFrameController {
 	public void init(String message, Stage stage) throws WriterException {
 		this.message = message;
 
-		synchronized (QRFrameController.class) {
+		synchronized (QRFrame.class) {
 			instance = stage;
 		}
 
@@ -95,7 +95,7 @@ public class QRFrameController {
 				var url = Main.class.getResource("openjfx/QRFrame.fxml");
 				var fxmlLoader = new FXMLLoader(url);
 				var scene = new Scene(fxmlLoader.load());
-				var frameController = (QRFrameController) fxmlLoader.getController();
+				var frameController = (QRFrame) fxmlLoader.getController();
 				var stage = new Stage();
 				frameController.init(message, stage);
 				stage.setTitle("omsCompanion");
@@ -103,7 +103,7 @@ public class QRFrameController {
 				stage.initStyle(StageStyle.UTILITY);
 				stage.show();
 				scene.getWindow().setOnHidden(e -> {
-					synchronized (QRFrameController.class) {
+					synchronized (QRFrame.class) {
 						if (instance == stage)
 							instance = null;
 					}

@@ -16,22 +16,21 @@ import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
-import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
-import javafx.scene.control.TextArea;
-import javafx.stage.Stage;
-import javafx.stage.StageStyle;
+import javafx.scene.layout.GridPane;
 import omscompanion.FxMain;
 import omscompanion.Main;
-import omscompanion.MessageComposer;
 import omscompanion.crypto.AESUtil;
 import omscompanion.crypto.EncryptedMessageTransfer;
 import omscompanion.crypto.RSAUtils;
 
-public class NewItemController implements ChangeListener<String> {
+public class EncryptionToolBar extends GridPane implements ChangeListener<String> {
 	public static final String FILE_TYPE_PUCLIC_KEY = ".x.509";
+
+	private String message;
+	byte[] unprotected;
 
 	@FXML
 	private Button btnAsGifBase64;
@@ -49,26 +48,33 @@ public class NewItemController implements ChangeListener<String> {
 	private Button btnPreviewQr;
 
 	@FXML
-	private ChoiceBox<String> choiceKey;
+	ChoiceBox<String> choiceKey;
 
 	@FXML
 	private Label lblKey;
 
-	@FXML
-	private TextArea txtAreaInfo;
+	public EncryptionToolBar() throws IOException {
+		var url = Main.class.getResource("openjfx/EncryptionToolBar.fxml");
+		var fxmlLoader = new FXMLLoader(url);
+		fxmlLoader.setRoot(this);
+		fxmlLoader.setController(this);
+		fxmlLoader.load();
+	}
 
-	private String message;
-	private byte[] unprotected;
+	public void setUnprotected(byte[] unprotected) {
+		this.unprotected = unprotected;
+		this.changed(null, null, choiceKey.getSelectionModel().getSelectedItem());
+		FxMain.createTextLink(message.getBytes());
+	}
 
-	public void init(byte[] bArr) throws IOException {
-		unprotected = bArr;
-
-		txtAreaInfo.setText(String.format(
-				"We have encrypted your data and copied them in %s... format back to the clipboard.\r\n\r\nUse the tool bar below to generate other formats (they will be copied to the clipboard as well).\r\n\r\nThe clipboard will be cleared as soon as you close this window.",
-				MessageComposer.OMS_PREFIX));
-
+	public void init() throws Exception {
 		List<String> publicKeys = Files.list(Main.PUBLIC_KEY_STORAGE).map(p -> p.getFileName().toString())
 				.filter(fn -> fn.toLowerCase().endsWith(FILE_TYPE_PUCLIC_KEY)).collect(Collectors.toList());
+
+		if (publicKeys.isEmpty()) {
+			throw new Exception(
+					String.format("Cannot encrypt: no keys found in %s", Main.PUBLIC_KEY_STORAGE.toAbsolutePath()));
+		}
 
 		ObservableList<String> os = FXCollections.observableArrayList(publicKeys);
 		choiceKey.setItems(os);
@@ -82,22 +88,6 @@ public class NewItemController implements ChangeListener<String> {
 		}
 
 		choiceKey.getSelectionModel().selectedItemProperty().addListener(this);
-
-		this.changed(null, null, choiceKey.getSelectionModel().getSelectedItem());
-	}
-
-	@Override
-	public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
-		try {
-			Path pkPath = Main.PUBLIC_KEY_STORAGE.resolve(newValue);
-
-			RSAPublicKey pk = Main.getPublicKey(Files.readAllBytes(pkPath));
-
-			message = new EncryptedMessageTransfer(unprotected, pk, RSAUtils.getRsaTransformationIdx(),
-					AESUtil.getKeyLength(), AESUtil.getAesTransformationIdx()).getMessage();
-		} catch (Exception ex) {
-			FxMain.handleException(ex);
-		}
 	}
 
 	@FXML
@@ -117,33 +107,24 @@ public class NewItemController implements ChangeListener<String> {
 			break;
 		case "btnPreviewQr":
 			btnPreviewQr.setDisable(true);
-			QRFrameController.showForMessage(message, () -> Platform.runLater(() -> btnPreviewQr.setDisable(false)));
+			QRFrame.showForMessage(message, () -> Platform.runLater(() -> btnPreviewQr.setDisable(false)));
 			break;
 		}
 	}
 
-	public static void showForMessage(byte[] message, Runnable andThen) {
-		Platform.runLater(() -> {
-			try {
-				var url = Main.class.getResource("openjfx/NewItem.fxml");
-				var fxmlLoader = new FXMLLoader(url);
-				var scene = new Scene(fxmlLoader.load());
-				((NewItemController) fxmlLoader.getController()).init(message);
-				var stage = new Stage();
-				stage.setTitle("omsCompanion");
-				stage.setScene(scene);
-				stage.initStyle(StageStyle.UTILITY);
-				stage.show();
-				scene.getWindow().setOnHidden(e -> {
-					if (andThen != null)
-						andThen.run();
-				});
-			} catch (Exception ex) {
-				ex.printStackTrace();
-				if (andThen != null)
-					andThen.run();
-			}
-		});
+	@Override
+	public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
+		try {
+			Path pkPath = Main.PUBLIC_KEY_STORAGE.resolve(newValue);
+
+			RSAPublicKey pk = Main.getPublicKey(Files.readAllBytes(pkPath));
+
+			message = new EncryptedMessageTransfer(unprotected, pk, RSAUtils.getRsaTransformationIdx(),
+					AESUtil.getKeyLength(), AESUtil.getAesTransformationIdx()).getMessage();
+
+		} catch (Exception ex) {
+			FxMain.handleException(ex);
+		}
 	}
 
 }

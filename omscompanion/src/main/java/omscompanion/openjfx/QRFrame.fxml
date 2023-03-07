@@ -5,7 +5,7 @@
 <?import javafx.scene.control.MenuItem?>
 <?import javafx.scene.layout.VBox?>
 
-<VBox xmlns="http://javafx.com/javafx/19" xmlns:fx="http://javafx.com/fxml/1" fx:controller="omscompanion.openjfx.QRFrameController">
+<VBox xmlns="http://javafx.com/javafx/19" xmlns:fx="http://javafx.com/fxml/1" fx:controller="omscompanion.openjfx.QRFrame">
    <children>
       <Label fx:id="lblQrCode" alignment="CENTER" minHeight="100.0" minWidth="100.0">
          <contextMenu>

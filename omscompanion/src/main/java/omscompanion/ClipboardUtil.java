@@ -13,8 +13,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import javafx.beans.property.SimpleBooleanProperty;
-import omscompanion.openjfx.NewItemController;
-import omscompanion.openjfx.QRFrameController;
+import omscompanion.openjfx.NewItem;
+import omscompanion.openjfx.QRFrame;
 
 public class ClipboardUtil {
 	private static Thread t = null;
@@ -34,7 +34,9 @@ public class ClipboardUtil {
 
 		});
 
-		automaticModeProperty.set(isAutoClipboardCheck());
+		boolean autoCheckClipboard = Boolean
+				.parseBoolean(Main.properties.getProperty(PROP_AUTO_CLIPBOARD_CHECK, "true"));
+		automaticModeProperty.set(autoCheckClipboard);
 	}
 
 	public static String get() throws UnsupportedFlavorException, IOException {
@@ -45,8 +47,31 @@ public class ClipboardUtil {
 				: null;
 	}
 
-	public static SimpleBooleanProperty getAutomaticmodeProperty() {
+	/**
+	 * This property defines if automatic clipboard check is activated. This can be
+	 * suspended by {@link ClipboardUtil#suspendClipboardCheck()}.
+	 * 
+	 * @return
+	 */
+	public static SimpleBooleanProperty getAutomaticModeProperty() {
 		return automaticModeProperty;
+	}
+
+	/**
+	 * Suspends clipboard check until {@link #resumeClipboardCheck()} has been
+	 * called.
+	 */
+	public static void suspendClipboardCheck() {
+		CHECK_CLIPBOARD.set(false);
+	}
+
+	/**
+	 * Resumes clipboard check if generally enabled.
+	 * 
+	 * @see ClipboardUtil#automaticModeProperty
+	 */
+	public static void resumeClipboardCheck() {
+		CHECK_CLIPBOARD.set(automaticModeProperty.get());
 	}
 
 	public static void set(String s) {
@@ -55,10 +80,6 @@ public class ClipboardUtil {
 
 	private static long getCheckInterval() {
 		return Long.parseLong(Main.properties.getProperty(PROP_CLIPBOARD_CHECK_INTERVAL, "1000"));
-	}
-
-	public static boolean isAutoClipboardCheck() {
-		return Boolean.parseBoolean(Main.properties.getProperty(PROP_AUTO_CLIPBOARD_CHECK, "true"));
 	}
 
 	public static void set(File... fArr) {
@@ -81,11 +102,11 @@ public class ClipboardUtil {
 			if (message == null) // not a valid OMS message
 				return false;
 
-			CHECK_CLIPBOARD.set(false);
+			suspendClipboardCheck();
 
-			QRFrameController.showForMessage(message, () -> {
+			QRFrame.showForMessage(message, () -> {
 				set(""); // clear the clipboard
-				CHECK_CLIPBOARD.set(automaticModeProperty.get());
+				resumeClipboardCheck();
 			});
 
 			return true;
@@ -135,7 +156,7 @@ public class ClipboardUtil {
 
 			CHECK_CLIPBOARD.set(false);
 
-			NewItemController.showForMessage(s.getBytes(), () -> {
+			NewItem.showForMessage(s.getBytes(), () -> {
 				set(""); // clear the clipboard
 				CHECK_CLIPBOARD.set(automaticModeProperty.get());
 			});

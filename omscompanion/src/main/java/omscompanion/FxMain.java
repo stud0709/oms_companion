@@ -97,7 +97,7 @@ public class FxMain extends Application {
 		});
 	}
 
-	private static void createTextLink(byte[] message) {
+	public static void createTextLink(byte[] message) {
 		String omsURL = MessageComposer.encodeAsOmsText(message);
 		ClipboardUtil.set(omsURL);
 	}

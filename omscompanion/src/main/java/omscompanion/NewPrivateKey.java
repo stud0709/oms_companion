@@ -61,7 +61,7 @@ import omscompanion.crypto.AesEncryptedPrivateKeyTransfer;
 import omscompanion.crypto.AesKeyAlgorithm;
 import omscompanion.crypto.AesTransformation;
 import omscompanion.crypto.RSAUtils;
-import omscompanion.openjfx.QRFrameController;
+import omscompanion.openjfx.QRFrame;
 import omscompanion.qr.QRUtil;
 
 public class NewPrivateKey {
@@ -208,7 +208,7 @@ public class NewPrivateKey {
 
 			SwingUtilities.invokeLater(() -> txtInfo.append("Displaying QR sequence... "));
 
-			QRFrameController.showForMessage(message, () -> {
+			QRFrame.showForMessage(message, () -> {
 				SwingUtilities.invokeLater(() -> txtInfo.append("Showing backup file\n"));
 				try {
 					Desktop.getDesktop().open(backupFile);

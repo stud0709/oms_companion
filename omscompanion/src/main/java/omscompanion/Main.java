@@ -35,6 +35,8 @@ import javax.imageio.ImageIO;
 import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 
+import omscompanion.openjfx.PasswordGenerator;
+
 public class Main {
 	public static Path PUBLIC_KEY_STORAGE = new File("public").toPath();
 	public static final Properties properties = new Properties();
@@ -107,7 +109,7 @@ public class Main {
 			MenuItem monitorClipboard = new MenuItem(menuItemText);
 			monitorClipboard.setActionCommand("autoClipboardCheck");
 			monitorClipboard.addActionListener(MENU_ACTION_LISTENER);
-			ClipboardUtil.getAutomaticmodeProperty().addListener((observable, oldValue, newValue) -> {
+			ClipboardUtil.getAutomaticModeProperty().addListener((observable, oldValue, newValue) -> {
 				SwingUtilities.invokeLater(() -> {
 					monitorClipboard.setLabel(menuItemText + (newValue ? " \u2713" : ""));
 				});
@@ -184,18 +186,14 @@ public class Main {
 				break;
 			case "autoClipboardCheck":
 				// revert value
-				boolean b = ClipboardUtil.getAutomaticmodeProperty().get();
-				ClipboardUtil.getAutomaticmodeProperty().set(!b);
+				boolean b = ClipboardUtil.getAutomaticModeProperty().get();
+				ClipboardUtil.getAutomaticModeProperty().set(!b);
 				break;
 			case "importPublicKey":
 				new PublicKeyImport().setVisible(true);
 				break;
 			case "pwdGen":
-				try {
-					new PasswordGenerator().setVisible(true);
-				} catch (IOException e1) {
-					e1.printStackTrace();
-				}
+				PasswordGenerator.show();
 				break;
 			case "publicKeyFolder":
 				try {
