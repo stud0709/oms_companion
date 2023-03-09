@@ -36,11 +36,13 @@ import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 
 import omscompanion.openjfx.PasswordGenerator;
+import omscompanion.openjfx.PublicKeyImport;
 
 public class Main {
 	public static Path PUBLIC_KEY_STORAGE = new File("public").toPath();
 	public static final Properties properties = new Properties();
 	private static final String PROP_DEFAULT_KEY = "default_key";
+	public static final String APP_NAME = "omsCompanion";
 
 	public static void main(String[] args) throws Exception {
 		Files.createDirectories(PUBLIC_KEY_STORAGE);
@@ -83,7 +85,7 @@ public class Main {
 
 		BufferedImage bi = ImageIO.read(Main.class.getResourceAsStream("qr-code.png"));
 		Image image = bi.getScaledInstance(size.width, size.height, Image.SCALE_SMOOTH);
-		TrayIcon trayIcon = new TrayIcon(image, "omsCompanion");
+		TrayIcon trayIcon = new TrayIcon(image, APP_NAME);
 
 		trayIcon.addMouseListener(new MouseAdapter() {
 			@Override
@@ -190,7 +192,7 @@ public class Main {
 				ClipboardUtil.getAutomaticModeProperty().set(!b);
 				break;
 			case "importPublicKey":
-				new PublicKeyImport().setVisible(true);
+				PublicKeyImport.show();
 				break;
 			case "pwdGen":
 				PasswordGenerator.show();
