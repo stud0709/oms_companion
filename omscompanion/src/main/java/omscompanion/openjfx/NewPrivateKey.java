@@ -389,7 +389,7 @@ public class NewPrivateKey {
 				var scene = new Scene(fxmlLoader.load());
 				((NewPrivateKey) fxmlLoader.getController()).init();
 				var stage = new Stage();
-				stage.setTitle(Main.APP_NAME);
+				stage.setTitle(Main.APP_NAME + ": new private key");
 				stage.setScene(scene);
 				stage.initStyle(StageStyle.UTILITY);
 				stage.show();

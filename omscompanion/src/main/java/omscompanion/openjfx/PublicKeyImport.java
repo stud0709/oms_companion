@@ -106,7 +106,7 @@ public class PublicKeyImport {
 				var scene = new Scene(fxmlLoader.load());
 				((PublicKeyImport) fxmlLoader.getController()).init();
 				var stage = new Stage();
-				stage.setTitle(Main.APP_NAME);
+				stage.setTitle(Main.APP_NAME + ": import public key");
 				stage.setScene(scene);
 				stage.initStyle(StageStyle.UTILITY);
 				stage.show();

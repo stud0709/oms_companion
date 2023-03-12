@@ -40,7 +40,7 @@ public class NewItem {
 				var scene = new Scene(fxmlLoader.load());
 				((NewItem) fxmlLoader.getController()).init(message);
 				var stage = new Stage();
-				stage.setTitle("omsCompanion");
+				stage.setTitle(Main.APP_NAME + ": encrypt data");
 				stage.setScene(scene);
 				stage.initStyle(StageStyle.UTILITY);
 				stage.show();

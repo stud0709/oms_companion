@@ -279,7 +279,7 @@ public class PasswordGenerator {
 				var scene = new Scene(fxmlLoader.load());
 				((PasswordGenerator) fxmlLoader.getController()).init();
 				var stage = new Stage();
-				stage.setTitle(Main.APP_NAME);
+				stage.setTitle(Main.APP_NAME + ": password generator");
 				stage.setScene(scene);
 				stage.initStyle(StageStyle.UTILITY);
 				stage.show();

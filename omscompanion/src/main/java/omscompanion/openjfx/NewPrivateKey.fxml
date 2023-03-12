@@ -4,14 +4,13 @@
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.CheckBox?>
 <?import javafx.scene.control.Label?>
-<?import javafx.scene.control.PasswordField?>
 <?import javafx.scene.control.TextArea?>
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.layout.ColumnConstraints?>
 <?import javafx.scene.layout.GridPane?>
 <?import javafx.scene.layout.RowConstraints?>
 
-<GridPane hgap="5.0" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="480.0" prefWidth="640.0" vgap="5.0" xmlns:fx="http://javafx.com/fxml/1" xmlns="http://javafx.com/javafx/19" fx:controller="omscompanion.openjfx.NewPrivateKey">
+<GridPane hgap="5.0" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="480.0" prefWidth="640.0" vgap="5.0" xmlns="http://javafx.com/javafx/19" xmlns:fx="http://javafx.com/fxml/1" fx:controller="omscompanion.openjfx.NewPrivateKey">
   <columnConstraints>
     <ColumnConstraints halignment="RIGHT" hgrow="SOMETIMES" />
     <ColumnConstraints hgrow="ALWAYS" />
@@ -30,15 +29,15 @@
       <Label fx:id="lblKeyAlias" text="Key Alias:" />
       <Label fx:id="lblTransportPassword" text="Transport Password:" GridPane.rowIndex="1" />
       <Label fx:id="lblRepeatPassword" text="Repeat Password:" GridPane.rowIndex="2" />
-      <TextField fx:id="txtKeyAlias" GridPane.columnIndex="1" GridPane.columnSpan="2" />
-      <Button fx:id="btnBrowse" mnemonicParsing="false" onAction="#onBrowse" text="..." GridPane.columnIndex="2" GridPane.rowIndex="3" />
       <Label fx:id="lblBackupFile" text="Backup File:" GridPane.rowIndex="3" />
-      <CheckBox fx:id="chkStorePublicKey" mnemonicParsing="false" text="Store Public Key for Later Use" GridPane.columnIndex="1" GridPane.rowIndex="4" />
-      <Button fx:id="btnCreate" mnemonicParsing="false" onAction="#onCreate" text="Create" GridPane.columnIndex="1" GridPane.rowIndex="5" />
-      <TextArea fx:id="txtAreaInfo" editable="false" prefHeight="200.0" prefWidth="200.0" wrapText="true" GridPane.columnIndex="1" GridPane.columnSpan="2" GridPane.rowIndex="6" />
+      <TextField fx:id="txtKeyAlias" GridPane.columnIndex="1" GridPane.columnSpan="2" />
       <TextField fx:id="txtTransportPwd" GridPane.columnIndex="1" GridPane.columnSpan="2" GridPane.rowIndex="1" />
       <TextField fx:id="txtRepeatPwd" GridPane.columnIndex="1" GridPane.columnSpan="2" GridPane.rowIndex="2" />
       <TextField fx:id="txtBackupFile" disable="true" GridPane.columnIndex="1" GridPane.rowIndex="3" />
+      <Button fx:id="btnBrowse" mnemonicParsing="false" onAction="#onBrowse" text="..." GridPane.columnIndex="2" GridPane.rowIndex="3" />
+      <CheckBox fx:id="chkStorePublicKey" mnemonicParsing="false" selected="true" text="Store Public Key for Later Use" GridPane.columnIndex="1" GridPane.rowIndex="4" />
+      <Button fx:id="btnCreate" mnemonicParsing="false" onAction="#onCreate" text="Create" GridPane.columnIndex="1" GridPane.rowIndex="5" />
+      <TextArea fx:id="txtAreaInfo" editable="false" prefHeight="200.0" prefWidth="200.0" wrapText="true" GridPane.columnIndex="1" GridPane.columnSpan="2" GridPane.rowIndex="6" />
    </children>
    <padding>
       <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
