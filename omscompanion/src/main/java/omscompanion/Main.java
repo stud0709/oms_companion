@@ -2,7 +2,6 @@ package omscompanion;
 
 import java.awt.AWTException;
 import java.awt.Desktop;
-import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Image;
 import java.awt.Menu;
@@ -14,7 +13,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -25,7 +23,6 @@ import java.nio.file.Path;
 import java.security.KeyFactory;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.PublicKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
@@ -35,6 +32,7 @@ import javax.imageio.ImageIO;
 import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 
+import omscompanion.openjfx.NewPrivateKey;
 import omscompanion.openjfx.PasswordGenerator;
 import omscompanion.openjfx.PublicKeyImport;
 
@@ -46,14 +44,14 @@ public class Main {
 
 	public static void main(String[] args) throws Exception {
 		Files.createDirectories(PUBLIC_KEY_STORAGE);
-		File pf = new File("omscompanion.properties");
+		var pf = new File("omscompanion.properties");
 		if (pf.exists()) {
-			try (FileReader fr = new FileReader(pf)) {
+			try (var fr = new FileReader(pf)) {
 				properties.load(fr);
 			}
 		}
 		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-			try (FileWriter fw = new FileWriter(pf)) {
+			try (var fw = new FileWriter(pf)) {
 				properties.store(fw, null);
 			} catch (Exception ex) {
 				ex.printStackTrace();
@@ -81,11 +79,11 @@ public class Main {
 		if (!SystemTray.isSupported())
 			return;
 
-		Dimension size = SystemTray.getSystemTray().getTrayIconSize();
+		var size = SystemTray.getSystemTray().getTrayIconSize();
 
-		BufferedImage bi = ImageIO.read(Main.class.getResourceAsStream("qr-code.png"));
-		Image image = bi.getScaledInstance(size.width, size.height, Image.SCALE_SMOOTH);
-		TrayIcon trayIcon = new TrayIcon(image, APP_NAME);
+		var bi = ImageIO.read(Main.class.getResourceAsStream("qr-code.png"));
+		var image = bi.getScaledInstance(size.width, size.height, Image.SCALE_SMOOTH);
+		var trayIcon = new TrayIcon(image, APP_NAME);
 
 		trayIcon.addMouseListener(new MouseAdapter() {
 			@Override
@@ -97,9 +95,9 @@ public class Main {
 			}
 		});
 
-		PopupMenu menu = new PopupMenu();
+		var menu = new PopupMenu();
 		{
-			MenuItem processClipboard = new MenuItem("Process Clipboard");
+			var processClipboard = new MenuItem("Process Clipboard");
 			processClipboard.setFont(new JLabel().getFont().deriveFont(Font.BOLD));
 			processClipboard.setActionCommand("processClipboard");
 			processClipboard.addActionListener(MENU_ACTION_LISTENER);
@@ -107,8 +105,8 @@ public class Main {
 		}
 
 		{
-			String menuItemText = "Monitor clipboard";
-			MenuItem monitorClipboard = new MenuItem(menuItemText);
+			var menuItemText = "Monitor clipboard";
+			var monitorClipboard = new MenuItem(menuItemText);
 			monitorClipboard.setActionCommand("autoClipboardCheck");
 			monitorClipboard.addActionListener(MENU_ACTION_LISTENER);
 			ClipboardUtil.getAutomaticModeProperty().addListener((observable, oldValue, newValue) -> {
@@ -120,31 +118,31 @@ public class Main {
 		}
 
 		{
-			MenuItem menuItem = new MenuItem("Password Generator");
+			var menuItem = new MenuItem("Password Generator");
 			menuItem.setActionCommand("pwdGen");
 			menuItem.addActionListener(MENU_ACTION_LISTENER);
 			menu.add(menuItem);
 		}
 
 		{
-			Menu crypto = new Menu("Cryptography...");
+			var crypto = new Menu("Cryptography...");
 
 			{
-				MenuItem menuItem = new MenuItem("New Private Key");
-				menuItem.setActionCommand("newKeyPair");
+				var menuItem = new MenuItem("New Private Key");
+				menuItem.setActionCommand("newPrivateKey");
 				menuItem.addActionListener(MENU_ACTION_LISTENER);
 				crypto.add(menuItem);
 			}
 
 			{
-				MenuItem menuItem = new MenuItem("Import Public Key");
+				var menuItem = new MenuItem("Import Public Key");
 				menuItem.setActionCommand("importPublicKey");
 				menuItem.addActionListener(MENU_ACTION_LISTENER);
 				crypto.add(menuItem);
 			}
 
 			{
-				MenuItem menuItem = new MenuItem("Public Key Folder");
+				var menuItem = new MenuItem("Public Key Folder");
 				menuItem.setActionCommand("publicKeyFolder");
 				menuItem.addActionListener(MENU_ACTION_LISTENER);
 				crypto.add(menuItem);
@@ -154,14 +152,14 @@ public class Main {
 		}
 
 		{
-			MenuItem menuItem = new MenuItem("Project Home Page");
+			var menuItem = new MenuItem("Project Home Page");
 			menuItem.setActionCommand("home");
 			menuItem.addActionListener(MENU_ACTION_LISTENER);
 			menu.add(menuItem);
 		}
 
 		{
-			MenuItem exitCommand = new MenuItem("Exit");
+			var exitCommand = new MenuItem("Exit");
 			exitCommand.setActionCommand("exit");
 			exitCommand.addActionListener(MENU_ACTION_LISTENER);
 			menu.add(exitCommand);
@@ -183,12 +181,12 @@ public class Main {
 			case "processClipboard":
 				ClipboardUtil.processClipboard();
 				break;
-			case "newKeyPair":
-				new NewPrivateKey().getFrame().setVisible(true);
+			case "newPrivateKey":
+				NewPrivateKey.show();
 				break;
 			case "autoClipboardCheck":
 				// revert value
-				boolean b = ClipboardUtil.getAutomaticModeProperty().get();
+				var b = ClipboardUtil.getAutomaticModeProperty().get();
 				ClipboardUtil.getAutomaticModeProperty().set(!b);
 				break;
 			case "importPublicKey":
@@ -216,13 +214,13 @@ public class Main {
 	};
 
 	public static byte[] getFingerprint(RSAPublicKey publicKey) throws NoSuchAlgorithmException {
-		MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+		var sha256 = MessageDigest.getInstance("SHA-256");
 		sha256.update(publicKey.getModulus().toByteArray());
 		return sha256.digest(publicKey.getPublicExponent().toByteArray());
 	}
 
 	public static String byteArrayToHex(byte[] a) {
-		StringBuilder sb = new StringBuilder(a.length * 2);
+		var sb = new StringBuilder(a.length * 2);
 		for (int i = 0; i < a.length; i++) {
 			sb.append(String.format("%02x", a[i])).append(i % 2 == 1 ? " " : "");
 		}
@@ -230,7 +228,7 @@ public class Main {
 	}
 
 	public static RSAPublicKey getPublicKey(byte[] encoded) throws InvalidKeySpecException, NoSuchAlgorithmException {
-		PublicKey publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(encoded));
+		var publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(encoded));
 
 		return (RSAPublicKey) publicKey;
 	}

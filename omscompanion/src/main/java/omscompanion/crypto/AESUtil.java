@@ -5,7 +5,6 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
-import java.security.spec.KeySpec;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -17,33 +16,41 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
+import omscompanion.Main;
+
 public final class AESUtil {
+	private static final String PROP_AES_TRANSFORMATION_IDX = "aes_transformation_idx",
+			PROP_AES_KEY_ALG_IDX = "aes_key_alg_idx", PROP_AES_SALT_LENGTH = "aes_salt_length",
+			PROP_AES_KEYSPEC_ITER = "aes_keyspec_iterations", PROP_AES_KEY_LENGTH = "aes_key_length";
+	private static final int DEF_AES_TRANSFORMATION_IDX = 0, DEF_AES_KEY_ALG_IDX = 0, DEF_AES_SALT_LENGTH = 16,
+			DEF_AES_KEYSPEC_ITER = 1024, DEF_AES_KEY_LENGTH = 256;
+
 	private AESUtil() {
 	}
 
 	public static SecretKey getSecretKeyFromPassword(char[] password, byte[] salt, String keyAlgorithm, int keyLength,
 			int keySpecIterations) throws NoSuchAlgorithmException, InvalidKeySpecException {
 
-		SecretKeyFactory factory = SecretKeyFactory.getInstance(keyAlgorithm);
-		KeySpec spec = new PBEKeySpec(password, salt, keySpecIterations, keyLength);
-		SecretKey secret = new SecretKeySpec(factory.generateSecret(spec).getEncoded(), "AES");
+		var factory = SecretKeyFactory.getInstance(keyAlgorithm);
+		var spec = new PBEKeySpec(password, salt, keySpecIterations, keyLength);
+		var secret = new SecretKeySpec(factory.generateSecret(spec).getEncoded(), "AES");
 		return secret;
 	}
 
 	public static SecretKey generateRandomSecretKey(int keyLength) {
-		byte[] bArr = new byte[keyLength / 8];
+		var bArr = new byte[keyLength / 8];
 		new SecureRandom().nextBytes(bArr);
 		return new SecretKeySpec(bArr, "AES");
 	}
 
 	public static IvParameterSpec generateIv() {
-		byte[] iv = new byte[16];
+		var iv = new byte[16];
 		new SecureRandom().nextBytes(iv);
 		return new IvParameterSpec(iv);
 	}
 
 	public static byte[] generateSalt(int saltLength) {
-		byte[] salt = new byte[saltLength];
+		var salt = new byte[saltLength];
 		new SecureRandom().nextBytes(salt);
 		return salt;
 	}
@@ -52,7 +59,7 @@ public final class AESUtil {
 			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
 			InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
 
-		Cipher cipher = Cipher.getInstance(aesTransformation);
+		var cipher = Cipher.getInstance(aesTransformation);
 		cipher.init(Cipher.ENCRYPT_MODE, secretKey, iv);
 		return cipher.doFinal(input);
 	}
@@ -61,14 +68,14 @@ public final class AESUtil {
 			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
 			InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
 
-		Cipher cipher = Cipher.getInstance(aesTransformation);
+		var cipher = Cipher.getInstance(aesTransformation);
 		cipher.init(Cipher.DECRYPT_MODE, secretKey, iv);
 		return cipher.doFinal(cipherText);
 	}
 
 	public static int getAesTransformationIdx() {
-		// todo: make configurable
-		return 0;
+		return Integer
+				.parseInt(Main.properties.getProperty(PROP_AES_TRANSFORMATION_IDX, "" + DEF_AES_TRANSFORMATION_IDX));
 	}
 
 	public static AesTransformation getAesTransformation() {
@@ -76,8 +83,7 @@ public final class AESUtil {
 	}
 
 	public static int getAesKeyAlgorithmIdx() {
-		// todo: make configurable
-		return 0;
+		return Integer.parseInt(Main.properties.getProperty(PROP_AES_KEY_ALG_IDX, "" + DEF_AES_KEY_ALG_IDX));
 	}
 
 	public static AesKeyAlgorithm getAesKeyAlgorithm() {
@@ -85,18 +91,15 @@ public final class AESUtil {
 	}
 
 	public static int getSaltLength() {
-		// todo: make configurable
-		return 16;
+		return Integer.parseInt(Main.properties.getProperty(PROP_AES_SALT_LENGTH, "" + DEF_AES_SALT_LENGTH));
 	}
 
 	public static int getKeyspecIterations() {
-		// todo: make configurable
-		return 1024;
+		return Integer.parseInt(Main.properties.getProperty(PROP_AES_KEYSPEC_ITER, "" + DEF_AES_KEYSPEC_ITER));
 	}
 
 	public static int getKeyLength() {
-		// todo: make configurable
-		return 256;
+		return Integer.parseInt(Main.properties.getProperty(PROP_AES_KEY_LENGTH, "" + DEF_AES_KEY_LENGTH));
 	}
 
 }

@@ -199,7 +199,7 @@ public class PasswordGenerator {
 		}
 
 		// ensure minimal occurrence
-		List<String> list = new ArrayList<>();
+		var list = new ArrayList<String>();
 		for (var i = 0; i < Integer.parseInt(Main.properties.getProperty(PROP_OCCURS, "" + OCCURS_DEFAULT)); i++) {
 			for (String s : charClasses) {
 				list.add(s);
@@ -254,9 +254,9 @@ public class PasswordGenerator {
 
 		assert propertyName != null;
 
-		String s = propertyName;
+		var s = propertyName;
 
-		TextInputDialog dialog = new TextInputDialog(Main.properties.getProperty(propertyName, defaultValue));
+		var dialog = new TextInputDialog(Main.properties.getProperty(propertyName, defaultValue));
 		dialog.setTitle("omsCompanion");
 		dialog.setHeaderText(String.format("Character Class %s:", source.getText()));
 		dialog.showAndWait().filter(response -> response != null)

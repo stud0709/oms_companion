@@ -36,22 +36,22 @@ public class AnimatedGifWriter {
 	}
 
 	private void createRootMetadata(long delay_ms, boolean loop) throws IIOInvalidTreeException {
-		String metaFormatName = metadata.getNativeMetadataFormatName();
-		IIOMetadataNode root = (IIOMetadataNode) metadata.getAsTree(metaFormatName);
+		var metaFormatName = metadata.getNativeMetadataFormatName();
+		var root = (IIOMetadataNode) metadata.getAsTree(metaFormatName);
 
-		IIOMetadataNode graphicsControlExtensionNode = getNode(root, "GraphicControlExtension");
+		var graphicsControlExtensionNode = getNode(root, "GraphicControlExtension");
 		graphicsControlExtensionNode.setAttribute("disposalMethod", "none");
 		graphicsControlExtensionNode.setAttribute("userInputFlag", "FALSE");
 		graphicsControlExtensionNode.setAttribute("transparentColorFlag", "FALSE");
 		graphicsControlExtensionNode.setAttribute("delayTime", Long.toString(delay_ms / 10));
 		graphicsControlExtensionNode.setAttribute("transparentColorIndex", "0");
 
-		IIOMetadataNode appExtensionsNode = getNode(root, "ApplicationExtensions");
-		IIOMetadataNode child = new IIOMetadataNode("ApplicationExtension");
+		var appExtensionsNode = getNode(root, "ApplicationExtensions");
+		var child = new IIOMetadataNode("ApplicationExtension");
 		child.setAttribute("applicationID", "NETSCAPE");
 		child.setAttribute("authenticationCode", "2.0");
 
-		int loopContinuously = loop ? 0 : 1;
+		var loopContinuously = loop ? 0 : 1;
 		child.setUserObject(
 				new byte[] { 0x1, (byte) (loopContinuously & 0xFF), (byte) ((loopContinuously >> 8) & 0xFF) });
 		appExtensionsNode.appendChild(child);
@@ -59,13 +59,13 @@ public class AnimatedGifWriter {
 	}
 
 	private static IIOMetadataNode getNode(IIOMetadataNode rootNode, String nodeName) {
-		int nNodes = rootNode.getLength();
-		for (int i = 0; i < nNodes; i++) {
+		var nNodes = rootNode.getLength();
+		for (var i = 0; i < nNodes; i++) {
 			if (rootNode.item(i).getNodeName().equalsIgnoreCase(nodeName)) {
 				return (IIOMetadataNode) rootNode.item(i);
 			}
 		}
-		IIOMetadataNode node = new IIOMetadataNode(nodeName);
+		var node = new IIOMetadataNode(nodeName);
 		rootNode.appendChild(node);
 		return (node);
 	}
@@ -79,8 +79,8 @@ public class AnimatedGifWriter {
 	}
 
 	public static void createGif(List<BitMatrix> list, ImageOutputStream ios, long delay_ms) throws IOException {
-		AnimatedGifWriter writer = new AnimatedGifWriter(ios,
-				MatrixToImageWriter.toBufferedImage(list.get(0)).getType(), delay_ms, true);
+		var writer = new AnimatedGifWriter(ios, MatrixToImageWriter.toBufferedImage(list.get(0)).getType(), delay_ms,
+				true);
 		list.stream().map(m -> MatrixToImageWriter.toBufferedImage(m)).forEach(i -> {
 			try {
 				writer.writeToSequence(i);

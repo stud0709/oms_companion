@@ -104,7 +104,7 @@ public class ClipboardUtil {
 
 			suspendClipboardCheck();
 
-			QRFrame.showForMessage(message, () -> {
+			QRFrame.showForMessage(message, true, () -> {
 				set(""); // clear the clipboard
 				resumeClipboardCheck();
 			});

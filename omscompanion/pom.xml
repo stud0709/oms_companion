@@ -5,9 +5,9 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<name>OMS Companion</name>
 	<properties>
-		<maven.compiler.target>16</maven.compiler.target>
-		<maven.compiler.source>16</maven.compiler.source>
-	    <javafx.version>16</javafx.version>
+		<maven.compiler.target>14</maven.compiler.target>
+		<maven.compiler.source>14</maven.compiler.source>
+	    <javafx.version>14</javafx.version>
         <javafx.maven.plugin.version>0.0.6</javafx.maven.plugin.version>   
 	</properties>
 	<dependencies>

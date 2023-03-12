@@ -7,14 +7,11 @@ import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPublicKey;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.List;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.IvParameterSpec;
 
 import omscompanion.MessageComposer;
 
@@ -27,16 +24,16 @@ public class EncryptedMessageTransfer extends MessageComposer {
 		super();
 
 		// init AES
-		IvParameterSpec iv = AESUtil.generateIv();
-		SecretKey secretKey = AESUtil.generateRandomSecretKey(aesKeyLength);
+		var iv = AESUtil.generateIv();
+		var secretKey = AESUtil.generateRandomSecretKey(aesKeyLength);
 
 		// encrypt AES secret key with RSA
-		Cipher cipher = Cipher.getInstance(RsaTransformation.values()[rsaTransformationIdx].transformation);
+		var cipher = Cipher.getInstance(RsaTransformation.values()[rsaTransformationIdx].transformation);
 		cipher.init(Cipher.ENCRYPT_MODE, rsaPublicKey);
 
-		byte[] encryptedSecretKey = cipher.doFinal(secretKey.getEncoded());
+		var encryptedSecretKey = cipher.doFinal(secretKey.getEncoded());
 
-		List<String> list = new ArrayList<>();
+		var list = new ArrayList<String>();
 
 		// (1) application-ID
 		list.add(Integer.toString(APPLICATION_ENCRYPTED_MESSAGE_TRANSFER));
@@ -57,7 +54,7 @@ public class EncryptedMessageTransfer extends MessageComposer {
 		list.add(Base64.getEncoder().encodeToString(encryptedSecretKey));
 
 		// (7) AES-encrypted message
-		byte[] encryptedMessage = AESUtil.encrypt(message, secretKey, iv,
+		var encryptedMessage = AESUtil.encrypt(message, secretKey, iv,
 				AesTransformation.values()[aesTransformationIdx].transformation);
 
 		list.add(Base64.getEncoder().encodeToString(encryptedMessage));
@@ -66,10 +63,10 @@ public class EncryptedMessageTransfer extends MessageComposer {
 	}
 
 	private byte[] getFingerprint(RSAPublicKey rsaPublicKey) throws NoSuchAlgorithmException {
-		MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+		var sha256 = MessageDigest.getInstance("SHA-256");
 
-		byte[] modulus = rsaPublicKey.getModulus().toByteArray();
-		byte[] publicExp = rsaPublicKey.getPublicExponent().toByteArray();
+		var modulus = rsaPublicKey.getModulus().toByteArray();
+		var publicExp = rsaPublicKey.getPublicExponent().toByteArray();
 
 		sha256.update(modulus);
 		return sha256.digest(publicExp);

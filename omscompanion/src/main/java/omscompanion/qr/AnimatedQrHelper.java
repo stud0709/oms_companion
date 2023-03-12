@@ -16,7 +16,6 @@ import javax.imageio.stream.FileImageOutputStream;
 
 import com.google.zxing.WriterException;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
-import com.google.zxing.common.BitMatrix;
 
 import omscompanion.AnimatedGifWriter;
 import omscompanion.Main;
@@ -36,7 +35,7 @@ public class AnimatedQrHelper {
 		this.imageConsumer = imageConsumer;
 
 		try {
-			List<BitMatrix> list = QRUtil.getQrSequence(message, QRUtil.getChunkSize(), QRUtil.getBarcodeSize());
+			var list = QRUtil.getQrSequence(message, QRUtil.getChunkSize(), QRUtil.getBarcodeSize());
 			images = list.stream().map(m -> MatrixToImageWriter.toBufferedImage(m)).collect(Collectors.toList());
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -53,7 +52,7 @@ public class AnimatedQrHelper {
 
 	public void start() {
 		imageConsumer.accept(images.get(0));
-		long delay = getSequenceDelay();
+		var delay = getSequenceDelay();
 
 		timer.schedule(getTimerTask(delay), delay);
 	}
@@ -85,11 +84,11 @@ public class AnimatedQrHelper {
 	}
 
 	public static File generateGif(char[] message) throws FileNotFoundException, IOException, WriterException {
-		File f = new File("qr.gif");
+		var f = new File("qr.gif");
 		f.deleteOnExit();
 
-		try (FileImageOutputStream fios = new FileImageOutputStream(f)) {
-			List<BitMatrix> list = QRUtil.getQrSequence(message, QRUtil.getChunkSize(), QRUtil.getBarcodeSize());
+		try (var fios = new FileImageOutputStream(f)) {
+			var list = QRUtil.getQrSequence(message, QRUtil.getChunkSize(), QRUtil.getBarcodeSize());
 			AnimatedGifWriter.createGif(list, fios, getSequenceDelay());
 			fios.flush();
 		}

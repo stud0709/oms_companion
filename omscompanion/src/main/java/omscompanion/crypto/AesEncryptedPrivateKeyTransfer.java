@@ -6,7 +6,6 @@ import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.List;
 import java.util.stream.Collectors;
 
 import javax.crypto.BadPaddingException;
@@ -26,10 +25,10 @@ public class AesEncryptedPrivateKeyTransfer extends MessageComposer {
 			InvalidAlgorithmParameterException, BadPaddingException, IllegalBlockSizeException {
 		super();
 
-		byte[] privateKeyEncoded = rsaPrivateKey.getEncoded();
+		var privateKeyEncoded = rsaPrivateKey.getEncoded();
 
 		// --- create message ---
-		List<String> list = new ArrayList<>();
+		var list = new ArrayList<String>();
 
 		// (1) application-ID
 		list.add(Integer.toString(APPLICATION_AES_ENCRYPTED_PRIVATE_KEY_TRANSFER));

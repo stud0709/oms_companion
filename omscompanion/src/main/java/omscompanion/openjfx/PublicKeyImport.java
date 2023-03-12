@@ -1,11 +1,12 @@
 package omscompanion.openjfx;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
-import java.util.Optional;
+import java.util.function.Function;
 
 import javafx.application.Platform;
 import javafx.fxml.FXML;
@@ -21,7 +22,6 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import omscompanion.FxMain;
 import omscompanion.Main;
-import omscompanion.NewPrivateKey;
 
 public class PublicKeyImport {
 
@@ -37,27 +37,27 @@ public class PublicKeyImport {
 	private void init() {
 		btnSave.setOnAction(e -> {
 			try {
-				String alias = this.txtKeyAlias.getText().trim();
+				var alias = this.txtKeyAlias.getText().trim();
 				if (alias.isEmpty()) {
 					throw new Exception("Key Alias may not be empty");
 				}
 
-				byte[] bArr = Base64.getDecoder().decode(txtKeyData.getText().trim().replaceAll("[\\r\\n]", ""));
-				PublicKey publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(bArr));
+				var bArr = Base64.getDecoder().decode(txtKeyData.getText().trim().replaceAll("[\\r\\n]", ""));
+				var publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(bArr));
 
-				Path p = NewPrivateKey.savePublicKey(alias, publicKey, backupPath -> {
-					Alert alert = new Alert(AlertType.CONFIRMATION);
+				var p = PublicKeyImport.savePublicKey(alias, publicKey, backupPath -> {
+					var alert = new Alert(AlertType.CONFIRMATION);
 					alert.setTitle(Main.APP_NAME);
 					alert.setTitle("Create backup and overwrite?");
 					alert.setContentText("Key '" + alias + "' already exists.");
-					Optional<ButtonType> opt = alert.showAndWait();
+					var opt = alert.showAndWait();
 					return opt.filter(t -> t == ButtonType.OK).isPresent();
 				});
 
 				if (p == null)
 					return;
 
-				Alert alert = new Alert(AlertType.INFORMATION);
+				var alert = new Alert(AlertType.INFORMATION);
 				alert.setTitle("omsCompanion");
 				alert.setHeaderText("Import was successful");
 				alert.showAndWait();
@@ -68,6 +68,34 @@ public class PublicKeyImport {
 				FxMain.handleException(ex);
 			}
 		});
+
+		txtKeyData.requestFocus();
+	}
+
+	public static Path savePublicKey(String alias, PublicKey rsaPublicKey, Function<Path, Boolean> onOverwrite)
+			throws Exception {
+		var fn = alias + "." + rsaPublicKey.getFormat().toLowerCase();
+		var publicKeyPath = Main.PUBLIC_KEY_STORAGE.resolve(fn);
+
+		if (Files.exists(publicKeyPath)) {
+			// create backup of the old key
+			var pk = Main.getPublicKey(Files.readAllBytes(publicKeyPath));
+
+			var fingerprint = Main.getFingerprint(pk);
+
+			var fn_backup = fn + "." + Main.byteArrayToHex(fingerprint).replaceAll("\\W", "") + ".bak";
+
+			var backupPath = Main.PUBLIC_KEY_STORAGE.resolve(fn_backup);
+
+			if (!onOverwrite.apply(backupPath))
+				return null;
+
+			Files.copy(publicKeyPath, backupPath);
+
+		}
+
+		Files.write(publicKeyPath, rsaPublicKey.getEncoded());
+		return publicKeyPath;
 	}
 
 	public static void show() {

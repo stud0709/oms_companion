@@ -2,16 +2,12 @@ package omscompanion.openjfx;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.interfaces.RSAPublicKey;
-import java.util.List;
 import java.util.stream.Collectors;
 
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -68,7 +64,7 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<String
 	}
 
 	public void init() throws Exception {
-		List<String> publicKeys = Files.list(Main.PUBLIC_KEY_STORAGE).map(p -> p.getFileName().toString())
+		var publicKeys = Files.list(Main.PUBLIC_KEY_STORAGE).map(p -> p.getFileName().toString())
 				.filter(fn -> fn.toLowerCase().endsWith(FILE_TYPE_PUCLIC_KEY)).collect(Collectors.toList());
 
 		if (publicKeys.isEmpty()) {
@@ -76,10 +72,10 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<String
 					String.format("Cannot encrypt: no keys found in %s", Main.PUBLIC_KEY_STORAGE.toAbsolutePath()));
 		}
 
-		ObservableList<String> os = FXCollections.observableArrayList(publicKeys);
+		var os = FXCollections.observableArrayList(publicKeys);
 		choiceKey.setItems(os);
 
-		String defaultKey = Main.getDefaultKey();
+		var defaultKey = Main.getDefaultKey();
 
 		if (publicKeys.size() == 1 || defaultKey == null || !publicKeys.contains(defaultKey)) {
 			choiceKey.getSelectionModel().selectFirst();
@@ -107,7 +103,7 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<String
 			break;
 		case "btnPreviewQr":
 			btnPreviewQr.setDisable(true);
-			QRFrame.showForMessage(message, () -> Platform.runLater(() -> btnPreviewQr.setDisable(false)));
+			QRFrame.showForMessage(message, false, () -> Platform.runLater(() -> btnPreviewQr.setDisable(false)));
 			break;
 		}
 	}
@@ -115,9 +111,9 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<String
 	@Override
 	public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
 		try {
-			Path pkPath = Main.PUBLIC_KEY_STORAGE.resolve(newValue);
+			var pkPath = Main.PUBLIC_KEY_STORAGE.resolve(newValue);
 
-			RSAPublicKey pk = Main.getPublicKey(Files.readAllBytes(pkPath));
+			var pk = Main.getPublicKey(Files.readAllBytes(pkPath));
 
 			message = new EncryptedMessageTransfer(unprotected, pk, RSAUtils.getRsaTransformationIdx(),
 					AESUtil.getKeyLength(), AESUtil.getAesTransformationIdx()).getMessage();

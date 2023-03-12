@@ -46,6 +46,9 @@ public class QRFrame {
 	@FXML
 	private MenuItem mItmAsText;
 
+	@FXML
+	private ImageView imgQR;
+
 	private static long getQrFrameAutoclose() {
 		return Long.parseLong(Main.properties.getProperty(PROP_QR_FRAME_AUTOCLOSE, "60000"));
 	}
@@ -57,14 +60,13 @@ public class QRFrame {
 			instance = stage;
 		}
 
-		WritableImage img = new WritableImage(QRUtil.getBarcodeSize(), QRUtil.getBarcodeSize());
+		var img = new WritableImage(QRUtil.getBarcodeSize(), QRUtil.getBarcodeSize());
 
-		ImageView imageView = new ImageView(img);
-		imageView.setFitWidth(img.getWidth());
-		imageView.setFitHeight(img.getHeight());
-		lblQrCode.setGraphic(imageView);
+		imgQR.setFitWidth(img.getWidth());
+		imgQR.setFitHeight(img.getHeight());
+		imgQR.setImage(img);
 
-		AnimatedQrHelper qrHelper = new AnimatedQrHelper(message.toCharArray(), () -> instance == stage,
+		var qrHelper = new AnimatedQrHelper(message.toCharArray(), () -> instance == stage,
 				bi -> Platform.runLater(() -> SwingFXUtils.toFXImage(bi, img)));
 
 		qrHelper.start();
@@ -85,7 +87,7 @@ public class QRFrame {
 		}
 	}
 
-	public static void showForMessage(String message, Runnable andThen) {
+	public static void showForMessage(String message, boolean autoClose, Runnable andThen) {
 		if (instance != null) {
 			Platform.runLater(() -> instance.close());
 		}
@@ -111,14 +113,16 @@ public class QRFrame {
 					if (andThen != null)
 						andThen.run();
 				});
-				// schedule automatic close
-				var tt = new TimerTask() {
-					@Override
-					public void run() {
-						Platform.runLater(() -> stage.close());
-					}
-				};
-				timer.schedule(tt, getQrFrameAutoclose());
+				if (autoClose) {
+					// schedule automatic close
+					var tt = new TimerTask() {
+						@Override
+						public void run() {
+							Platform.runLater(() -> stage.close());
+						}
+					};
+					timer.schedule(tt, getQrFrameAutoclose());
+				}
 			} catch (Exception ex) {
 				ex.printStackTrace();
 				if (andThen != null)
