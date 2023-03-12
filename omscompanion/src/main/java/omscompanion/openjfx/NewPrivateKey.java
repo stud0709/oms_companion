@@ -195,7 +195,7 @@ public class NewPrivateKey {
 		// https://alvinalexander.com/java/java-uimanager-color-keys-list/
 		lblKeyAlias.setTextFill(msg == null ? colorDef : errorPaint);
 
-		txtKeyAlias.setTooltip(new Tooltip(msg));
+		lblKeyAlias.setTooltip(new Tooltip(msg));
 		return msg == null;
 	}
 
@@ -210,7 +210,7 @@ public class NewPrivateKey {
 
 		lblTransportPassword.setTextFill(msg == null ? colorDef : errorPaint);
 
-		txtTransportPwd.setTooltip(new Tooltip(msg));
+		lblTransportPassword.setTooltip(new Tooltip(msg));
 		return msg == null;
 	}
 
@@ -227,7 +227,7 @@ public class NewPrivateKey {
 
 		lblRepeatPassword.setTextFill(msg == null ? colorDef : errorPaint);
 
-		txtRepeatPwd.setTooltip(new Tooltip(msg));
+		lblRepeatPassword.setTooltip(new Tooltip(msg));
 		return msg == null;
 	}
 
@@ -240,7 +240,7 @@ public class NewPrivateKey {
 
 		lblBackupFile.setTextFill(msg == null ? colorDef : errorPaint);
 
-		txtBackupFile.setTooltip(new Tooltip(msg));
+		lblBackupFile.setTooltip(new Tooltip(msg));
 		return msg == null;
 	}
 
