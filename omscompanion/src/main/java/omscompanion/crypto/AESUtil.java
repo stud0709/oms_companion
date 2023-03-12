@@ -91,15 +91,18 @@ public final class AESUtil {
 	}
 
 	public static int getSaltLength() {
-		return Integer.parseInt(Main.properties.getProperty(PROP_AES_SALT_LENGTH, "" + DEF_AES_SALT_LENGTH));
+		return Math.max(Integer.parseInt(Main.properties.getProperty(PROP_AES_SALT_LENGTH, "" + DEF_AES_SALT_LENGTH)),
+				DEF_AES_SALT_LENGTH);
 	}
 
 	public static int getKeyspecIterations() {
-		return Integer.parseInt(Main.properties.getProperty(PROP_AES_KEYSPEC_ITER, "" + DEF_AES_KEYSPEC_ITER));
+		return Math.max(Integer.parseInt(Main.properties.getProperty(PROP_AES_KEYSPEC_ITER, "" + DEF_AES_KEYSPEC_ITER)),
+				DEF_AES_KEYSPEC_ITER);
 	}
 
 	public static int getKeyLength() {
-		return Integer.parseInt(Main.properties.getProperty(PROP_AES_KEY_LENGTH, "" + DEF_AES_KEY_LENGTH));
+		return Math.max(Integer.parseInt(Main.properties.getProperty(PROP_AES_KEY_LENGTH, "" + DEF_AES_KEY_LENGTH)),
+				DEF_AES_KEY_LENGTH);
 	}
 
 }

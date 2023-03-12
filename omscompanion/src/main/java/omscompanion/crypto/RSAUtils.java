@@ -20,7 +20,8 @@ public final class RSAUtils {
 	}
 
 	public static int getKeyLength() {
-		return Integer.parseInt(Main.properties.getProperty(PROP_RSA_KEY_LENGTH, "" + DEF_RSA_KEY_LENGTH));
+		return Math.max(Integer.parseInt(Main.properties.getProperty(PROP_RSA_KEY_LENGTH, "" + DEF_RSA_KEY_LENGTH)),
+				DEF_RSA_KEY_LENGTH);
 	}
 
 }
