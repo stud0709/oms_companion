@@ -25,7 +25,7 @@ import omscompanion.crypto.RSAUtils;
 public class EncryptionToolBar extends GridPane implements ChangeListener<String> {
 	public static final String FILE_TYPE_PUCLIC_KEY = ".x.509";
 
-	private String message;
+	private byte[] message;
 	byte[] unprotected;
 
 	@FXML
@@ -60,7 +60,7 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<String
 	public void setUnprotected(byte[] unprotected) {
 		this.unprotected = unprotected;
 		this.changed(null, null, choiceKey.getSelectionModel().getSelectedItem());
-		FxMain.createTextLink(message.getBytes());
+		FxMain.createTextLink(message);
 	}
 
 	public void init() throws Exception {
@@ -90,13 +90,13 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<String
 	void onBtnAction(ActionEvent event) {
 		switch (((Node) event.getSource()).getId()) {
 		case "btnAsGifBase64":
-			FxMain.onGifBase64(message.toCharArray());
+			FxMain.onGifBase64(message);
 			break;
 		case "btnAsGifFile":
-			FxMain.onGifFile(message.toCharArray());
+			FxMain.onGifFile(message);
 			break;
 		case "btnAsText":
-			FxMain.onAsText(message.getBytes());
+			FxMain.onAsText(message);
 			break;
 		case "btnDefault":
 			Main.setDefaultKeyAlias(choiceKey.getSelectionModel().getSelectedItem());

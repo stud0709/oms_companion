@@ -4,7 +4,7 @@ The supplementary desktop software for [OneMoreSecret](https://github.com/stud07
 It also mirrors some features of the smartphone app, which may better fit your workflow.
 
 ## Disclaimer
-This is a very ~~ugly~~ early version of the software. Use it at your own risk.
+This is a very early version of the software. Use it at your own risk.
 
 ## Setting Up
 This software requires Java Runtime Environment 8 or later. Download the release file into a subfolder of your user folder. If you have your Java runtime on your class path, use `oms.cmd` to start the application. It will appear in your system tray.

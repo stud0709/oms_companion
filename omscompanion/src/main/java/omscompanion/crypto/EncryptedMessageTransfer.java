@@ -1,12 +1,12 @@
 package omscompanion.crypto;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPublicKey;
-import java.util.ArrayList;
-import java.util.Base64;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -14,9 +14,10 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 
 import omscompanion.MessageComposer;
+import omscompanion.OmsDataOutputStream;
 
 public class EncryptedMessageTransfer extends MessageComposer {
-	private final String message;
+	private final byte[] message;
 
 	public EncryptedMessageTransfer(byte[] message, RSAPublicKey rsaPublicKey, int rsaTransformationIdx,
 			int aesKeyLength, int aesTransformationIdx) throws NoSuchAlgorithmException, NoSuchPaddingException,
@@ -33,33 +34,35 @@ public class EncryptedMessageTransfer extends MessageComposer {
 
 		var encryptedSecretKey = cipher.doFinal(secretKey.getEncoded());
 
-		var list = new ArrayList<String>();
+		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				OmsDataOutputStream dataOutputStream = new OmsDataOutputStream(baos)) {
 
-		// (1) application-ID
-		list.add(Integer.toString(APPLICATION_ENCRYPTED_MESSAGE_TRANSFER));
+			// (1) application-ID
+			dataOutputStream.writeUnsignedShort(APPLICATION_ENCRYPTED_MESSAGE_TRANSFER);
 
-		// (2) RSA transformation index
-		list.add(Integer.toString(rsaTransformationIdx));
+			// (2) RSA transformation index
+			dataOutputStream.writeUnsignedShort(rsaTransformationIdx);
 
-		// (3) fingerprint
-		list.add(Base64.getEncoder().encodeToString(getFingerprint(rsaPublicKey)));
+			// (3) fingerprint
+			dataOutputStream.writeByteArray(getFingerprint(rsaPublicKey));
 
-		// (4) AES transformation index
-		list.add(Integer.toString(aesTransformationIdx));
+			// (4) AES transformation index
+			dataOutputStream.writeUnsignedShort(aesTransformationIdx);
 
-		// (5) IV
-		list.add(Base64.getEncoder().encodeToString(iv.getIV()));
+			// (5) IV
+			dataOutputStream.writeByteArray(iv.getIV());
 
-		// (6) RSA-encrypted AES secret key
-		list.add(Base64.getEncoder().encodeToString(encryptedSecretKey));
+			// (6) RSA-encrypted AES secret key
+			dataOutputStream.writeByteArray(encryptedSecretKey);
 
-		// (7) AES-encrypted message
-		var encryptedMessage = AESUtil.encrypt(message, secretKey, iv,
-				AesTransformation.values()[aesTransformationIdx].transformation);
+			// (7) AES-encrypted message
+			dataOutputStream.writeByteArray(AESUtil.encrypt(message, secretKey, iv,
+					AesTransformation.values()[aesTransformationIdx].transformation));
 
-		list.add(Base64.getEncoder().encodeToString(encryptedMessage));
-
-		this.message = String.join("\t", list);
+			this.message = baos.toByteArray();
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
+		}
 	}
 
 	private byte[] getFingerprint(RSAPublicKey rsaPublicKey) throws NoSuchAlgorithmException {
@@ -73,7 +76,7 @@ public class EncryptedMessageTransfer extends MessageComposer {
 	}
 
 	@Override
-	public String getMessage() {
+	public byte[] getMessage() {
 		return message;
 	}
 }

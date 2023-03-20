@@ -10,7 +10,6 @@ import javafx.embed.swing.SwingFXUtils;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
-import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
@@ -21,11 +20,12 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import omscompanion.FxMain;
 import omscompanion.Main;
+import omscompanion.MessageComposer;
 import omscompanion.qr.AnimatedQrHelper;
 import omscompanion.qr.QRUtil;
 
 public class QRFrame {
-	private String message;
+	private byte[] message;
 	private static final Timer timer = new Timer();
 	private static Stage instance;
 
@@ -53,7 +53,7 @@ public class QRFrame {
 		return Long.parseLong(Main.properties.getProperty(PROP_QR_FRAME_AUTOCLOSE, "60000"));
 	}
 
-	public void init(String message, Stage stage) throws WriterException {
+	public void init(byte[] message, Stage stage) throws WriterException {
 		this.message = message;
 
 		synchronized (QRFrame.class) {
@@ -66,28 +66,28 @@ public class QRFrame {
 		imgQR.setFitHeight(img.getHeight());
 		imgQR.setImage(img);
 
-		var qrHelper = new AnimatedQrHelper(message.toCharArray(), () -> instance == stage,
-				bi -> Platform.runLater(() -> SwingFXUtils.toFXImage(bi, img)));
+		var qrHelper = new AnimatedQrHelper(MessageComposer.encodeAsOmsText(message).toCharArray(),
+				() -> instance == stage, bi -> Platform.runLater(() -> SwingFXUtils.toFXImage(bi, img)));
 
 		qrHelper.start();
 	}
 
 	@FXML
 	void onMenuItemAction(ActionEvent event) {
-		switch (((Node) event.getSource()).getId()) {
+		switch (((MenuItem) event.getSource()).getId()) {
 		case "mItmAsText":
-			FxMain.onAsText(message.getBytes());
+			FxMain.onAsText(message);
 			break;
 		case "mItmAsGifFile":
-			FxMain.onGifFile(message.toCharArray());
+			FxMain.onGifFile(message);
 			break;
 		case "mItmAsBase64":
-			FxMain.onGifBase64(message.toCharArray());
+			FxMain.onGifBase64(message);
 			break;
 		}
 	}
 
-	public static void showForMessage(String message, boolean autoClose, Runnable andThen) {
+	public static void showForMessage(byte[] message, boolean autoClose, Runnable andThen) {
 		if (instance != null) {
 			Platform.runLater(() -> instance.close());
 		}

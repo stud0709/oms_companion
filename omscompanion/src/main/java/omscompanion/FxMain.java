@@ -35,9 +35,9 @@ public class FxMain extends Application {
 		});
 	}
 
-	public static void onGifFile(char[] message) {
+	public static void onGifFile(byte[] message) {
 		try {
-			var f = AnimatedQrHelper.generateGif(message);
+			var f = AnimatedQrHelper.generateGif(MessageComposer.encodeAsOmsText(message).toCharArray());
 
 			if (f == null)
 				return;
@@ -56,9 +56,9 @@ public class FxMain extends Application {
 		}
 	}
 
-	public static void onGifBase64(char[] message) {
+	public static void onGifBase64(byte[] message) {
 		try {
-			var f = AnimatedQrHelper.generateGif(message);
+			var f = AnimatedQrHelper.generateGif(MessageComposer.encodeAsOmsText(message).toCharArray());
 
 			if (f == null)
 				return;

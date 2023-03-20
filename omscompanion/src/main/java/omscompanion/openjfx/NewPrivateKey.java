@@ -8,8 +8,6 @@ import static j2html.TagCreator.h2;
 import static j2html.TagCreator.html;
 import static j2html.TagCreator.img;
 import static j2html.TagCreator.join;
-import static j2html.TagCreator.li;
-import static j2html.TagCreator.ol;
 import static j2html.TagCreator.p;
 import static j2html.TagCreator.table;
 import static j2html.TagCreator.td;
@@ -52,8 +50,6 @@ import omscompanion.Main;
 import omscompanion.MessageComposer;
 import omscompanion.crypto.AESUtil;
 import omscompanion.crypto.AesEncryptedPrivateKeyTransfer;
-import omscompanion.crypto.AesKeyAlgorithm;
-import omscompanion.crypto.AesTransformation;
 import omscompanion.crypto.RSAUtils;
 import omscompanion.qr.QRUtil;
 
@@ -261,19 +257,28 @@ public class NewPrivateKey {
 						rsaPublicKey.getAlgorithm(), rsaKeyLength, rsaPublicKey.getFormat())));
 
 				IvParameterSpec iv = AESUtil.generateIv();
+				System.out.println("iv: " + Main.byteArrayToHex(iv.getIV()));
+
 				var salt = AESUtil.generateSalt(AESUtil.getSaltLength());
+				System.out.println("salt: " + Main.byteArrayToHex(salt));
 
 				var aesKeyLength = AESUtil.getKeyLength();
-				var aesKeyspecIterations = AESUtil.getKeyspecIterations();
+				System.out.println("key length: " + aesKeyLength);
 
-				var secretKey = AESUtil.getSecretKeyFromPassword(txtTransportPwd.getText().toCharArray(), salt,
-						AESUtil.getAesKeyAlgorithm().keyAlgorithm, aesKeyLength, aesKeyspecIterations);
+				var aesKeyspecIterations = AESUtil.getKeyspecIterations();
+				System.out.println("iterations: " + aesKeyspecIterations);
+
+				var keyAlgorithm = AESUtil.getAesKeyAlgorithm().keyAlgorithm;
+				System.out.println("key algorithm: " + keyAlgorithm);
+
+				var secretKey = AESUtil.getSecretKeyFromPassword(transportPwd.toCharArray(), salt, keyAlgorithm,
+						aesKeyLength, aesKeyspecIterations);
 
 				Platform.runLater(() -> txtAreaInfo.appendText("AES initialized\n"));
 
 				var alias = txtKeyAlias.getText().trim();
 
-				var message = new AesEncryptedPrivateKeyTransfer(alias, keyPair.getPrivate(), secretKey, iv, salt,
+				var message = new AesEncryptedPrivateKeyTransfer(alias, keyPair, secretKey, iv, salt,
 						AESUtil.getAesTransformationIdx(), AESUtil.getAesKeyAlgorithmIdx(), aesKeyLength,
 						aesKeyspecIterations).getMessage();
 
@@ -319,11 +324,12 @@ public class NewPrivateKey {
 		}).start();
 	}
 
-	public static String getKeyBackupHtml(String alias, byte[] fingerprint, String message)
+	public static String getKeyBackupHtml(String alias, byte[] fingerprint, byte[] message)
 			throws NoSuchAlgorithmException, IOException, WriterException {
 		var qrCodes = p();
 
-		var list = QRUtil.getQrSequence(message.toCharArray(), QRUtil.getChunkSize(), QRUtil.getBarcodeSize());
+		var list = QRUtil.getQrSequence(MessageComposer.encodeAsOmsText(message).toCharArray(), QRUtil.getChunkSize(),
+				QRUtil.getBarcodeSize());
 
 		for (int i = 0; i < list.size(); i++) {
 			try (var baos = new ByteArrayOutputStream()) {
@@ -339,16 +345,15 @@ public class NewPrivateKey {
 			}
 		}
 
-		var messageAsUrl = MessageComposer.encodeAsOmsText(message.getBytes());
+		var messageAsOmsText = MessageComposer.encodeAsOmsText(message);
 		var messageChunks = p().withStyle("font-family:monospace;");
 		var offset = 0;
-		while (offset < messageAsUrl.length()) {
-			var s = messageAsUrl.substring(offset, Math.min(offset + BASE64_LINE_LENGTH, messageAsUrl.length()));
+		while (offset < messageAsOmsText.length()) {
+			var s = messageAsOmsText.substring(offset,
+					Math.min(offset + BASE64_LINE_LENGTH, messageAsOmsText.length()));
 			messageChunks.withText(s).with(br());
 			offset += BASE64_LINE_LENGTH;
 		}
-
-		var sArr = message.split("\t");
 
 		return html(body(h1("OneMoreSecret Private Key Backup"), p(b("Keep this file / printout in a secure location")),
 				p("This is a hard copy of your Private Key for OneMoreSecret. "
@@ -365,19 +370,7 @@ public class NewPrivateKey {
 				p("Scan this with your OneMoreSecret App:"), qrCodes, h2("Long-Term Backup and Technical Details"),
 				p("Base64 Encoded Message: "), messageChunks,
 				p("Message format: " + MessageComposer.OMS_PREFIX + "[base64 encoded data]"),
-				p("Data format: String (utf-8), separator: TAB"), p("Data elements:"),
-				ol(/* 1 */li("Application Identifier = " + sArr[0] + " (AES Encrypted Key Pair Transfer)"),
-						/* 2 */li("Key Alias = " + alias),
-						/* 3 */li("Salt: base64-encoded byte[] = "
-								+ Main.byteArrayToHex(Base64.getDecoder().decode(sArr[2]))),
-						/* 4 */li("IV: base64-encoded byte[] = "
-								+ Main.byteArrayToHex(Base64.getDecoder().decode(sArr[3]))),
-						/* 5 */li("Cipher Algorithm = " + sArr[4] + " ("
-								+ AesTransformation.values()[Integer.parseInt(sArr[4])].transformation + ")"),
-						/* 6 */li("Key Algorithm = " + sArr[5] + " ("
-								+ AesKeyAlgorithm.values()[Integer.parseInt(sArr[5])].keyAlgorithm + ")"),
-						/* 7 */li("Keyspec Length = " + sArr[6]), /* 8 */li("Keyspec Iterations = " + sArr[7]),
-						/* 9 */li("AES encrypted Private Key material: base64-encoded byte[]"))))
+				p("Data format: see https://github.com/stud0709/oms_companion/blob/master/omscompanion/src/main/java/omscompanion/crypto/AesEncryptedPrivateKeyTransfer.java")))
 				.render();
 	}
 

@@ -1,12 +1,13 @@
 package omscompanion.crypto;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
-import java.security.Key;
+import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.stream.Collectors;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -15,58 +16,81 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 
 import omscompanion.MessageComposer;
+import omscompanion.OmsDataOutputStream;
 
 public class AesEncryptedPrivateKeyTransfer extends MessageComposer {
-	private final String message;
+	private final byte[] message;
 
-	public AesEncryptedPrivateKeyTransfer(String alias, Key rsaPrivateKey, SecretKey aesKey, IvParameterSpec iv,
+	public AesEncryptedPrivateKeyTransfer(String alias, KeyPair rsaKeyPair, SecretKey aesKey, IvParameterSpec iv,
 			byte[] salt, int aesTransformationIdx, int aesKeyAlgorithmIdx, int aesKeyLength, int aesKeyspecIterations)
 			throws NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException,
 			InvalidAlgorithmParameterException, BadPaddingException, IllegalBlockSizeException {
 		super();
 
-		var privateKeyEncoded = rsaPrivateKey.getEncoded();
-
 		// --- create message ---
-		var list = new ArrayList<String>();
+		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				OmsDataOutputStream dataOutputStream = new OmsDataOutputStream(baos)) {
+			// (1) application-ID
+			dataOutputStream.writeUnsignedShort(MessageComposer.APPLICATION_AES_ENCRYPTED_PRIVATE_KEY_TRANSFER);
 
-		// (1) application-ID
-		list.add(Integer.toString(APPLICATION_AES_ENCRYPTED_PRIVATE_KEY_TRANSFER));
+			// (2) alias
+			dataOutputStream.writeString(alias);
 
-		// (2) alias
-		list.add(alias);
+			// --- AES parameter ---
 
-		// --- AES parameter ---
+			// (3) salt
+			dataOutputStream.writeByteArray(salt);
 
-		// (3) salt
-		list.add(Base64.getEncoder().encodeToString(salt));
+			// (4) iv
+			dataOutputStream.writeByteArray(iv.getIV());
 
-		// (4) iv
-		list.add(Base64.getEncoder().encodeToString(iv.getIV()));
+			// (5) AES transformation index
+			dataOutputStream.writeUnsignedShort(aesTransformationIdx);
 
-		// (5) AES transformation index
-		list.add(Integer.toString(aesTransformationIdx));
+			// (6) key algorithm index
+			dataOutputStream.writeUnsignedShort(aesKeyAlgorithmIdx);
 
-		// (6) key algorithm index
-		list.add(Integer.toString(aesKeyAlgorithmIdx));
+			// (7) keyspec length
+			dataOutputStream.writeUnsignedShort(aesKeyLength);
 
-		// (7) keyspec length
-		list.add(Integer.toString(aesKeyLength));
+			// (8) keyspec iterations
+			dataOutputStream.writeUnsignedShort(aesKeyspecIterations);
 
-		// (8) keyspec iterations
-		list.add(Integer.toString(aesKeyspecIterations));
+			// --- encrypted data ---
 
-		// --- encrypted data ---
+			// (9) cipher text
+			dataOutputStream.writeByteArray(getCipherText(rsaKeyPair, aesKey, iv, aesTransformationIdx));
 
-		// (9) cipher text
-		list.add(Base64.getEncoder().encodeToString(AESUtil.encrypt(privateKeyEncoded, aesKey, iv,
-				AesTransformation.values()[aesTransformationIdx].transformation)));
+			this.message = baos.toByteArray();
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
 
-		this.message = list.stream().collect(Collectors.joining("\t"));
+	private byte[] getCipherText(KeyPair rsaKeyPair, SecretKey aesKey, IvParameterSpec iv, int aesTransformationIdx)
+			throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
+			NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
+
+		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				OmsDataOutputStream dataOutputStreamCipher = new OmsDataOutputStream(baos)) {
+			RSAPublicKey publicKey = (RSAPublicKey) rsaKeyPair.getPublic();
+			RSAPrivateKey privateKey = (RSAPrivateKey) rsaKeyPair.getPrivate();
+
+			// (9.1) - private key material
+			dataOutputStreamCipher.writeByteArray(privateKey.getEncoded());
+
+			// (9.2) - public key material
+			dataOutputStreamCipher.writeByteArray(publicKey.getEncoded());
+
+			return AESUtil.encrypt(baos.toByteArray(), aesKey, iv,
+					AesTransformation.values()[aesTransformationIdx].transformation);
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
+		}
 	}
 
 	@Override
-	public String getMessage() {
+	public byte[] getMessage() {
 		return message;
 	}
 
