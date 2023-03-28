@@ -188,7 +188,6 @@ public class NewPrivateKey {
 		if (s.length() > 50)
 			msg = "Key Alias is too long, max. 50";
 
-		// https://alvinalexander.com/java/java-uimanager-color-keys-list/
 		lblKeyAlias.setTextFill(msg == null ? colorDef : errorPaint);
 
 		lblKeyAlias.setTooltip(new Tooltip(msg));
