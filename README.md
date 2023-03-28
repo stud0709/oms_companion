@@ -7,7 +7,15 @@ It also mirrors some features of the smartphone app, which may better fit your w
 This is a very early version of the software. Use it at your own risk.
 
 ## Setting Up
-This software requires Java Runtime Environment 8 or later. Download the release file into a subfolder of your user folder. If you have your Java runtime on your class path, use `oms.cmd` to start the application. It will appear in your system tray.
+This software requires Java Runtime Environment 14 or later. Download the release file into a subfolder of your user folder. 
+- If your java runtime has registered with the .jar file type, you just doubleclick `omscompanion.jar`.
+- If you have your Java runtime on your `path`, use `oms.cmd` to start the application (it contains just on line: `java -jar omscompanion.jar`)
+- If you have a Java installation not on your `path`, modify `omscompanion.cmd` accordingly (`path_to_your_java_folder\bin\java -jar omscompanion.jar`).
+
+omsCompanion will appear in your system tray.
+
+If you rely on `omscompanion.jar` and don't want Windows prompt to show up, you can modify the command as follows: `start javaw -jar omscompanion.jar`
+
 
 ## Creating a Private Key
 
@@ -23,12 +31,12 @@ Open the context menu from the system tray icon and click on *Cryptography... ->
 
 ### Importing the Public Key into the Phone.
 
-The key generation wizard will show you the sequence of QR codes to be [scanned](https://github.com/stud0709/OneMoreSecret/blob/master/qr_scanner.md) with OneMoreSecret app immediately after you click *Create*. After the successful scan, the [import screen](https://github.com/stud0709/OneMoreSecret/blob/master/key_import.md) will open.
+The key generation wizard will show you the sequence of QR codes to be [scanned](https://github.com/stud0709/OneMoreSecret/blob/master/qr_scanner.md) with OneMoreSecret app immediately after you click *Create*. After the successful scan, the [import screen](https://github.com/stud0709/OneMoreSecret/blob/master/key_import.md) will open on your smartphone.
 
 ## Encrypting Data
-If you double click the tray icon, omsCompanion will check the clipboard for text. If the text starts with `oms00_`, a QR code sequence will be generated (see the [OneMoreSecret Tutotial](https://github.com/stud0709/OneMoreSecret/blob/master/hello_world.md) for a sample). Any other text found in the clipboard will be encrypted with the public key you selected and copied back to the clipboard. *Set Default* will make the selected public your default one. 
+If you double click the tray icon, omsCompanion will check the clipboard for text. If the text starts with `oms00_`, a QR code sequence will be generated (see the [OneMoreSecret Tutotial](https://github.com/stud0709/OneMoreSecret/blob/master/hello_world.md) for a sample). Any other text found in the clipboard will be encrypted with the public key of your choice and copied back to the clipboard. *Default* will make the selected public key your default one. 
 
-In addition to the text format, you can also generate an animated `.gif` file or a BASE64 encoded `GIF` data, which is useful if you want to embed the image into the `<img src="data:image/gif;base64,...]/>` tag (replacing `...` with the BASE64 encoded data).
+In addition to the text format, you can also generate an animated `.gif` file or a BASE64 encoded `GIF` data, which is useful if you want to embed the image into the `<img src="data:image/gif;base64,...]/>` tag (replacing `...` with the BASE64 encoded data). This should also work for markdown documents.
 
 ![Encrypting Data](/readme_images/encrypting.png)
 
