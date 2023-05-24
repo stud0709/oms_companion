@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 
 public abstract class MessageComposer {
 	public static final int APPLICATION_AES_ENCRYPTED_PRIVATE_KEY_TRANSFER = 0,
-			APPLICATION_ENCRYPTED_MESSAGE_TRANSFER = 1;
+			APPLICATION_ENCRYPTED_MESSAGE_TRANSFER = 1, APPLICATION_TOTP_URI_TRANSFER = 2;
 
 	/**
 	 * Prefix of a text encoded message.
