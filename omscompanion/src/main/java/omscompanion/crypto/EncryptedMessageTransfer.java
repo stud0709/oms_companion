@@ -56,7 +56,7 @@ public class EncryptedMessageTransfer extends MessageComposer {
 			dataOutputStream.writeByteArray(encryptedSecretKey);
 
 			// (7) AES-encrypted message
-			dataOutputStream.writeByteArray(AESUtil.encrypt(message, secretKey, iv,
+			dataOutputStream.writeByteArray(AESUtil.process(Cipher.ENCRYPT_MODE, message, secretKey, iv,
 					AesTransformation.values()[aesTransformationIdx].transformation));
 
 			this.message = baos.toByteArray();
@@ -75,7 +75,6 @@ public class EncryptedMessageTransfer extends MessageComposer {
 		return sha256.digest(publicExp);
 	}
 
-	@Override
 	public byte[] getMessage() {
 		return message;
 	}

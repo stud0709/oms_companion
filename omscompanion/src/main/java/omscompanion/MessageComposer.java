@@ -18,8 +18,6 @@ public abstract class MessageComposer {
 	 */
 	public static final Pattern OMS_PATTERN = Pattern.compile("oms([0-9a-f]{2})_");
 
-	public abstract byte[] getMessage();
-
 	public static byte[] decode(String omsText) {
 		var m = OMS_PATTERN.matcher(omsText);
 

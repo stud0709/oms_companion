@@ -1,5 +1,8 @@
 package omscompanion.crypto;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -55,22 +58,30 @@ public final class AESUtil {
 		return salt;
 	}
 
-	public static byte[] encrypt(byte[] input, SecretKey secretKey, IvParameterSpec iv, String aesTransformation)
-			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
-			InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
-
+	public static byte[] process(int cipherMode, byte[] input, SecretKey key, IvParameterSpec iv,
+			String aesTransformation) throws NoSuchPaddingException, NoSuchAlgorithmException,
+			InvalidAlgorithmParameterException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
 		var cipher = Cipher.getInstance(aesTransformation);
-		cipher.init(Cipher.ENCRYPT_MODE, secretKey, iv);
+		cipher.init(cipherMode, key, iv);
 		return cipher.doFinal(input);
 	}
 
-	public static byte[] decrypt(byte[] cipherText, SecretKey secretKey, IvParameterSpec iv, String aesTransformation)
+	public static void process(int cipherMode, InputStream is, OutputStream os, SecretKey key, IvParameterSpec iv,
+			String aesTransformation)
 			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
-			InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+			InvalidKeyException, BadPaddingException, IllegalBlockSizeException, IOException {
 
 		var cipher = Cipher.getInstance(aesTransformation);
-		cipher.init(Cipher.DECRYPT_MODE, secretKey, iv);
-		return cipher.doFinal(cipherText);
+		cipher.init(cipherMode, key, iv);
+
+		var iArr = new byte[1024];
+		int length;
+
+		while ((length = is.read(iArr)) > 0) {
+			os.write(cipher.update(iArr, 0, length));
+		}
+
+		os.write(cipher.doFinal());
 	}
 
 	public static int getAesTransformationIdx() {
