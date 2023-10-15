@@ -1,5 +1,9 @@
 package omscompanion.crypto;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.interfaces.RSAPublicKey;
+
 import omscompanion.Main;
 
 public final class RSAUtils {
@@ -22,6 +26,16 @@ public final class RSAUtils {
 	public static int getKeyLength() {
 		return Math.max(Integer.parseInt(Main.properties.getProperty(PROP_RSA_KEY_LENGTH, "" + DEF_RSA_KEY_LENGTH)),
 				DEF_RSA_KEY_LENGTH);
+	}
+
+	public static byte[] getFingerprint(RSAPublicKey rsaPublicKey) throws NoSuchAlgorithmException {
+		var sha256 = MessageDigest.getInstance("SHA-256");
+
+		var modulus = rsaPublicKey.getModulus().toByteArray();
+		var publicExp = rsaPublicKey.getPublicExponent().toByteArray();
+
+		sha256.update(modulus);
+		return sha256.digest(publicExp);
 	}
 
 }

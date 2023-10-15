@@ -19,7 +19,7 @@ import javax.crypto.spec.IvParameterSpec;
 import omscompanion.MessageComposer;
 import omscompanion.OmsDataOutputStream;
 
-public class AesEncryptedPrivateKeyTransfer extends MessageComposer {
+public class AesEncryptedPrivateKeyTransfer {
 	private final byte[] message;
 
 	public AesEncryptedPrivateKeyTransfer(String alias, KeyPair rsaKeyPair, SecretKey aesKey, IvParameterSpec iv,
