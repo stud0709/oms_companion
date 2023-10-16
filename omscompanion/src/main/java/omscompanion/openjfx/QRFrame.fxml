@@ -3,6 +3,7 @@
 <?import javafx.scene.control.ContextMenu?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.MenuItem?>
+<?import javafx.scene.control.TextField?>
 <?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.VBox?>
 
@@ -22,5 +23,6 @@
             <ImageView fx:id="imgQR" fitHeight="150.0" fitWidth="200.0" pickOnBounds="true" preserveRatio="true" />
          </graphic>
       </Label>
+      <TextField fx:id="txtInput" promptText="Enter File Key" />
    </children>
 </VBox>

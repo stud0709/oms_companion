@@ -7,12 +7,17 @@ import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.File;
 import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import org.bouncycastle.util.encoders.Base64;
+
 import javafx.beans.property.SimpleBooleanProperty;
+import omscompanion.crypto.KeyRequest;
 import omscompanion.openjfx.NewItem;
 import omscompanion.openjfx.QRFrame;
 
@@ -39,12 +44,28 @@ public class ClipboardUtil {
 		automaticModeProperty.set(autoCheckClipboard);
 	}
 
-	public static String get() throws UnsupportedFlavorException, IOException {
-		var clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+	public static String getString() {
+		try {
+			var clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 
-		return clipboard.isDataFlavorAvailable(DataFlavor.stringFlavor)
-				? (String) clipboard.getData(DataFlavor.stringFlavor)
-				: null;
+			return clipboard.isDataFlavorAvailable(DataFlavor.stringFlavor)
+					? (String) clipboard.getData(DataFlavor.stringFlavor)
+					: null;
+		} catch (UnsupportedFlavorException | IOException ex) {
+			return null;
+		}
+	}
+
+	public static List<File> getFile() {
+		try {
+			var clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+
+			return clipboard.isDataFlavorAvailable(DataFlavor.javaFileListFlavor)
+					? (List<File>) clipboard.getData(DataFlavor.javaFileListFlavor)
+					: null;
+		} catch (UnsupportedFlavorException | IOException ex) {
+			return null;
+		}
 	}
 
 	/**
@@ -90,7 +111,7 @@ public class ClipboardUtil {
 
 	public static synchronized boolean checkClipboard() {
 		try {
-			var s = get();
+			var s = getString();
 
 			if (s == null)
 				return false;
@@ -104,7 +125,7 @@ public class ClipboardUtil {
 
 			suspendClipboardCheck();
 
-			QRFrame.showForMessage(message, true, () -> {
+			QRFrame.showForMessage(message, true, false, _s -> {
 				set(""); // clear the clipboard
 				resumeClipboardCheck();
 			});
@@ -115,7 +136,6 @@ public class ClipboardUtil {
 		}
 
 		return false;
-
 	}
 
 	protected static synchronized void startClipboardCheck() {
@@ -150,20 +170,54 @@ public class ClipboardUtil {
 				return;
 
 			// try to encrypt clipboard content
-			var s = get();
-			if (s == null || s.trim().isEmpty())
+			var s = getString();
+
+			if (s != null & !s.trim().isEmpty()) {
+				suspendClipboardCheck();
+
+				NewItem.showForMessage(s.getBytes(), () -> {
+					set(""); // clear the clipboard
+					resumeClipboardCheck();
+				});
+
 				return;
+			}
 
-			CHECK_CLIPBOARD.set(false);
+			var listOfFile = getFile();
+			var listOfFileDecrypted = new ArrayList<File>();
 
-			NewItem.showForMessage(s.getBytes(), () -> {
-				set(""); // clear the clipboard
-				CHECK_CLIPBOARD.set(automaticModeProperty.get());
-			});
+			if (listOfFile != null && listOfFile.isEmpty()) {
+				suspendClipboardCheck();
+
+				onListOfFile(listOfFile, listOfFileDecrypted);
+			}
 
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
+	}
+
+	private static void onListOfFile(List<File> listOfFile, List<File> listOfFileDecrypted)
+			throws NoSuchAlgorithmException, IOException {
+		if (listOfFile.isEmpty()) {
+			set(listOfFileDecrypted.toArray(new File[] {}));
+			resumeClipboardCheck();
+			return;
+		}
+
+		// process single file
+		File f = listOfFile.remove(0);
+
+		var keyRequest = new KeyRequest(f);
+
+		QRFrame.showForMessage(keyRequest.getMessage(), false, true, s -> {
+			var message = Base64.decode(s);
+
+			// to be continued... create output file, decrypt, add the file to
+			// listOfFileDecrypted
+
+			// keyRequest.onReply(f, ..., message);
+		});
 	}
 
 	public static class FileTransferable implements Transferable {

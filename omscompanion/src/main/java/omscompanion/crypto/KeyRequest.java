@@ -42,7 +42,7 @@ public class KeyRequest {
 			byte[] rsaEncryptedAesSecretKey) {
 	}
 
-	public KeyRequest(File f, byte[] fingerprint) throws NoSuchAlgorithmException, IOException {
+	public KeyRequest(File f) throws NoSuchAlgorithmException, IOException {
 		// create temporary RSA key pair
 		var keyPairGenerator = KeyPairGenerator.getInstance("RSA");
 		var rsaKeyLength = RSAUtils.getKeyLength();
@@ -64,7 +64,7 @@ public class KeyRequest {
 			dataOutputStream.writeByteArray(rsaPublicKey.getEncoded());
 
 			// (3) fingerprint from the file header
-			dataOutputStream.writeByteArray(fingerprint);
+			dataOutputStream.writeByteArray(header.rsaFingerprint);
 
 			// (4) RSA transformation index
 			dataOutputStream.writeUnsignedShort(header.rsaTransformationIdx);

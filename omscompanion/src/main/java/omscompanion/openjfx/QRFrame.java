@@ -2,6 +2,7 @@ package omscompanion.openjfx;
 
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.function.Consumer;
 
 import com.google.zxing.WriterException;
 
@@ -14,6 +15,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.TextField;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.WritableImage;
 import javafx.stage.Stage;
@@ -49,11 +51,14 @@ public class QRFrame {
 	@FXML
 	private ImageView imgQR;
 
+	@FXML
+	private TextField txtInput;
+
 	private static long getQrFrameAutoclose() {
 		return Long.parseLong(Main.properties.getProperty(PROP_QR_FRAME_AUTOCLOSE, "60000"));
 	}
 
-	public void init(byte[] message, Stage stage) throws WriterException {
+	public void init(byte[] message, Stage stage, boolean allowTextInput) throws WriterException {
 		this.message = message;
 
 		synchronized (QRFrame.class) {
@@ -65,6 +70,12 @@ public class QRFrame {
 		imgQR.setFitWidth(img.getWidth());
 		imgQR.setFitHeight(img.getHeight());
 		imgQR.setImage(img);
+
+		if (allowTextInput) {
+			txtInput.requestFocus();
+		} else {
+			txtInput.setVisible(false);
+		}
 
 		var qrHelper = new AnimatedQrHelper(MessageComposer.encodeAsOmsText(message).toCharArray(),
 				() -> instance == stage, bi -> Platform.runLater(() -> SwingFXUtils.toFXImage(bi, img)));
@@ -87,7 +98,8 @@ public class QRFrame {
 		}
 	}
 
-	public static void showForMessage(byte[] message, boolean autoClose, Runnable andThen) {
+	public static void showForMessage(byte[] message, boolean autoClose, boolean allowTextInput,
+			Consumer<String> andThen) {
 		if (instance != null) {
 			Platform.runLater(() -> instance.close());
 		}
@@ -99,19 +111,21 @@ public class QRFrame {
 				var scene = new Scene(fxmlLoader.load());
 				var frameController = (QRFrame) fxmlLoader.getController();
 				var stage = new Stage();
-				frameController.init(message, stage);
+				frameController.init(message, stage, allowTextInput);
 				stage.setTitle("omsCompanion");
 				stage.setScene(scene);
 				stage.initStyle(StageStyle.UTILITY);
 				stage.show();
 				scene.getWindow().setOnHidden(e -> {
+					String s = frameController.txtInput.getText();
+
 					synchronized (QRFrame.class) {
 						if (instance == stage)
 							instance = null;
 					}
 
 					if (andThen != null)
-						andThen.run();
+						andThen.accept(s);
 				});
 				if (autoClose) {
 					// schedule automatic close
@@ -126,7 +140,7 @@ public class QRFrame {
 			} catch (Exception ex) {
 				ex.printStackTrace();
 				if (andThen != null)
-					andThen.run();
+					andThen.accept(null);
 			}
 		});
 	}

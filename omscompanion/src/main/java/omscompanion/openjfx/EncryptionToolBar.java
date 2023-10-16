@@ -103,7 +103,7 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<String
 			break;
 		case "btnPreviewQr":
 			btnPreviewQr.setDisable(true);
-			QRFrame.showForMessage(message, false, () -> Platform.runLater(() -> btnPreviewQr.setDisable(false)));
+			QRFrame.showForMessage(message, false, false, s -> Platform.runLater(() -> btnPreviewQr.setDisable(false)));
 			break;
 		}
 	}

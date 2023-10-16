@@ -303,7 +303,7 @@ public class NewPrivateKey {
 
 				Platform.runLater(() -> txtAreaInfo.appendText("Displaying QR sequence\n"));
 
-				QRFrame.showForMessage(message, false, () -> {
+				QRFrame.showForMessage(message, false, false, s -> {
 					Platform.runLater(() -> txtAreaInfo.appendText("Showing backup file\n"));
 					try {
 						Desktop.getDesktop().open(backupFile);
