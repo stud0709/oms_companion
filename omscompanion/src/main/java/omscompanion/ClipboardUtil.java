@@ -8,7 +8,6 @@ import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.File;
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -16,7 +15,11 @@ import java.util.stream.Collectors;
 
 import org.bouncycastle.util.encoders.Base64;
 
+import javafx.application.Platform;
 import javafx.beans.property.SimpleBooleanProperty;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
+import javafx.scene.input.Clipboard;
 import omscompanion.crypto.KeyRequest;
 import omscompanion.openjfx.NewItem;
 import omscompanion.openjfx.QRFrame;
@@ -42,30 +45,6 @@ public class ClipboardUtil {
 		boolean autoCheckClipboard = Boolean
 				.parseBoolean(Main.properties.getProperty(PROP_AUTO_CLIPBOARD_CHECK, "true"));
 		automaticModeProperty.set(autoCheckClipboard);
-	}
-
-	public static String getString() {
-		try {
-			var clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-
-			return clipboard.isDataFlavorAvailable(DataFlavor.stringFlavor)
-					? (String) clipboard.getData(DataFlavor.stringFlavor)
-					: null;
-		} catch (UnsupportedFlavorException | IOException ex) {
-			return null;
-		}
-	}
-
-	public static List<File> getFile() {
-		try {
-			var clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-
-			return clipboard.isDataFlavorAvailable(DataFlavor.javaFileListFlavor)
-					? (List<File>) clipboard.getData(DataFlavor.javaFileListFlavor)
-					: null;
-		} catch (UnsupportedFlavorException | IOException ex) {
-			return null;
-		}
 	}
 
 	/**
@@ -111,7 +90,7 @@ public class ClipboardUtil {
 
 	public static synchronized boolean checkClipboard() {
 		try {
-			var s = getString();
+			var s = Clipboard.getSystemClipboard().getString();
 
 			if (s == null)
 				return false;
@@ -170,7 +149,7 @@ public class ClipboardUtil {
 				return;
 
 			// try to encrypt clipboard content
-			var s = getString();
+			var s = Clipboard.getSystemClipboard().getString();
 
 			if (s != null & !s.trim().isEmpty()) {
 				suspendClipboardCheck();
@@ -183,13 +162,35 @@ public class ClipboardUtil {
 				return;
 			}
 
-			var listOfFile = getFile();
-			var listOfFileDecrypted = new ArrayList<File>();
+			var listOfFile = Clipboard.getSystemClipboard().getFiles();
 
 			if (listOfFile != null && listOfFile.isEmpty()) {
-				suspendClipboardCheck();
 
-				onListOfFile(listOfFile, listOfFileDecrypted);
+				if (listOfFile.size() > 1) {
+					Platform.runLater(() -> {
+						var alert = new Alert(AlertType.ERROR);
+						alert.setTitle("Decrypt Files");
+						alert.setHeaderText(String.format("Clipboard contains %s files", listOfFile.size()));
+						alert.setContentText("Only single files can be decrypted via Air Gap");
+						alert.showAndWait();
+					});
+					return;
+				}
+
+				File f = listOfFile.get(0);
+
+				if (f.isDirectory()) {
+					Platform.runLater(() -> {
+						var alert = new Alert(AlertType.ERROR);
+						alert.setTitle("Decrypt Files");
+						alert.setHeaderText(String.format("Clipboard contains a directory", listOfFile.size()));
+						alert.setContentText("Only single files can be decrypted via Air Gap");
+						alert.showAndWait();
+					});
+					return;
+				}
+
+				onFile(f);
 			}
 
 		} catch (Exception ex) {
@@ -197,16 +198,8 @@ public class ClipboardUtil {
 		}
 	}
 
-	private static void onListOfFile(List<File> listOfFile, List<File> listOfFileDecrypted)
-			throws NoSuchAlgorithmException, IOException {
-		if (listOfFile.isEmpty()) {
-			set(listOfFileDecrypted.toArray(new File[] {}));
-			resumeClipboardCheck();
-			return;
-		}
-
-		// process single file
-		File f = listOfFile.remove(0);
+	private static void onFile(File f) throws NoSuchAlgorithmException, IOException {
+		suspendClipboardCheck();
 
 		var keyRequest = new KeyRequest(f);
 
