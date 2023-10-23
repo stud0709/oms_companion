@@ -105,7 +105,7 @@ public class NewPrivateKey {
 			var selectedFile = fileChooser.showSaveDialog(btnBrowse.getScene().getWindow());
 			if (selectedFile != null) {
 				var selectedPath = selectedFile.getAbsolutePath().toString();
-				var s = selectedPath + (selectedPath.endsWith(".html") ? "" : ".html");
+				var s = selectedPath + (selectedPath.toLowerCase().endsWith(".html") ? "" : ".html");
 
 				txtBackupFile.setText(s);
 				checkState();

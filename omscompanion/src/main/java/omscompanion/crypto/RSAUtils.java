@@ -1,8 +1,18 @@
 package omscompanion.crypto;
 
+import java.security.InvalidKeyException;
+import java.security.KeyFactory;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
 import java.security.interfaces.RSAPublicKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.X509EncodedKeySpec;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 
 import omscompanion.Main;
 
@@ -36,6 +46,22 @@ public final class RSAUtils {
 
 		sha256.update(modulus);
 		return sha256.digest(publicExp);
+	}
+
+	public static PublicKey restorePublicKey(byte[] encoded) throws NoSuchAlgorithmException, InvalidKeySpecException {
+		var publicKeySpec = new X509EncodedKeySpec(encoded);
+		var keyFactory = KeyFactory.getInstance("RSA");
+		return keyFactory.generatePublic(publicKeySpec);
+	}
+
+	public static byte[] process(int cipherMode, PublicKey rsaPublicKey, String transformation, byte[] data)
+			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, IllegalBlockSizeException,
+			BadPaddingException {
+
+		var cipher = Cipher.getInstance(transformation);
+		cipher.init(cipherMode, rsaPublicKey);
+
+		return cipher.doFinal(data);
 	}
 
 }

@@ -58,18 +58,21 @@ public class KeyRequest {
 			var header = getHeader(dataInputStream);
 
 			// (1) application-ID
-			dataOutputStream.writeUnsignedShort(MessageComposer.KEY_REQUEST);
+			dataOutputStream.writeUnsignedShort(MessageComposer.APPLICATION_KEY_REQUEST);
 
-			// (2) RSA public key
+			// (2) reference (file name)
+			dataOutputStream.writeString(f.getName());
+
+			// (3) RSA public key
 			dataOutputStream.writeByteArray(rsaPublicKey.getEncoded());
 
-			// (3) fingerprint from the file header
+			// (4) fingerprint of the requested RSA key (from the file header)
 			dataOutputStream.writeByteArray(header.rsaFingerprint);
 
-			// (4) RSA transformation index
+			// (5) RSA transformation index for decryption
 			dataOutputStream.writeUnsignedShort(header.rsaTransformationIdx);
 
-			// (5) encrypted AES key from the file header
+			// (6) encrypted AES key from the file header
 			dataOutputStream.writeByteArray(header.rsaEncryptedAesSecretKey);
 
 			this.message = baos.toByteArray();
@@ -82,35 +85,29 @@ public class KeyRequest {
 		return message;
 	}
 
-	/**
-	 * OneMoreSecret will decrypt the key with the requested RSA key and protect it
-	 * with the temporary RSA key (see constructor for details). This method will
-	 * decrypth AES key and use it to decrypt the data.
-	 * 
-	 * @throws IOException
-	 * @throws FileNotFoundException
-	 * @throws InvalidAlgorithmParameterException
-	 * 
-	 */
-	public void onReply(File f, OutputStream os, byte[] omsReply)
+	public void onReply(File encryptedFile, OutputStream osDecryptedFile, byte[] keyResponse)
 			throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException,
 			BadPaddingException, FileNotFoundException, IOException, InvalidAlgorithmParameterException {
 
 		try (
 				// prepare file for reading
-				FileInputStream fis = new FileInputStream(f);
-				OmsDataInputStream dataInputStream = new OmsDataInputStream(fis);
+				var fis = new FileInputStream(encryptedFile);
+				var dataInputStream = new OmsDataInputStream(fis);
 				// prepare omsReply for reading
-				ByteArrayInputStream bais = new ByteArrayInputStream(omsReply);
-				OmsDataInputStream replyInputStream = new OmsDataInputStream(bais)) {
+				var bais = new ByteArrayInputStream(keyResponse);
+				var replyInputStream = new OmsDataInputStream(bais)) {
 
 			// ***** Read reply data *****
 
-			// (1) RSA transformation index
-			var rsaTransformation = RsaTransformation.values()[replyInputStream.readUnsignedShort()].transformation;
+			// (1) Application Identifier
+			var applicationId = dataInputStream.readUnsignedShort();
+			assert applicationId == MessageComposer.APPLICATION_KEY_RESPONSE;
 
-			// (2) AES key protected by the temporary RSA key
-			var encryptedAESKey = replyInputStream.readByteArray();
+			// (2) RSA transformation
+			var rsaTransformation = RsaTransformation.values()[dataInputStream.readUnsignedShort()].transformation;
+
+			// (3) RSA encrypted AES key
+			var rsaEncryptedAesKey = dataInputStream.readByteArray();
 
 			// ***** Decrypt file *****
 			// read file header once again, position at start of (encrypted) payload
@@ -119,11 +116,11 @@ public class KeyRequest {
 			var cipher = Cipher.getInstance(rsaTransformation);
 			cipher.init(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate());
 
-			var aesSecretKeyData = cipher.doFinal(encryptedAESKey);
+			var aesSecretKeyData = cipher.doFinal(rsaEncryptedAesKey);
 			var aesSecretKey = new SecretKeySpec(aesSecretKeyData, "AES");
 
-			AESUtil.process(Cipher.DECRYPT_MODE, dataInputStream, os, aesSecretKey, new IvParameterSpec(header.iv),
-					header.aesTransformation);
+			AESUtil.process(Cipher.DECRYPT_MODE, dataInputStream, osDecryptedFile, aesSecretKey,
+					new IvParameterSpec(header.iv), header.aesTransformation);
 		}
 	}
 

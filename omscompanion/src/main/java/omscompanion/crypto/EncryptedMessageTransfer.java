@@ -28,10 +28,8 @@ public class EncryptedMessageTransfer {
 		var secretKey = AESUtil.generateRandomSecretKey(aesKeyLength);
 
 		// encrypt AES secret key with RSA
-		var cipher = Cipher.getInstance(RsaTransformation.values()[rsaTransformationIdx].transformation);
-		cipher.init(Cipher.ENCRYPT_MODE, rsaPublicKey);
-
-		var encryptedSecretKey = cipher.doFinal(secretKey.getEncoded());
+		var encryptedSecretKey = RSAUtils.process(Cipher.ENCRYPT_MODE, rsaPublicKey,
+				RsaTransformation.values()[rsaTransformationIdx].transformation, secretKey.getEncoded());
 
 		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
 				OmsDataOutputStream dataOutputStream = new OmsDataOutputStream(baos)) {

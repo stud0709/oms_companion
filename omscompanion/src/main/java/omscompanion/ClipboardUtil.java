@@ -1,15 +1,18 @@
 package omscompanion;
 
+import java.awt.Desktop;
 import java.awt.Toolkit;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -19,7 +22,10 @@ import javafx.application.Platform;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
+import javafx.scene.control.ButtonType;
 import javafx.scene.input.Clipboard;
+import javafx.stage.FileChooser;
+import javafx.stage.FileChooser.ExtensionFilter;
 import omscompanion.crypto.KeyRequest;
 import omscompanion.openjfx.NewItem;
 import omscompanion.openjfx.QRFrame;
@@ -88,33 +94,40 @@ public class ClipboardUtil {
 		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(ft, null);
 	}
 
-	public static synchronized boolean checkClipboard() {
-		try {
-			var s = Clipboard.getSystemClipboard().getString();
+	public static synchronized void checkClipboard(CompletableFuture<Boolean> result) {
+		Platform.runLater(() -> {
+			try {
+				var s = Clipboard.getSystemClipboard().getString();
 
-			if (s == null)
-				return false;
+				if (s == null) {
+					result.complete(false);
+					return;
+				}
 
-			s = s.trim();
+				s = s.trim();
 
-			var message = MessageComposer.decode(s);
+				var message = MessageComposer.decode(s);
 
-			if (message == null) // not a valid OMS message
-				return false;
+				if (message == null) {
+					// not a valid OMS message
+					result.complete(false);
+					return;
+				}
 
-			suspendClipboardCheck();
+				suspendClipboardCheck();
 
-			QRFrame.showForMessage(message, true, false, _s -> {
-				set(""); // clear the clipboard
-				resumeClipboardCheck();
-			});
+				QRFrame.showForMessage(message, true, false, _s -> {
+					set(""); // clear the clipboard
+					resumeClipboardCheck();
+				});
 
-			return true;
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
+				result.complete(true);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
 
-		return false;
+			result.complete(false);
+		});
 	}
 
 	protected static synchronized void startClipboardCheck() {
@@ -132,7 +145,9 @@ public class ClipboardUtil {
 				if (!CHECK_CLIPBOARD.get())
 					continue;
 
-				checkClipboard();
+				var future = new CompletableFuture<Boolean>();
+
+				checkClipboard(future);
 			}
 
 			t = null;
@@ -145,13 +160,21 @@ public class ClipboardUtil {
 
 	public static void processClipboard() {
 		try {
-			if (ClipboardUtil.checkClipboard()) // found oms:// in the clipboard
+			var future = new CompletableFuture<Boolean>();
+			ClipboardUtil.checkClipboard(future);
+
+			if (future.get()) // found oms:// in the clipboard
 				return;
 
 			// try to encrypt clipboard content
-			var s = Clipboard.getSystemClipboard().getString();
+			var futureString = new CompletableFuture<String>();
+			Platform.runLater(() -> {
+				futureString.complete(Clipboard.getSystemClipboard().getString());
+			});
 
-			if (s != null & !s.trim().isEmpty()) {
+			var s = futureString.get();
+
+			if (s != null && !s.trim().isEmpty()) {
 				suspendClipboardCheck();
 
 				NewItem.showForMessage(s.getBytes(), () -> {
@@ -162,9 +185,15 @@ public class ClipboardUtil {
 				return;
 			}
 
-			var listOfFile = Clipboard.getSystemClipboard().getFiles();
+			var futureLoF = new CompletableFuture<List<File>>();
+			Platform.runLater(() -> {
+				futureLoF.complete(Clipboard.getSystemClipboard().getFiles());
 
-			if (listOfFile != null && listOfFile.isEmpty()) {
+			});
+
+			var listOfFile = futureLoF.get();
+
+			if (listOfFile != null && !listOfFile.isEmpty()) {
 
 				if (listOfFile.size() > 1) {
 					Platform.runLater(() -> {
@@ -198,19 +227,114 @@ public class ClipboardUtil {
 		}
 	}
 
-	private static void onFile(File f) throws NoSuchAlgorithmException, IOException {
+	private static void onFile(File encryptedFile) throws NoSuchAlgorithmException, IOException {
 		suspendClipboardCheck();
 
-		var keyRequest = new KeyRequest(f);
+		var keyRequest = new KeyRequest(encryptedFile);
 
 		QRFrame.showForMessage(keyRequest.getMessage(), false, true, s -> {
-			var message = Base64.decode(s);
+			// the base64 encoded data might contain minus sign
+			// as separator and lack the padding "="
 
-			// to be continued... create output file, decrypt, add the file to
-			// listOfFileDecrypted
+			s = s.replaceAll("-", "");
+			while (s.length() % 4 != 0) {
+				s += "=";
+			}
 
-			// keyRequest.onReply(f, ..., message);
+			var keyResponse = Base64.decode(s);
+
+			var decryptedFileName = encryptedFile.getName().substring(0,
+					encryptedFile.getName().length() - (MessageComposer.OMS_FILE_TYPE.length() + 1 /* the dot */));
+
+			var fileType = getFileType(decryptedFileName);
+
+			Platform.runLater(() -> {
+				var fileChooser = new FileChooser();
+				fileChooser.setTitle("Private Key Backup File");
+				if (fileType != null)
+					fileChooser.getExtensionFilters()
+							.add(new ExtensionFilter(fileType.toUpperCase() + " files", "*." + fileType.toLowerCase()));
+				var selectedFile = fileChooser.showSaveDialog(FxMain.getPrimaryState());
+
+				if (selectedFile != null) {
+					var selectedPath = selectedFile.getAbsolutePath().toString();
+
+					selectedPath = selectedPath
+							+ (selectedPath.toLowerCase().endsWith("." + fileType.toLowerCase()) ? ""
+									: "." + fileType.toLowerCase());
+
+					var outfile = new File(selectedPath);
+
+					var confirmationDialog = new Alert(AlertType.CONFIRMATION);
+					confirmationDialog.setTitle("File already exists");
+					confirmationDialog.setHeaderText(String.format("Do you want to overwrite %s", outfile.getName()));
+
+					var yesButton = new ButtonType("Yes");
+					var noButton = new ButtonType("No");
+					confirmationDialog.getButtonTypes().setAll(yesButton, noButton);
+
+					var result = confirmationDialog.showAndWait();
+
+					if (result.isPresent() && result.get() == yesButton) {
+						new Thread(() -> {
+							try (FileOutputStream fos = new FileOutputStream(outfile)) {
+								keyRequest.onReply(encryptedFile, fos, keyResponse);
+
+								Platform.runLater(() -> {
+									var doneDialog = new Alert(AlertType.CONFIRMATION);
+									doneDialog.setTitle("Success!");
+									doneDialog.setHeaderText(
+											String.format("%s was created, what's next?", outfile.getName()));
+
+									var folderButton = new ButtonType("Open Folder");
+									var runButton = new ButtonType("Open File");
+									var closeButton = new ButtonType("Done!");
+									confirmationDialog.getButtonTypes().setAll(folderButton, runButton, closeButton);
+
+									var doneResult = confirmationDialog.showAndWait();
+
+									if (doneResult.isPresent()) {
+										var nextAction = doneResult.get();
+
+										try {
+											if (nextAction == folderButton) {
+												Desktop.getDesktop().open(outfile.getParentFile());
+											}
+											if (nextAction == runButton) {
+												Desktop.getDesktop().open(outfile);
+											}
+										} catch (IOException e) {
+											e.printStackTrace();
+										}
+									}
+								});
+							} catch (Exception ex) {
+								ex.printStackTrace();
+
+								Platform.runLater(() -> {
+									var alertDialog = new Alert(AlertType.WARNING);
+									alertDialog.setTitle("Could not create file");
+									alertDialog.setHeaderText(ex.getMessage());
+									alertDialog.showAndWait();
+								});
+							}
+						}).start();
+					}
+				}
+			});
 		});
+	}
+
+	private static String getFileType(String filename) {
+		String fileType = null;
+
+		var dotIndex = filename.lastIndexOf(".");
+
+		if (dotIndex > 0 && dotIndex < filename.length() - 1) {
+			fileType = filename.substring(dotIndex + 1);
+		}
+
+		return fileType;
 	}
 
 	public static class FileTransferable implements Transferable {

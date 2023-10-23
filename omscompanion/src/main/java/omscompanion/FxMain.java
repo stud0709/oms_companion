@@ -12,6 +12,7 @@ import javafx.stage.Stage;
 import omscompanion.qr.AnimatedQrHelper;
 
 public class FxMain extends Application {
+	private static Stage primaryState;
 
 	public static void main(String[] args) {
 		Platform.setImplicitExit(false);
@@ -20,8 +21,11 @@ public class FxMain extends Application {
 
 	@Override
 	public void start(Stage primaryStage) throws Exception {
-		// TODO Auto-generated method stub
+		FxMain.primaryState = primaryStage;
+	}
 
+	public static Stage getPrimaryState() {
+		return primaryState;
 	}
 
 	public static void handleException(Exception ex) {
