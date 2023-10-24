@@ -7,7 +7,7 @@ It also mirrors some features of the smartphone app, which may better fit your d
 This is a very early version of the software. Use it at your own risk.
 
 ## Setting Up
-This software requires Java Runtime Environment 14 or later. Download the release file into a subfolder of your user folder. 
+This software requires Java Runtime Environment 17 or later. Download the release file into a subfolder of your user folder. 
 - If your java runtime has registered with the .jar file type, you just doubleclick `omscompanion.jar`.
 - If you have your Java runtime on your `path`, use `oms.cmd` to start the application (it contains just on line: `java -jar omscompanion.jar`)
 - If you have a Java installation not on your `path`, modify `omscompanion.cmd` accordingly (`path_to_your_java_folder\bin\java -jar omscompanion.jar`).
