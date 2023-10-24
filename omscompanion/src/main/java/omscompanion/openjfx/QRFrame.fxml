@@ -23,6 +23,6 @@
             <ImageView fx:id="imgQR" fitHeight="150.0" fitWidth="200.0" pickOnBounds="true" preserveRatio="true" />
          </graphic>
       </Label>
-      <TextField fx:id="txtInput" promptText="Enter File Key" />
+      <TextField fx:id="txtInput" onKeyPressed="#onKeyPressed" promptText="Enter File Key" />
    </children>
 </VBox>

@@ -9,9 +9,11 @@ import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -265,20 +267,24 @@ public class ClipboardUtil {
 
 					var outfile = new File(selectedPath);
 
-					var confirmationDialog = new Alert(AlertType.CONFIRMATION);
-					confirmationDialog.setTitle("File already exists");
-					confirmationDialog.setHeaderText(String.format("Do you want to overwrite %s", outfile.getName()));
-
 					var yesButton = new ButtonType("Yes");
-					var noButton = new ButtonType("No");
-					confirmationDialog.getButtonTypes().setAll(yesButton, noButton);
+					var result = Optional.of(yesButton);
 
-					var result = confirmationDialog.showAndWait();
+					if (Files.exists(outfile.toPath())) {
+						var confirmationDialog = new Alert(AlertType.CONFIRMATION);
+						confirmationDialog.setTitle("File already exists");
+						confirmationDialog
+								.setHeaderText(String.format("Do you want to overwrite %s", outfile.getName()));
+
+						var noButton = new ButtonType("No");
+						confirmationDialog.getButtonTypes().setAll(yesButton, noButton);
+						result = confirmationDialog.showAndWait();
+					}
 
 					if (result.isPresent() && result.get() == yesButton) {
 						new Thread(() -> {
 							try (FileOutputStream fos = new FileOutputStream(outfile)) {
-								keyRequest.onReply(encryptedFile, fos, keyResponse);
+								keyRequest.onReply(fos, keyResponse);
 
 								Platform.runLater(() -> {
 									var doneDialog = new Alert(AlertType.CONFIRMATION);
@@ -289,9 +295,9 @@ public class ClipboardUtil {
 									var folderButton = new ButtonType("Open Folder");
 									var runButton = new ButtonType("Open File");
 									var closeButton = new ButtonType("Done!");
-									confirmationDialog.getButtonTypes().setAll(folderButton, runButton, closeButton);
+									doneDialog.getButtonTypes().setAll(folderButton, runButton, closeButton);
 
-									var doneResult = confirmationDialog.showAndWait();
+									var doneResult = doneDialog.showAndWait();
 
 									if (doneResult.isPresent()) {
 										var nextAction = doneResult.get();

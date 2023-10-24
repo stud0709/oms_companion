@@ -18,6 +18,8 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.TextField;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.WritableImage;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import omscompanion.FxMain;
@@ -143,5 +145,12 @@ public class QRFrame {
 					andThen.accept(null);
 			}
 		});
+	}
+
+	@FXML
+	void onKeyPressed(KeyEvent event) {
+		if (event.getCode() == KeyCode.ENTER) {
+			instance.getWindows().get(0).hide();
+		}
 	}
 }

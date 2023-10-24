@@ -37,12 +37,15 @@ import omscompanion.OmsDataOutputStream;
 public class KeyRequest {
 	private final KeyPair rsaKeyPair;
 	private final byte[] message;
+	private final File encryptedFile;
 
 	private record Header(int rsaTransformationIdx, byte[] rsaFingerprint, String aesTransformation, byte[] iv,
 			byte[] rsaEncryptedAesSecretKey) {
 	}
 
-	public KeyRequest(File f) throws NoSuchAlgorithmException, IOException {
+	public KeyRequest(File encryptedFile) throws NoSuchAlgorithmException, IOException {
+		this.encryptedFile = encryptedFile;
+
 		// create temporary RSA key pair
 		var keyPairGenerator = KeyPairGenerator.getInstance("RSA");
 		var rsaKeyLength = RSAUtils.getKeyLength();
@@ -50,7 +53,7 @@ public class KeyRequest {
 		rsaKeyPair = keyPairGenerator.generateKeyPair();
 		var rsaPublicKey = (RSAPublicKey) rsaKeyPair.getPublic();
 
-		try (FileInputStream fis = new FileInputStream(f);
+		try (FileInputStream fis = new FileInputStream(encryptedFile);
 				OmsDataInputStream dataInputStream = new OmsDataInputStream(fis);
 				ByteArrayOutputStream baos = new ByteArrayOutputStream();
 				OmsDataOutputStream dataOutputStream = new OmsDataOutputStream(baos)) {
@@ -61,7 +64,7 @@ public class KeyRequest {
 			dataOutputStream.writeUnsignedShort(MessageComposer.APPLICATION_KEY_REQUEST);
 
 			// (2) reference (file name)
-			dataOutputStream.writeString(f.getName());
+			dataOutputStream.writeString(encryptedFile.getName());
 
 			// (3) RSA public key
 			dataOutputStream.writeByteArray(rsaPublicKey.getEncoded());
@@ -85,7 +88,7 @@ public class KeyRequest {
 		return message;
 	}
 
-	public void onReply(File encryptedFile, OutputStream osDecryptedFile, byte[] keyResponse)
+	public void onReply(OutputStream osDecryptedFile, byte[] keyResponse)
 			throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException,
 			BadPaddingException, FileNotFoundException, IOException, InvalidAlgorithmParameterException {
 
@@ -97,22 +100,22 @@ public class KeyRequest {
 				var bais = new ByteArrayInputStream(keyResponse);
 				var replyInputStream = new OmsDataInputStream(bais)) {
 
+			// Read file header once again, position at start of (encrypted) payload
+			var header = getHeader(dataInputStream);
+
 			// ***** Read reply data *****
 
 			// (1) Application Identifier
-			var applicationId = dataInputStream.readUnsignedShort();
+			var applicationId = replyInputStream.readUnsignedShort();
 			assert applicationId == MessageComposer.APPLICATION_KEY_RESPONSE;
 
 			// (2) RSA transformation
-			var rsaTransformation = RsaTransformation.values()[dataInputStream.readUnsignedShort()].transformation;
+			var rsaTransformation = RsaTransformation.values()[replyInputStream.readUnsignedShort()].transformation;
 
 			// (3) RSA encrypted AES key
-			var rsaEncryptedAesKey = dataInputStream.readByteArray();
+			var rsaEncryptedAesKey = replyInputStream.readByteArray();
 
 			// ***** Decrypt file *****
-			// read file header once again, position at start of (encrypted) payload
-			var header = getHeader(dataInputStream);
-
 			var cipher = Cipher.getInstance(rsaTransformation);
 			cipher.init(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate());
 
