@@ -1,7 +1,7 @@
 # ![App Icon](/readme_images/qr-code.png)  omsCompanion
-The supplementary desktop software for [OneMoreSecret](https://github.com/stud0709/OneMoreSecret). Its main purpose is to close the gap between your desktop PC and the OneMoreSecret app on your phone.
+The supplementary desktop software for [OneMoreSecret](https://github.com/stud0709/OneMoreSecret). Its main purpose is to bridge the *Air Gap* between your desktop PC and the OneMoreSecret app on your phone.
 
-It also mirrors some features of the smartphone app, which may better fit your workflow.
+It also mirrors some features of the smartphone app, which may better fit your daily routine.
 
 ## Disclaimer
 This is a very early version of the software. Use it at your own risk.
@@ -33,14 +33,14 @@ Open the context menu from the system tray icon and click on *Cryptography... ->
 
 The key generation wizard will show you the sequence of QR codes to be [scanned](https://github.com/stud0709/OneMoreSecret/blob/master/qr_scanner.md) with OneMoreSecret app immediately after you click *Create*. After the successful scan, the [import screen](https://github.com/stud0709/OneMoreSecret/blob/master/key_import.md) will open on your smartphone.
 
-## Encrypting Data
-If you double click the tray icon, omsCompanion will check the clipboard for text. If the text starts with `oms00_`, a QR code sequence will be generated (see the [OneMoreSecret Tutotial](https://github.com/stud0709/OneMoreSecret/blob/master/hello_world.md) for a sample). Any other text found in the clipboard will be encrypted with the public key of your choice and copied back to the clipboard. *Default* will make the selected public key your default one. 
+## Encrypting Passwords and TOTP Tokens
+If you double click the tray icon, *omsCompanion* will check the clipboard for text. If the text starts with `oms00_`, a QR code sequence will be generated (see the [OneMoreSecret Tutotial](https://github.com/stud0709/OneMoreSecret/blob/master/hello_world.md) for a sample). Any other text found in the clipboard will be encrypted with the public key of your choice and copied back to the clipboard. *Default* will make the selected public key your default one. 
 
 In addition to the text format, you can also generate an animated `.gif` file or a BASE64 encoded `GIF` data, which is useful if you want to embed the image into the `<img src="data:image/gif;base64,...]/>` tag (replacing `...` with the BASE64 encoded data). This should also work for markdown documents.
 
 ![Encrypting Data](/readme_images/encrypting.png)
 
-## Decrypting Data
+## Decrypting Password and TOTP Tokens
 By default, *omsCompanion* is continuously monitoring your clipboard (you can disable this feature by clicking *Monitor clipboard* in the context menu of the tray icon). If it finds a text starting with `oms00_`, it will generate an QR code sequence out of it, empty the clipboard and show a pop-up window:
 
 ![QR pop-up](readme_images/QR_pop_up.png)
@@ -50,6 +50,13 @@ The pop-up also offers a context menu for `.gif` file creation and text output o
 You can also scan the `.gif` files created earlier by the encryption dialog.
 
 For more information on decripting see OneMoreSecret [documentation](https://github.com/stud0709/OneMoreSecret/blob/master/decrypted_message.md). 
+
+## Decrypting Files
+In a similar way, *omsCompanion* will decrypt files (in the current version, only one file at a time). For now, the [file encryption](https://github.com/stud0709/OneMoreSecret/blob/master/encrypt_file.md) works only in *OneMoreSecret*, this feature will be added to *omsCompanion* soon, [stay tuned](https://github.com/stud0709/oms_companion/issues/1). 
+
+To start encryption process, copy the encrypted file to the clipboard and double-click the system tray icon of *omsCompanion*.
+
+[RTM](file_decryption_air_gap.md) for technical details on file decryption.
 
 ## Password Generator
 ![Password Generator](/readme_images/password_generator.png)

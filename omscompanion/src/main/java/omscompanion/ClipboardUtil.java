@@ -235,13 +235,12 @@ public class ClipboardUtil {
 		var keyRequest = new KeyRequest(encryptedFile);
 
 		QRFrame.showForMessage(keyRequest.getMessage(), false, true, s -> {
-			// the base64 encoded data might contain minus sign
-			// as separator and lack the padding "="
+			set("");
 
-			s = s.replaceAll("-", "");
-			while (s.length() % 4 != 0) {
-				s += "=";
-			}
+			resumeClipboardCheck();
+
+			if (s.isEmpty())
+				return;
 
 			var keyResponse = Base64.decode(s);
 

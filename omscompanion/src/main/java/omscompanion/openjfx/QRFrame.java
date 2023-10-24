@@ -57,7 +57,7 @@ public class QRFrame {
 	private TextField txtInput;
 
 	private static long getQrFrameAutoclose() {
-		return Long.parseLong(Main.properties.getProperty(PROP_QR_FRAME_AUTOCLOSE, "60000"));
+		return Long.parseLong(Main.properties.getProperty(PROP_QR_FRAME_AUTOCLOSE, "30000"));
 	}
 
 	public void init(byte[] message, Stage stage, boolean allowTextInput) throws WriterException {
