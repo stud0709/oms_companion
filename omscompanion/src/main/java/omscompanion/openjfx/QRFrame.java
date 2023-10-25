@@ -20,6 +20,7 @@ import javafx.scene.image.ImageView;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import omscompanion.FxMain;
@@ -56,6 +57,9 @@ public class QRFrame {
 	@FXML
 	private TextField txtInput;
 
+	@FXML
+	private VBox vbox;
+
 	private static long getQrFrameAutoclose() {
 		return Long.parseLong(Main.properties.getProperty(PROP_QR_FRAME_AUTOCLOSE, "30000"));
 	}
@@ -76,7 +80,7 @@ public class QRFrame {
 		if (allowTextInput) {
 			txtInput.requestFocus();
 		} else {
-			txtInput.setVisible(false);
+			vbox.getChildren().remove(txtInput);
 		}
 
 		var qrHelper = new AnimatedQrHelper(MessageComposer.encodeAsOmsText(message).toCharArray(),
