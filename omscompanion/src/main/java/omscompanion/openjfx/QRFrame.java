@@ -131,7 +131,7 @@ public class QRFrame {
 					}
 
 					if (andThen != null)
-						andThen.accept(s);
+						new Thread(() -> andThen.accept(s)).start();
 				});
 				if (autoClose) {
 					// schedule automatic close

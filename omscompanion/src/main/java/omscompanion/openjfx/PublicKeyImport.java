@@ -22,6 +22,7 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import omscompanion.FxMain;
 import omscompanion.Main;
+import omscompanion.crypto.RSAUtils;
 
 public class PublicKeyImport {
 
@@ -79,9 +80,9 @@ public class PublicKeyImport {
 
 		if (Files.exists(publicKeyPath)) {
 			// create backup of the old key
-			var pk = Main.getPublicKey(Files.readAllBytes(publicKeyPath));
+			var pk = RSAUtils.getPublicKey(Files.readAllBytes(publicKeyPath));
 
-			var fingerprint = Main.getFingerprint(pk);
+			var fingerprint = RSAUtils.getFingerprint(pk);
 
 			var fn_backup = fn + "." + Main.byteArrayToHex(fingerprint).replaceAll("\\W", "") + ".bak";
 

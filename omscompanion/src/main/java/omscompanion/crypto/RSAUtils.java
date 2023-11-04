@@ -64,4 +64,10 @@ public final class RSAUtils {
 		return cipher.doFinal(data);
 	}
 
+	public static RSAPublicKey getPublicKey(byte[] encoded) throws InvalidKeySpecException, NoSuchAlgorithmException {
+		var publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(encoded));
+	
+		return (RSAPublicKey) publicKey;
+	}
+
 }

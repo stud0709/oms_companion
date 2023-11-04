@@ -20,12 +20,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.KeyFactory;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.interfaces.RSAPublicKey;
-import java.security.spec.InvalidKeySpecException;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.Properties;
 
 import javax.imageio.ImageIO;
@@ -37,13 +31,16 @@ import omscompanion.openjfx.PasswordGenerator;
 import omscompanion.openjfx.PublicKeyImport;
 
 public class Main {
-	public static Path PUBLIC_KEY_STORAGE = new File("public").toPath();
+	public static Path PUBLIC_KEY_STORAGE = new File("public").toPath(), TMP = new File("tmp").toPath();
 	public static final Properties properties = new Properties();
 	private static final String PROP_DEFAULT_KEY = "default_key";
 	public static final String APP_NAME = "omsCompanion";
 
 	public static void main(String[] args) throws Exception {
 		Files.createDirectories(PUBLIC_KEY_STORAGE);
+		Files.createDirectories(TMP);
+		purge(TMP.toFile());
+
 		var pf = new File("omscompanion.properties");
 		if (pf.exists()) {
 			try (var fr = new FileReader(pf)) {
@@ -63,6 +60,19 @@ public class Main {
 		ClipboardUtil.init();
 
 		FxMain.main(args);
+	}
+
+	private static void purge(File dir) throws Exception {
+		for (var f : dir.listFiles()) {
+			try {
+				if (f.isDirectory())
+					purge(f);
+
+				f.delete();
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+		}
 	}
 
 	public static String getDefaultKey() {
@@ -213,23 +223,11 @@ public class Main {
 		}
 	};
 
-	public static byte[] getFingerprint(RSAPublicKey publicKey) throws NoSuchAlgorithmException {
-		var sha256 = MessageDigest.getInstance("SHA-256");
-		sha256.update(publicKey.getModulus().toByteArray());
-		return sha256.digest(publicKey.getPublicExponent().toByteArray());
-	}
-
 	public static String byteArrayToHex(byte[] a) {
 		var sb = new StringBuilder(a.length * 2);
 		for (int i = 0; i < a.length; i++) {
 			sb.append(String.format("%02x", a[i])).append(i % 2 == 1 ? " " : "");
 		}
 		return sb.toString().trim();
-	}
-
-	public static RSAPublicKey getPublicKey(byte[] encoded) throws InvalidKeySpecException, NoSuchAlgorithmException {
-		var publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(encoded));
-
-		return (RSAPublicKey) publicKey;
 	}
 }

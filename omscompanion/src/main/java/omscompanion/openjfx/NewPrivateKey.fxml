@@ -8,6 +8,7 @@
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.layout.ColumnConstraints?>
 <?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.RowConstraints?>
 
 <GridPane hgap="5.0" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="480.0" prefWidth="640.0" vgap="5.0" xmlns="http://javafx.com/javafx/19" xmlns:fx="http://javafx.com/fxml/1" fx:controller="omscompanion.openjfx.NewPrivateKey">
@@ -35,9 +36,14 @@
       <TextField fx:id="txtRepeatPwd" GridPane.columnIndex="1" GridPane.columnSpan="2" GridPane.rowIndex="2" />
       <TextField fx:id="txtBackupFile" disable="true" GridPane.columnIndex="1" GridPane.rowIndex="3" />
       <Button fx:id="btnBrowse" mnemonicParsing="false" onAction="#onBrowse" text="..." GridPane.columnIndex="2" GridPane.rowIndex="3" />
-      <CheckBox fx:id="chkStorePublicKey" mnemonicParsing="false" selected="true" text="Store Public Key for Later Use" GridPane.columnIndex="1" GridPane.rowIndex="4" />
       <Button fx:id="btnCreate" mnemonicParsing="false" onAction="#onCreate" text="Create" GridPane.columnIndex="1" GridPane.rowIndex="5" />
       <TextArea fx:id="txtAreaInfo" editable="false" prefHeight="200.0" prefWidth="200.0" wrapText="true" GridPane.columnIndex="1" GridPane.columnSpan="2" GridPane.rowIndex="6" />
+      <HBox spacing="8.0" GridPane.columnIndex="1" GridPane.rowIndex="4">
+         <children>
+            <CheckBox fx:id="chk4096bit" mnemonicParsing="false" text="4096 bit" />
+            <CheckBox fx:id="chkStorePublicKey" mnemonicParsing="false" selected="true" text="Save Public Key for Later Use" />
+         </children>
+      </HBox>
    </children>
    <padding>
       <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />

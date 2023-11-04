@@ -7,6 +7,7 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,10 +26,16 @@ import javafx.beans.property.SimpleBooleanProperty;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.ChoiceBox;
 import javafx.scene.input.Clipboard;
+import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.FileChooser.ExtensionFilter;
+import omscompanion.crypto.AESUtil;
+import omscompanion.crypto.EncryptedFile;
 import omscompanion.crypto.KeyRequest;
+import omscompanion.crypto.RSAUtils;
+import omscompanion.openjfx.EncryptionToolBar;
 import omscompanion.openjfx.NewItem;
 import omscompanion.openjfx.QRFrame;
 
@@ -118,10 +125,10 @@ public class ClipboardUtil {
 
 				suspendClipboardCheck();
 
-				QRFrame.showForMessage(message, true, false, _s -> {
+				QRFrame.showForMessage(message, true, false, _s -> Platform.runLater(() -> {
 					set(""); // clear the clipboard
 					resumeClipboardCheck();
-				});
+				}));
 
 				result.complete(true);
 			} catch (Exception e) {
@@ -195,8 +202,30 @@ public class ClipboardUtil {
 
 			var listOfFile = futureLoF.get();
 
-			if (listOfFile != null && !listOfFile.isEmpty()) {
+			if (listOfFile == null || listOfFile.isEmpty())
+				return;
 
+			suspendClipboardCheck();
+
+			var containsOmsFile = listOfFile.stream()
+					.anyMatch(f -> f.getName().endsWith(".".concat(MessageComposer.OMS_FILE_TYPE)));
+
+			var containsOther = listOfFile.stream()
+					.anyMatch(f -> f.isDirectory() || !f.getName().endsWith(".".concat(MessageComposer.OMS_FILE_TYPE)));
+
+			if (containsOmsFile && containsOther) {
+				Platform.runLater(() -> {
+					var alert = new Alert(AlertType.ERROR);
+					alert.setTitle("Invalid Clipboard Contents");
+					alert.setHeaderText("Clipboard contains encrypted and unencrypted data");
+					alert.setContentText("We cannot process a mix of both");
+					alert.showAndWait();
+					resumeClipboardCheck();
+				});
+				return;
+			}
+
+			if (containsOmsFile) {
 				if (listOfFile.size() > 1) {
 					Platform.runLater(() -> {
 						var alert = new Alert(AlertType.ERROR);
@@ -204,43 +233,103 @@ public class ClipboardUtil {
 						alert.setHeaderText(String.format("Clipboard contains %s files", listOfFile.size()));
 						alert.setContentText("Only single files can be decrypted via Air Gap");
 						alert.showAndWait();
+						resumeClipboardCheck();
 					});
 					return;
 				}
 
-				File f = listOfFile.get(0);
-
-				if (f.isDirectory()) {
-					Platform.runLater(() -> {
-						var alert = new Alert(AlertType.ERROR);
-						alert.setTitle("Decrypt Files");
-						alert.setHeaderText(String.format("Clipboard contains a directory", listOfFile.size()));
-						alert.setContentText("Only single files can be decrypted via Air Gap");
-						alert.showAndWait();
-					});
-					return;
-				}
-
-				onFile(f);
+				onEncryptedFile(listOfFile.get(0));
+			} else {
+				encrypt(listOfFile);
 			}
-
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
 	}
 
-	private static void onFile(File encryptedFile) throws NoSuchAlgorithmException, IOException {
-		suspendClipboardCheck();
+	private static void encrypt(List<File> listOfFile) throws Exception {
+		try {
+			var choiceBox = new ChoiceBox<String>();
+			EncryptionToolBar.initChoiceBox(choiceBox);
+			choiceBox.setPrefWidth(Double.MAX_VALUE);
+			var pkFuture = new CompletableFuture<String>();
+
+			Platform.runLater(() -> {
+				var vbox = new VBox();
+				vbox.setPrefWidth(480);
+				vbox.getChildren().addAll(choiceBox);
+
+				var keySelector = new Alert(AlertType.CONFIRMATION);
+				keySelector.setTitle("Encrypt files");
+				keySelector.setHeaderText("Select public key to encrypt your files");
+				keySelector.getDialogPane().setContent(vbox);
+
+				var okButton = new ButtonType("OK");
+				var cancelButton = new ButtonType("Cancel");
+				keySelector.getButtonTypes().setAll(okButton, cancelButton);
+
+				var result = keySelector.showAndWait().orElse(cancelButton);
+
+				if (result != okButton)
+					pkFuture.complete(null);
+
+				pkFuture.complete(choiceBox.getSelectionModel().getSelectedItem());
+			});
+
+			if (pkFuture.get() == null) {
+				resumeClipboardCheck();
+				return;
+			}
+
+			var pkPath = Main.PUBLIC_KEY_STORAGE.resolve(choiceBox.getSelectionModel().getSelectedItem());
+			var pk = RSAUtils.getPublicKey(Files.readAllBytes(pkPath));
+
+			if (listOfFile.size() > 1 || listOfFile.get(0).isDirectory()) {
+				// TODO: show "Save as" for target directory
+			} else {
+				// encrypt into temporary directory
+				var oFileName = listOfFile.get(0).getName().concat(".").concat(MessageComposer.OMS_FILE_TYPE);
+				File oFile = Main.TMP.resolve(oFileName).toFile();
+
+				try (var fis = new FileInputStream(listOfFile.get(0))) {
+					EncryptedFile.create(fis, oFile, pk, RSAUtils.getRsaTransformationIdx(), AESUtil.getKeyLength(),
+							AESUtil.getAesTransformationIdx());
+				}
+
+				oFile.deleteOnExit();
+
+				ClipboardUtil.set(oFile);
+
+				Platform.runLater(() -> {
+					var alertDialog = new Alert(AlertType.INFORMATION);
+					alertDialog.setTitle("File successfully encrypted");
+					alertDialog.setHeaderText(String.format("%s has been set to the clipboard", oFileName));
+					alertDialog.showAndWait();
+					resumeClipboardCheck();
+				});
+			}
+		} catch (Exception ex) {
+			Platform.runLater(() -> {
+				var alertDialog = new Alert(AlertType.WARNING);
+				alertDialog.setTitle("Could not encrypt file");
+				alertDialog.setHeaderText(ex.getMessage());
+				alertDialog.showAndWait();
+				resumeClipboardCheck();
+			});
+		}
+	}
+
+	private static void onEncryptedFile(File encryptedFile) throws NoSuchAlgorithmException, IOException {
 
 		var keyRequest = new KeyRequest(encryptedFile);
 
 		QRFrame.showForMessage(keyRequest.getMessage(), false, true, s -> {
 			set("");
 
-			resumeClipboardCheck();
-
-			if (s.isEmpty())
+			if (s.isEmpty()) {
+				resumeClipboardCheck();
 				return;
+			}
 
 			var keyResponse = Base64.decode(s);
 
@@ -248,85 +337,100 @@ public class ClipboardUtil {
 					encryptedFile.getName().length() - (MessageComposer.OMS_FILE_TYPE.length() + 1 /* the dot */));
 
 			var fileType = getFileType(decryptedFileName);
+			var dialogResult = new CompletableFuture<File>();
 
-			Platform.runLater(() -> {
-				var fileChooser = new FileChooser();
-				fileChooser.setTitle("Private Key Backup File");
-				if (fileType != null)
-					fileChooser.getExtensionFilters()
-							.add(new ExtensionFilter(fileType.toUpperCase() + " files", "*." + fileType.toLowerCase()));
-				var selectedFile = fileChooser.showSaveDialog(FxMain.getPrimaryState());
+			selectOutFile(dialogResult, fileType);
 
-				if (selectedFile != null) {
-					var selectedPath = selectedFile.getAbsolutePath().toString();
+			try {
+				File outfile = dialogResult.get();
 
-					selectedPath = selectedPath
-							+ (selectedPath.toLowerCase().endsWith("." + fileType.toLowerCase()) ? ""
-									: "." + fileType.toLowerCase());
+				if (outfile != null) {
+					try (FileOutputStream fos = new FileOutputStream(outfile)) {
+						keyRequest.onReply(fos, keyResponse);
 
-					var outfile = new File(selectedPath);
+						Platform.runLater(() -> {
+							var doneDialog = new Alert(AlertType.CONFIRMATION);
+							doneDialog.setTitle("Success!");
+							doneDialog.setHeaderText(String.format("%s was created, what's next?", outfile.getName()));
 
-					var yesButton = new ButtonType("Yes");
-					var result = Optional.of(yesButton);
+							var folderButton = new ButtonType("Open Folder");
+							var runButton = new ButtonType("Open File");
+							var closeButton = new ButtonType("Done!");
+							doneDialog.getButtonTypes().setAll(folderButton, runButton, closeButton);
 
-					if (Files.exists(outfile.toPath())) {
-						var confirmationDialog = new Alert(AlertType.CONFIRMATION);
-						confirmationDialog.setTitle("File already exists");
-						confirmationDialog
-								.setHeaderText(String.format("Do you want to overwrite %s", outfile.getName()));
+							var doneResult = doneDialog.showAndWait();
 
-						var noButton = new ButtonType("No");
-						confirmationDialog.getButtonTypes().setAll(yesButton, noButton);
-						result = confirmationDialog.showAndWait();
-					}
+							if (doneResult.isPresent()) {
+								var nextAction = doneResult.get();
 
-					if (result.isPresent() && result.get() == yesButton) {
-						new Thread(() -> {
-							try (FileOutputStream fos = new FileOutputStream(outfile)) {
-								keyRequest.onReply(fos, keyResponse);
-
-								Platform.runLater(() -> {
-									var doneDialog = new Alert(AlertType.CONFIRMATION);
-									doneDialog.setTitle("Success!");
-									doneDialog.setHeaderText(
-											String.format("%s was created, what's next?", outfile.getName()));
-
-									var folderButton = new ButtonType("Open Folder");
-									var runButton = new ButtonType("Open File");
-									var closeButton = new ButtonType("Done!");
-									doneDialog.getButtonTypes().setAll(folderButton, runButton, closeButton);
-
-									var doneResult = doneDialog.showAndWait();
-
-									if (doneResult.isPresent()) {
-										var nextAction = doneResult.get();
-
-										try {
-											if (nextAction == folderButton) {
-												Desktop.getDesktop().open(outfile.getParentFile());
-											}
-											if (nextAction == runButton) {
-												Desktop.getDesktop().open(outfile);
-											}
-										} catch (IOException e) {
-											e.printStackTrace();
-										}
+								try {
+									if (nextAction == folderButton) {
+										Desktop.getDesktop().open(outfile.getParentFile());
 									}
-								});
-							} catch (Exception ex) {
-								ex.printStackTrace();
+									if (nextAction == runButton) {
+										Desktop.getDesktop().open(outfile);
+									}
+								} catch (IOException e) {
+									e.printStackTrace();
+								}
 
-								Platform.runLater(() -> {
-									var alertDialog = new Alert(AlertType.WARNING);
-									alertDialog.setTitle("Could not create file");
-									alertDialog.setHeaderText(ex.getMessage());
-									alertDialog.showAndWait();
-								});
+								resumeClipboardCheck();
 							}
-						}).start();
+						});
 					}
 				}
-			});
+			} catch (Exception ex) {
+				ex.printStackTrace();
+
+				Platform.runLater(() -> {
+					var alertDialog = new Alert(AlertType.WARNING);
+					alertDialog.setTitle("Could not create file");
+					alertDialog.setHeaderText(ex.getMessage());
+					alertDialog.showAndWait();
+					resumeClipboardCheck();
+				});
+			}
+		});
+	}
+
+	private static void selectOutFile(CompletableFuture<File> dialogResult, String fileType) {
+		Platform.runLater(() -> {
+			var fileChooser = new FileChooser();
+			fileChooser.setTitle("Decrypt And Save As...");
+			if (fileType != null)
+				fileChooser.getExtensionFilters()
+						.add(new ExtensionFilter(fileType.toUpperCase() + " files", "*." + fileType.toLowerCase()));
+			var selectedFile = fileChooser.showSaveDialog(FxMain.getPrimaryState());
+
+			if (selectedFile == null) {
+				dialogResult.complete(null);
+			} else {
+				var selectedPath = selectedFile.getAbsolutePath().toString();
+
+				selectedPath = selectedPath + (selectedPath.toLowerCase().endsWith("." + fileType.toLowerCase()) ? ""
+						: "." + fileType.toLowerCase());
+
+				var outfile = new File(selectedPath);
+
+				var yesButton = new ButtonType("Yes");
+				var result = Optional.of(yesButton);
+
+				if (Files.exists(outfile.toPath())) {
+					var confirmationDialog = new Alert(AlertType.CONFIRMATION);
+					confirmationDialog.setTitle("File already exists");
+					confirmationDialog.setHeaderText(String.format("Do you want to overwrite %s", outfile.getName()));
+
+					var noButton = new ButtonType("No");
+					confirmationDialog.getButtonTypes().setAll(yesButton, noButton);
+					result = confirmationDialog.showAndWait();
+				}
+
+				if (result.isPresent() && result.get() == yesButton) {
+					dialogResult.complete(outfile);
+				} else {
+					dialogResult.complete(null);
+				}
+			}
 		});
 	}
 

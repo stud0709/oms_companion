@@ -90,6 +90,9 @@ public class NewPrivateKey {
 	@FXML
 	private TextField txtTransportPwd;
 
+	@FXML
+	private CheckBox chk4096bit;
+
 	public static final int BASE64_LINE_LENGTH = 75;
 	private final Paint errorPaint = Color.RED;
 	private Paint colorDef = null;
@@ -247,7 +250,7 @@ public class NewPrivateKey {
 		new Thread(() -> {
 			try {
 				var keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-				var rsaKeyLength = RSAUtils.getKeyLength();
+				var rsaKeyLength = chk4096bit.isSelected() ? 4096 : 2048;
 				keyPairGenerator.initialize(rsaKeyLength);
 				var keyPair = keyPairGenerator.generateKeyPair();
 				var rsaPublicKey = (RSAPublicKey) keyPair.getPublic();
@@ -284,7 +287,7 @@ public class NewPrivateKey {
 				var backupFile = new File(txtBackupFile.getText());
 
 				try (var fw = new FileWriter(backupFile)) {
-					fw.write(NewPrivateKey.getKeyBackupHtml(alias, Main.getFingerprint(rsaPublicKey), message));
+					fw.write(NewPrivateKey.getKeyBackupHtml(alias, RSAUtils.getFingerprint(rsaPublicKey), message));
 				}
 
 				txtAreaInfo.appendText("Backup file generated\n");

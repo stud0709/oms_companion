@@ -63,7 +63,7 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<String
 		FxMain.createTextLink(message);
 	}
 
-	public void init() throws Exception {
+	public static void initChoiceBox(ChoiceBox<String> choiceBox) throws Exception {
 		var publicKeys = Files.list(Main.PUBLIC_KEY_STORAGE).map(p -> p.getFileName().toString())
 				.filter(fn -> fn.toLowerCase().endsWith(FILE_TYPE_PUCLIC_KEY)).collect(Collectors.toList());
 
@@ -73,16 +73,19 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<String
 		}
 
 		var os = FXCollections.observableArrayList(publicKeys);
-		choiceKey.setItems(os);
+		choiceBox.setItems(os);
 
 		var defaultKey = Main.getDefaultKey();
 
 		if (publicKeys.size() == 1 || defaultKey == null || !publicKeys.contains(defaultKey)) {
-			choiceKey.getSelectionModel().selectFirst();
+			choiceBox.getSelectionModel().selectFirst();
 		} else {
-			choiceKey.getSelectionModel().select(defaultKey);
+			choiceBox.getSelectionModel().select(defaultKey);
 		}
+	}
 
+	public void init() throws Exception {
+		initChoiceBox(choiceKey);
 		choiceKey.getSelectionModel().selectedItemProperty().addListener(this);
 	}
 
@@ -113,7 +116,7 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<String
 		try {
 			var pkPath = Main.PUBLIC_KEY_STORAGE.resolve(newValue);
 
-			var pk = Main.getPublicKey(Files.readAllBytes(pkPath));
+			var pk = RSAUtils.getPublicKey(Files.readAllBytes(pkPath));
 
 			message = new EncryptedMessageTransfer(unprotected, pk, RSAUtils.getRsaTransformationIdx(),
 					AESUtil.getKeyLength(), AESUtil.getAesTransformationIdx()).getMessage();
