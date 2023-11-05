@@ -123,7 +123,7 @@ public class KeyRequest {
 			var aesSecretKey = new SecretKeySpec(aesSecretKeyData, "AES");
 
 			AESUtil.process(Cipher.DECRYPT_MODE, dataInputStream, osDecryptedFile, aesSecretKey,
-					new IvParameterSpec(header.iv), header.aesTransformation);
+					new IvParameterSpec(header.iv), header.aesTransformation, null);
 		}
 	}
 

@@ -24,7 +24,7 @@ public class FxMain extends Application {
 		FxMain.primaryState = primaryStage;
 	}
 
-	public static Stage getPrimaryState() {
+	public static Stage getPrimaryStage() {
 		return primaryState;
 	}
 
