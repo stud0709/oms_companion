@@ -52,11 +52,9 @@ You can also scan the `.gif` files created earlier by the encryption dialog.
 For more information on decripting see OneMoreSecret [documentation](https://github.com/stud0709/OneMoreSecret/blob/master/decrypted_message.md). 
 
 ## Encrypting Files
-If you copy a single file into a clipboard and double-click the system tray icon of *omsCompanion*, the file will be decrypted with the public key of your choice, and the resulting file of type `.oms00` will be set to the clipboard. 
+Copy files you want to encrypt to the clipboard and double-click the system tray icon of *omsCompanion*. The files will be encrypted with the public key of your choice. The resulting file(s) of type `.oms00` will be either set to the clipboard (if you encrypt a single file) or written to the folder of your choice.
 
 You may also like to use the [file encryption](https://github.com/stud0709/OneMoreSecret/blob/master/encrypt_file.md) functionality of *OneMoreSecret* to encrypt files on your smartphone. 
-
-We are working hard to add more file encryption features to *omsCompanion*, so [stay tuned](https://github.com/stud0709/oms_companion/issues/1).
 
 ## Decrypting Files
 In a similar way, *omsCompanion* will decrypt files (in the current version, only one file at a time). 
