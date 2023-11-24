@@ -264,7 +264,7 @@ public class PasswordGenerator {
 
 	}
 
-	public static void show() {
+	public static void show(Runnable andThen) {
 		ClipboardUtil.suspendClipboardCheck();
 
 		Runnable r = () -> {
@@ -285,6 +285,10 @@ public class PasswordGenerator {
 				stage.show();
 				scene.getWindow().setOnHidden(e -> {
 					r.run();
+				});
+				scene.getWindow().setOnHidden(e -> {
+					if (andThen != null)
+						andThen.run();
 				});
 			} catch (Exception ex) {
 				FxMain.handleException(ex);

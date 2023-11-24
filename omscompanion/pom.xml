@@ -1,4 +1,6 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.ydzh</groupId>
 	<artifactId>omscompanion</artifactId>
@@ -7,8 +9,8 @@
 	<properties>
 		<maven.compiler.target>14</maven.compiler.target>
 		<maven.compiler.source>14</maven.compiler.source>
-	    <javafx.version>14</javafx.version>
-        <javafx.maven.plugin.version>0.0.6</javafx.maven.plugin.version>   
+		<javafx.version>14</javafx.version>
+		<javafx.maven.plugin.version>0.0.6</javafx.maven.plugin.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -37,19 +39,24 @@
 			<version>1.6.0</version>
 		</dependency>
 		<dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-controls</artifactId>
-            <version>${javafx.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-fxml</artifactId>
-            <version>${javafx.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-swing</artifactId>
-            <version>${javafx.version}</version>
-        </dependency>
+			<groupId>org.openjfx</groupId>
+			<artifactId>javafx-controls</artifactId>
+			<version>${javafx.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.openjfx</groupId>
+			<artifactId>javafx-fxml</artifactId>
+			<version>${javafx.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.openjfx</groupId>
+			<artifactId>javafx-swing</artifactId>
+			<version>${javafx.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+			<version>2.14.2</version>
+		</dependency>
 	</dependencies>
 </project>

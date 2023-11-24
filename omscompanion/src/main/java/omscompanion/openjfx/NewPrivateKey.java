@@ -376,7 +376,7 @@ public class NewPrivateKey {
 				.render();
 	}
 
-	public static void show() {
+	public static void show(Runnable andThen) {
 		Platform.runLater(() -> {
 			try {
 				var url = Main.class.getResource("openjfx/NewPrivateKey.fxml");
@@ -388,6 +388,10 @@ public class NewPrivateKey {
 				stage.setScene(scene);
 				stage.initStyle(StageStyle.UTILITY);
 				stage.show();
+				scene.getWindow().setOnHidden(e -> {
+					if (andThen != null)
+						andThen.run();
+				});
 			} catch (Exception ex) {
 				FxMain.handleException(ex);
 			}

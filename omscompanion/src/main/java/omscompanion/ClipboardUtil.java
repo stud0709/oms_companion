@@ -267,27 +267,33 @@ public class ClipboardUtil {
 			choiceBox.setPrefWidth(Double.MAX_VALUE);
 			var pkFuture = new CompletableFuture<String>();
 
-			Platform.runLater(() -> {
-				var vbox = new VBox();
-				vbox.setPrefWidth(480);
-				vbox.getChildren().addAll(choiceBox);
+			if (choiceBox.getItems().size() == 1) {
+				// there is only one key
+				pkFuture.complete(choiceBox.getItems().get(0));
+			} else {
+				// show dialog
+				Platform.runLater(() -> {
+					var vbox = new VBox();
+					vbox.setPrefWidth(480);
+					vbox.getChildren().addAll(choiceBox);
 
-				var keySelector = new Alert(AlertType.CONFIRMATION);
-				keySelector.setTitle(Main.APP_NAME);
-				keySelector.setHeaderText("Select public key to encrypt your files");
-				keySelector.getDialogPane().setContent(vbox);
+					var keySelector = new Alert(AlertType.CONFIRMATION);
+					keySelector.setTitle(Main.APP_NAME);
+					keySelector.setHeaderText("Select public key to encrypt your files");
+					keySelector.getDialogPane().setContent(vbox);
 
-				var okButton = new ButtonType("OK");
-				var cancelButton = new ButtonType("Cancel");
-				keySelector.getButtonTypes().setAll(okButton, cancelButton);
+					var okButton = new ButtonType("OK");
+					var cancelButton = new ButtonType("Cancel");
+					keySelector.getButtonTypes().setAll(okButton, cancelButton);
 
-				var result = keySelector.showAndWait().orElse(cancelButton);
+					var result = keySelector.showAndWait().orElse(cancelButton);
 
-				if (result != okButton)
-					pkFuture.complete(null);
+					if (result != okButton)
+						pkFuture.complete(null);
 
-				pkFuture.complete(choiceBox.getSelectionModel().getSelectedItem());
-			});
+					pkFuture.complete(choiceBox.getSelectionModel().getSelectedItem());
+				});
+			}
 
 			if (pkFuture.get() == null) {
 				resumeClipboardCheck();
@@ -376,8 +382,9 @@ public class ClipboardUtil {
 					return;
 				}
 
+				Platform.runLater(() -> progressDialog.close());
+
 				Platform.runLater(() -> {
-					progressDialog.close();
 					var doneDialog = new Alert(AlertType.CONFIRMATION);
 					doneDialog.setTitle(Main.APP_NAME);
 					doneDialog.setHeaderText(String.format("%s files, %s directories, %s errors. What's next?",

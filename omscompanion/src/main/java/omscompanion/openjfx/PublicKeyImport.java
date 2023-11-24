@@ -99,7 +99,7 @@ public class PublicKeyImport {
 		return publicKeyPath;
 	}
 
-	public static void show() {
+	public static void show(Runnable andThen) {
 		Platform.runLater(() -> {
 			try {
 				var url = Main.class.getResource("openjfx/PublicKeyImport.fxml");
@@ -111,6 +111,10 @@ public class PublicKeyImport {
 				stage.setScene(scene);
 				stage.initStyle(StageStyle.UTILITY);
 				stage.show();
+				scene.getWindow().setOnHidden(e -> {
+					if (andThen != null)
+						andThen.run();
+				});
 			} catch (Exception ex) {
 				FxMain.handleException(ex);
 			}

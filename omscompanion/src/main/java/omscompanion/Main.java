@@ -26,19 +26,25 @@ import javax.imageio.ImageIO;
 import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 
+import omscompanion.openjfx.FileSync;
 import omscompanion.openjfx.NewPrivateKey;
 import omscompanion.openjfx.PasswordGenerator;
 import omscompanion.openjfx.PublicKeyImport;
 
 public class Main {
-	public static Path PUBLIC_KEY_STORAGE = new File("public").toPath(), TMP = new File("tmp").toPath();
+	public static Path PUBLIC_KEY_STORAGE = new File("public").toPath(), TMP = new File("tmp").toPath(),
+			FILESYNC = new File("filesync").toPath();
 	public static final Properties properties = new Properties();
 	private static final String PROP_DEFAULT_KEY = "default_key";
 	public static final String APP_NAME = "omsCompanion";
+	private static MenuItem filesyncMenuItem = null, passwordGeneratorMenuItem = null, importPublicKeyMenuItem = null,
+			newPrivateKeyMenuItem = null;
 
 	public static void main(String[] args) throws Exception {
 		Files.createDirectories(PUBLIC_KEY_STORAGE);
 		Files.createDirectories(TMP);
+		Files.createDirectories(FILESYNC);
+
 		purge(TMP.toFile());
 
 		var pf = new File("omscompanion.properties");
@@ -135,6 +141,13 @@ public class Main {
 		}
 
 		{
+			filesyncMenuItem = new MenuItem("FileSync");
+			filesyncMenuItem.setActionCommand("filesync");
+			filesyncMenuItem.addActionListener(MENU_ACTION_LISTENER);
+			menu.add(filesyncMenuItem);
+		}
+
+		{
 			var crypto = new Menu("Cryptography...");
 
 			{
@@ -192,7 +205,8 @@ public class Main {
 				ClipboardUtil.processClipboard();
 				break;
 			case "newPrivateKey":
-				NewPrivateKey.show();
+				newPrivateKeyMenuItem.setEnabled(false);
+				NewPrivateKey.show(() -> SwingUtilities.invokeLater(() -> newPrivateKeyMenuItem.setEnabled(true)));
 				break;
 			case "autoClipboardCheck":
 				// revert value
@@ -200,10 +214,17 @@ public class Main {
 				ClipboardUtil.getAutomaticModeProperty().set(!b);
 				break;
 			case "importPublicKey":
-				PublicKeyImport.show();
+				importPublicKeyMenuItem.setEnabled(false);
+				PublicKeyImport.show(() -> SwingUtilities.invokeLater(() -> importPublicKeyMenuItem.setEnabled(true)));
 				break;
 			case "pwdGen":
-				PasswordGenerator.show();
+				passwordGeneratorMenuItem.setEnabled(false);
+				PasswordGenerator
+						.show(() -> SwingUtilities.invokeLater(() -> passwordGeneratorMenuItem.setEnabled(true)));
+				break;
+			case "filesync":
+				filesyncMenuItem.setEnabled(false);
+				FileSync.show(() -> SwingUtilities.invokeLater(() -> filesyncMenuItem.setEnabled(true)));
 				break;
 			case "publicKeyFolder":
 				try {
