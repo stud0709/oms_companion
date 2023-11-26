@@ -3,17 +3,15 @@ package omscompanion.openjfx;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.exc.StreamReadException;
-import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
+import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
@@ -34,18 +32,20 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 import omscompanion.FxMain;
 import omscompanion.Main;
 
 public class FileSync {
 	private static final String TYPE_PROFILE = ".profile", PROP_LAST_PROFILE = "filesync_last_profile",
-			NEW_PROFILE = "(new profile)";
+			NEW_PROFILE = "(new profile)", PLEASE_SELECT = "(please select)";
 	private final ObjectMapper objectMapper = new ObjectMapper();
-	private Profile currentProfile = null;
 	private final BooleanProperty analyzeDone = new SimpleBooleanProperty(false);
+	private final SimpleObjectProperty<File> sourceDir = new SimpleObjectProperty<>(),
+			destinationDir = new SimpleObjectProperty<>();
+	private final SimpleObjectProperty<Profile> currentProfile = new SimpleObjectProperty<>();
 
-	public record Profile(String sourceDir, String destinationDir, String[] exclusionList, String[] inclusionList) {
+	public record Profile(String sourceDir, String destinationDir, String[] exclusionList, String[] inclusionList,
+			String publicKeyName) {
 
 	}
 
@@ -190,38 +190,69 @@ public class FileSync {
 
 			@Override
 			public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
-				Platform.runLater(() -> btn_start_sync.setDisable(!newValue));
+				Platform.runLater(() -> btn_start_sync.setDisable(!canStartSync()));
+			}
+		});
+
+		sourceDir.addListener(new ChangeListener<File>() {
+
+			@Override
+			public void changed(ObservableValue<? extends File> observable, File oldValue, File newValue) {
+				lbl_srcdir.setText(newValue == null ? PLEASE_SELECT : newValue.getAbsolutePath().toString());
+				onDirChanged();
+			}
+		});
+
+		lbl_srcdir.setText(PLEASE_SELECT);
+
+		destinationDir.addListener(new ChangeListener<File>() {
+
+			@Override
+			public void changed(ObservableValue<? extends File> observable, File oldValue, File newValue) {
+				lbl_targetdir.setText(newValue == null ? PLEASE_SELECT : newValue.getAbsolutePath().toString());
+				onDirChanged();
+			}
+		});
+
+		lbl_targetdir.setText(PLEASE_SELECT);
+
+		currentProfile.addListener(new ChangeListener<Profile>() {
+
+			@Override
+			public void changed(ObservableValue<? extends Profile> observable, Profile oldValue, Profile newValue) {
+				onNewCurrentProfile(newValue);
 			}
 		});
 
 		loadProfiles();
 	}
 
+	private boolean canStartSync() {
+		return analyzeDone.get() && !choice_public_key.getSelectionModel().isEmpty();
+	}
+
 	protected void checkChanged() {
 		try {
-			btn_save.setDisable(!canSave());
-			btn_save_as.setDisable(!canSave());
+			btn_save.setDisable(!isDirConfigValid());
+			btn_save_as.setDisable(!isDirConfigValid() || choice_profile.getSelectionModel().getSelectedIndex() == 0);
 
 			if (currentProfile != null) {
 				String currentJson = objectMapper.writeValueAsString(currentProfile);
 				String newJson = objectMapper.writeValueAsString(toProfile());
 
-				btn_save.setDisable(!canSave() || currentJson.equals(newJson));
+				btn_save.setDisable(!isDirConfigValid() || currentJson.equals(newJson));
 			}
 		} catch (JsonProcessingException ex) {
 			ex.printStackTrace();
 		}
 	}
 
-	private boolean canSave() {
-		// at least source and target directories should be set
-		return !lbl_srcdir.getText().isEmpty() && !lbl_targetdir.getText().isEmpty()
-				&& !lbl_targetdir.getText().equals(lbl_srcdir.getText());
-	}
-
 	private Profile toProfile() {
-		return new Profile(lbl_srcdir.getText(), lbl_targetdir.getText(),
-				list_exclude.getItems().toArray(new String[] {}), list_include.getItems().toArray(new String[] {}));
+		return new Profile(sourceDir.get() == null ? null : sourceDir.get().getAbsolutePath().toString(),
+				destinationDir.get() == null ? null : destinationDir.get().getAbsoluteFile().toString(),
+				list_exclude.getItems().toArray(new String[] {}), list_include.getItems().toArray(new String[] {}),
+				choice_public_key.getSelectionModel().isEmpty() ? null
+						: choice_public_key.getSelectionModel().getSelectedItem());
 	}
 
 	private void setIcon(String iconName, Labeled control) {
@@ -243,7 +274,6 @@ public class FileSync {
 				var stage = new Stage();
 				stage.setTitle(Main.APP_NAME + ": FileSync");
 				stage.setScene(scene);
-				stage.initStyle(StageStyle.UTILITY);
 				stage.show();
 				scene.getWindow().setOnHidden(e -> {
 					if (andThen != null)
@@ -270,9 +300,10 @@ public class FileSync {
 
 		if (lastProfile != null) {
 			choice_profile.getSelectionModel().select(lastProfile);
-			loadProfile(lastProfile);
+			onNewCurrentProfile(objectMapper.readValue(new File(lastProfile), Profile.class));
 		} else {
 			choice_profile.getSelectionModel().selectFirst();
+			onNewCurrentProfile(null);
 		}
 	}
 
@@ -281,14 +312,35 @@ public class FileSync {
 		btn_save.setDisable(selectedIdx == 0);
 	}
 
-	private void loadProfile(String lastProfile) throws StreamReadException, DatabindException, IOException {
-		currentProfile = objectMapper.readValue(new File(lastProfile), Profile.class);
+	private boolean isDirConfigValid() {
+		var s = sourceDir.get();
+		var d = destinationDir.get();
 
+		return
+		// at least source and target directories should be set
+		s != null && d != null
+		// source and target must be different
+				&& !s.equals(d)
+				// and not a subfolder of the other one
+				&& !s.toPath().startsWith(d.toPath()) && !d.toPath().startsWith(s.toPath());
+	}
+
+	private void onNewCurrentProfile(Profile profile) {
 		list_exclude.getItems().clear();
-		list_exclude.getItems().addAll(currentProfile.exclusionList);
-
 		list_include.getItems().clear();
-		list_include.getItems().addAll(currentProfile.inclusionList);
+		list_source.getItems().clear();
+
+		if (profile == null) {
+			sourceDir.set(null);
+			destinationDir.set(null);
+			return;
+		}
+
+		sourceDir.set(new File(profile.sourceDir));
+		destinationDir.set(new File(profile.destinationDir));
+
+		list_exclude.getItems().addAll(profile.exclusionList);
+		list_include.getItems().addAll(profile.inclusionList);
 	}
 
 	@FXML
@@ -330,21 +382,18 @@ public class FileSync {
 	@FXML
 	void actn_select_dest(ActionEvent event) {
 		try {
-			var future = new CompletableFuture<File>();
 			Platform.runLater(() -> {
 				var dirChooser = new DirectoryChooser();
 				dirChooser.setTitle("FileSync Destination Directory");
 				dirChooser.setInitialDirectory(new File(System.getProperty("user.home")));
-				future.complete(dirChooser.showDialog(FxMain.getPrimaryStage()));
+				var result = dirChooser.showDialog(FxMain.getPrimaryStage());
+				if (result == null) {
+					return;
+				}
+
+				destinationDir.set(result);
 			});
 
-			var sourceDir = future.get();
-			if (sourceDir == null) {
-				return;
-			}
-
-			lbl_targetdir.setText(sourceDir.toString());
-			onDirChanged();
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
@@ -353,21 +402,17 @@ public class FileSync {
 	@FXML
 	void actn_select_src(ActionEvent event) {
 		try {
-			var future = new CompletableFuture<File>();
 			Platform.runLater(() -> {
 				var dirChooser = new DirectoryChooser();
 				dirChooser.setTitle("FileSync Source Directory");
 				dirChooser.setInitialDirectory(new File(System.getProperty("user.home")));
-				future.complete(dirChooser.showDialog(FxMain.getPrimaryStage()));
+				var result = dirChooser.showDialog(FxMain.getPrimaryStage());
+				if (result == null) {
+					return;
+				}
+
+				sourceDir.set(result);
 			});
-
-			var sourceDir = future.get();
-			if (sourceDir == null) {
-				return;
-			}
-
-			lbl_srcdir.setText(sourceDir.toString());
-			onDirChanged();
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
@@ -377,8 +422,8 @@ public class FileSync {
 		btn_start_sync.setDisable(true);
 		btn_stop.setDisable(true);
 
-		// cannot sync if source and target are the same
-		btn_analyze.setDisable(lbl_srcdir.getText().equals(lbl_targetdir.getText()));
+		// cannot sync if source and target are not set or the same
+		btn_analyze.setDisable(!isDirConfigValid());
 
 		analyzeDone.set(false);
 
@@ -401,7 +446,7 @@ public class FileSync {
 
 	@FXML
 	void actn_stop(ActionEvent event) {
-		btn_start_sync.setDisable(!analyzeDone.getValue());
+		btn_start_sync.setDisable(!canStartSync());
 		btn_analyze.setDisable(false);
 	}
 }

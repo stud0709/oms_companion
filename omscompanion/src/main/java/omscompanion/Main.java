@@ -134,10 +134,10 @@ public class Main {
 		}
 
 		{
-			var menuItem = new MenuItem("Password Generator");
-			menuItem.setActionCommand("pwdGen");
-			menuItem.addActionListener(MENU_ACTION_LISTENER);
-			menu.add(menuItem);
+			passwordGeneratorMenuItem = new MenuItem("Password Generator");
+			passwordGeneratorMenuItem.setActionCommand("pwdGen");
+			passwordGeneratorMenuItem.addActionListener(MENU_ACTION_LISTENER);
+			menu.add(passwordGeneratorMenuItem);
 		}
 
 		{
@@ -151,17 +151,17 @@ public class Main {
 			var crypto = new Menu("Cryptography...");
 
 			{
-				var menuItem = new MenuItem("New Private Key");
-				menuItem.setActionCommand("newPrivateKey");
-				menuItem.addActionListener(MENU_ACTION_LISTENER);
-				crypto.add(menuItem);
+				newPrivateKeyMenuItem = new MenuItem("New Private Key");
+				newPrivateKeyMenuItem.setActionCommand("newPrivateKey");
+				newPrivateKeyMenuItem.addActionListener(MENU_ACTION_LISTENER);
+				crypto.add(newPrivateKeyMenuItem);
 			}
 
 			{
-				var menuItem = new MenuItem("Import Public Key");
-				menuItem.setActionCommand("importPublicKey");
-				menuItem.addActionListener(MENU_ACTION_LISTENER);
-				crypto.add(menuItem);
+				importPublicKeyMenuItem = new MenuItem("Import Public Key");
+				importPublicKeyMenuItem.setActionCommand("importPublicKey");
+				importPublicKeyMenuItem.addActionListener(MENU_ACTION_LISTENER);
+				crypto.add(importPublicKeyMenuItem);
 			}
 
 			{
