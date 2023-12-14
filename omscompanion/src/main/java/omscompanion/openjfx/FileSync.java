@@ -17,6 +17,7 @@ import javafx.collections.ListChangeListener;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
@@ -223,14 +224,21 @@ public class FileSync {
 		Platform.runLater(() -> {
 			btn_start_sync
 					.setDisable(state.get() != STATE_READY_TO_SYNC || choice_public_key.getSelectionModel().isEmpty());
-			btn_stop.setDisable(state.get() != STATE_ANALYZING && state.get() != STATE_SYNCING);
-			chk_checksum.setDisable(state.get() == STATE_ANALYZING);
-			btn_destdir.setDisable(state.get() == STATE_ANALYZING || state.get() == STATE_SYNCING);
-			btn_srcdir.setDisable(state.get() == STATE_ANALYZING || state.get() == STATE_SYNCING);
-			btn_analyze.setDisable(state.get() != STATE_READY_TO_ANALYZE && state.get() != STATE_READY_TO_SYNC);
+
+			btn_stop.setDisable(!Arrays.asList(new Integer[] { STATE_ANALYZING, STATE_SYNCING }).contains(state.get()));
+
+			for (var node : new Node[] { chk_checksum, btn_destdir, btn_srcdir, choice_profile, choice_public_key,
+					btn_del_profile, btn_del_include, btn_del_exclude }) {
+				node.setDisable(Arrays.asList(new Integer[] { STATE_ANALYZING, STATE_SYNCING }).contains(state.get()));
+			}
+
+			btn_analyze.setDisable(!Arrays.asList(new Integer[] { STATE_READY_TO_ANALYZE, STATE_READY_TO_SYNC })
+					.contains(state.get()));
+
 			btn_save.setDisable(
 					!Arrays.asList(new Integer[] { STATE_READY_TO_ANALYZE, STATE_READY_TO_SYNC }).contains(state.get())
 							|| choice_profile.getSelectionModel().getSelectedIndex() == 0 || !isProfileChanged());
+
 			btn_save_as.setDisable(!Arrays.asList(new Integer[] { STATE_READY_TO_ANALYZE, STATE_READY_TO_SYNC })
 					.contains(state.get()));
 		});
@@ -443,12 +451,11 @@ public class FileSync {
 
 	@FXML
 	void actn_start_sync(ActionEvent event) {
-		btn_stop.setDisable(false);
-		btn_analyze.setDisable(true);
+		state.set(STATE_SYNCING);
 
 		// ...
 
-		btn_stop.setDisable(false);
+		state.set(STATE_READY_TO_SYNC);
 	}
 
 	@FXML
