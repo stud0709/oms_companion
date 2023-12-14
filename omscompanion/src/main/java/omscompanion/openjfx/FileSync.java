@@ -3,17 +3,15 @@ package omscompanion.openjfx;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javafx.application.Platform;
-import javafx.beans.property.BooleanProperty;
-import javafx.beans.property.SimpleBooleanProperty;
+import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleObjectProperty;
-import javafx.beans.value.ChangeListener;
-import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
 import javafx.event.ActionEvent;
@@ -21,6 +19,7 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Labeled;
@@ -39,13 +38,16 @@ public class FileSync {
 	private static final String TYPE_PROFILE = ".profile", PROP_LAST_PROFILE = "filesync_last_profile",
 			NEW_PROFILE = "(new profile)", PLEASE_SELECT = "(please select)";
 	private final ObjectMapper objectMapper = new ObjectMapper();
-	private final BooleanProperty analyzeDone = new SimpleBooleanProperty(false);
 	private final SimpleObjectProperty<File> sourceDir = new SimpleObjectProperty<>(),
 			destinationDir = new SimpleObjectProperty<>();
 	private final SimpleObjectProperty<Profile> currentProfile = new SimpleObjectProperty<>();
 
+	private static final int STATE_INITIAL = 0, STATE_READY_TO_ANALYZE = 1, STATE_ANALYZING = 2,
+			STATE_READY_TO_SYNC = 3, STATE_SYNCING = 4;
+	private final SimpleIntegerProperty state = new SimpleIntegerProperty(-1);
+
 	public record Profile(String sourceDir, String destinationDir, String[] exclusionList, String[] inclusionList,
-			String publicKeyName) {
+			String publicKeyName, boolean checksum) {
 
 	}
 
@@ -78,6 +80,9 @@ public class FileSync {
 
 	@FXML
 	private Button btn_stop;
+
+	@FXML
+	private CheckBox chk_checksum;
 
 	@FXML
 	private ChoiceBox<String> choice_profile;
@@ -159,7 +164,7 @@ public class FileSync {
 			@Override
 			public void onChanged(Change<? extends String> c) {
 				btn_del_exclude.setDisable(list_exclude.getItems().isEmpty());
-				checkChanged();
+				updateUI(state.get());
 			}
 		});
 
@@ -175,7 +180,7 @@ public class FileSync {
 			@Override
 			public void onChanged(Change<? extends String> c) {
 				btn_del_include.setDisable(list_include.getItems().isEmpty());
-				checkChanged();
+				updateUI(state.get());
 			}
 		});
 
@@ -186,65 +191,64 @@ public class FileSync {
 
 		list_include.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
 
-		analyzeDone.addListener(new ChangeListener<Boolean>() {
+		state.addListener((observable, oldValue, newValue) -> updateUI(newValue));
+		chk_checksum.selectedProperty().addListener((observable, oldValue, newValue) -> updateUI(state.get()));
 
-			@Override
-			public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
-				Platform.runLater(() -> btn_start_sync.setDisable(!canStartSync()));
-			}
-		});
+		sourceDir.addListener((observable, oldValue, newValue) -> {
+			lbl_srcdir.setText(newValue == null ? PLEASE_SELECT : newValue.getAbsolutePath().toString());
 
-		sourceDir.addListener(new ChangeListener<File>() {
+			list_exclude.getItems().clear();
+			list_include.getItems().clear();
+			list_source.getItems().clear();
 
-			@Override
-			public void changed(ObservableValue<? extends File> observable, File oldValue, File newValue) {
-				lbl_srcdir.setText(newValue == null ? PLEASE_SELECT : newValue.getAbsolutePath().toString());
-				onDirChanged();
-			}
+			state.set(isDirConfigValid() ? STATE_READY_TO_ANALYZE : STATE_INITIAL);
 		});
 
 		lbl_srcdir.setText(PLEASE_SELECT);
 
-		destinationDir.addListener(new ChangeListener<File>() {
+		destinationDir.addListener((observable, oldValue, newValue) -> {
+			lbl_targetdir.setText(newValue == null ? PLEASE_SELECT : newValue.getAbsolutePath().toString());
 
-			@Override
-			public void changed(ObservableValue<? extends File> observable, File oldValue, File newValue) {
-				lbl_targetdir.setText(newValue == null ? PLEASE_SELECT : newValue.getAbsolutePath().toString());
-				onDirChanged();
-			}
+			state.set(isDirConfigValid() ? STATE_READY_TO_ANALYZE : STATE_INITIAL);
 		});
 
 		lbl_targetdir.setText(PLEASE_SELECT);
 
-		currentProfile.addListener(new ChangeListener<Profile>() {
-
-			@Override
-			public void changed(ObservableValue<? extends Profile> observable, Profile oldValue, Profile newValue) {
-				onNewCurrentProfile(newValue);
-			}
-		});
+		currentProfile.addListener((observable, oldValue, newValue) -> onCurrentProfileChange(newValue));
 
 		loadProfiles();
 	}
 
-	private boolean canStartSync() {
-		return analyzeDone.get() && !choice_public_key.getSelectionModel().isEmpty();
+	private void updateUI(Number newValue) {
+		Platform.runLater(() -> {
+			btn_start_sync
+					.setDisable(state.get() != STATE_READY_TO_SYNC || choice_public_key.getSelectionModel().isEmpty());
+			btn_stop.setDisable(state.get() != STATE_ANALYZING && state.get() != STATE_SYNCING);
+			chk_checksum.setDisable(state.get() == STATE_ANALYZING);
+			btn_destdir.setDisable(state.get() == STATE_ANALYZING || state.get() == STATE_SYNCING);
+			btn_srcdir.setDisable(state.get() == STATE_ANALYZING || state.get() == STATE_SYNCING);
+			btn_analyze.setDisable(state.get() != STATE_READY_TO_ANALYZE && state.get() != STATE_READY_TO_SYNC);
+			btn_save.setDisable(
+					!Arrays.asList(new Integer[] { STATE_READY_TO_ANALYZE, STATE_READY_TO_SYNC }).contains(state.get())
+							|| choice_profile.getSelectionModel().getSelectedIndex() == 0 || !isProfileChanged());
+			btn_save_as.setDisable(!Arrays.asList(new Integer[] { STATE_READY_TO_ANALYZE, STATE_READY_TO_SYNC })
+					.contains(state.get()));
+		});
 	}
 
-	protected void checkChanged() {
+	protected boolean isProfileChanged() {
 		try {
-			btn_save.setDisable(!isDirConfigValid());
-			btn_save_as.setDisable(!isDirConfigValid() || choice_profile.getSelectionModel().getSelectedIndex() == 0);
-
-			if (currentProfile != null) {
-				String currentJson = objectMapper.writeValueAsString(currentProfile);
+			if (currentProfile.get() != null) {
+				String currentJson = objectMapper.writeValueAsString(currentProfile.get());
 				String newJson = objectMapper.writeValueAsString(toProfile());
 
-				btn_save.setDisable(!isDirConfigValid() || currentJson.equals(newJson));
+				return currentJson.equals(newJson);
 			}
 		} catch (JsonProcessingException ex) {
 			ex.printStackTrace();
 		}
+
+		return false;
 	}
 
 	private Profile toProfile() {
@@ -252,7 +256,8 @@ public class FileSync {
 				destinationDir.get() == null ? null : destinationDir.get().getAbsoluteFile().toString(),
 				list_exclude.getItems().toArray(new String[] {}), list_include.getItems().toArray(new String[] {}),
 				choice_public_key.getSelectionModel().isEmpty() ? null
-						: choice_public_key.getSelectionModel().getSelectedItem());
+						: choice_public_key.getSelectionModel().getSelectedItem(),
+				chk_checksum.isSelected());
 	}
 
 	private void setIcon(String iconName, Labeled control) {
@@ -300,16 +305,24 @@ public class FileSync {
 
 		if (lastProfile != null) {
 			choice_profile.getSelectionModel().select(lastProfile);
-			onNewCurrentProfile(objectMapper.readValue(new File(lastProfile), Profile.class));
 		} else {
 			choice_profile.getSelectionModel().selectFirst();
-			onNewCurrentProfile(null);
 		}
 	}
 
 	private void onChoiceProfileSelected(int selectedIdx) {
-		btn_del_profile.setDisable(selectedIdx == 0);
-		btn_save.setDisable(selectedIdx == 0);
+		if (selectedIdx == 0) {
+			currentProfile.set(null);
+		} else {
+			try {
+				File f = Main.FILESYNC
+						.resolve(choice_profile.getSelectionModel().selectedItemProperty().get() + TYPE_PROFILE)
+						.toFile();
+				currentProfile.set(objectMapper.readValue(f, Profile.class));
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
 	}
 
 	private boolean isDirConfigValid() {
@@ -325,7 +338,7 @@ public class FileSync {
 				&& !s.toPath().startsWith(d.toPath()) && !d.toPath().startsWith(s.toPath());
 	}
 
-	private void onNewCurrentProfile(Profile profile) {
+	private void onCurrentProfileChange(Profile profile) {
 		list_exclude.getItems().clear();
 		list_include.getItems().clear();
 		list_source.getItems().clear();
@@ -333,6 +346,9 @@ public class FileSync {
 		if (profile == null) {
 			sourceDir.set(null);
 			destinationDir.set(null);
+			chk_checksum.setSelected(false);
+
+			state.set(STATE_INITIAL);
 			return;
 		}
 
@@ -341,17 +357,18 @@ public class FileSync {
 
 		list_exclude.getItems().addAll(profile.exclusionList);
 		list_include.getItems().addAll(profile.inclusionList);
+		chk_checksum.setSelected(profile.checksum);
+
+		state.set(STATE_READY_TO_ANALYZE);
 	}
 
 	@FXML
 	void actn_analyze(ActionEvent event) {
-		btn_stop.setDisable(false);
-		analyzeDone.set(false);
+		state.set(STATE_ANALYZING);
 
 		// ...
 
-		analyzeDone.set(true);
-		btn_stop.setDisable(true);
+		state.set(STATE_READY_TO_SYNC);
 	}
 
 	@FXML
@@ -371,7 +388,13 @@ public class FileSync {
 
 	@FXML
 	void actn_save(ActionEvent event) {
-
+		File f = Main.FILESYNC.resolve(choice_profile.getSelectionModel().selectedItemProperty().get() + TYPE_PROFILE)
+				.toFile();
+		try {
+			objectMapper.writeValue(f, currentProfile);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 	@FXML
@@ -418,22 +441,6 @@ public class FileSync {
 		}
 	}
 
-	private void onDirChanged() {
-		btn_start_sync.setDisable(true);
-		btn_stop.setDisable(true);
-
-		// cannot sync if source and target are not set or the same
-		btn_analyze.setDisable(!isDirConfigValid());
-
-		analyzeDone.set(false);
-
-		list_exclude.getItems().clear();
-		list_include.getItems().clear();
-		list_source.getItems().clear();
-
-		checkChanged();
-	}
-
 	@FXML
 	void actn_start_sync(ActionEvent event) {
 		btn_stop.setDisable(false);
@@ -446,7 +453,9 @@ public class FileSync {
 
 	@FXML
 	void actn_stop(ActionEvent event) {
-		btn_start_sync.setDisable(!canStartSync());
-		btn_analyze.setDisable(false);
+		switch (state.get()) {
+		case STATE_ANALYZING -> state.set(STATE_READY_TO_ANALYZE);
+		case STATE_SYNCING -> state.set(STATE_READY_TO_SYNC);
+		}
 	}
 }

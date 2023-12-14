@@ -2,6 +2,7 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
 <?import javafx.scene.control.ChoiceBox?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ListView?>
@@ -27,6 +28,9 @@
                      </VBox.margin>
                   </ListView>
                </children>
+               <padding>
+                  <Insets top="5.0" />
+               </padding>
             </VBox>
             <VBox>
                <children>
@@ -88,21 +92,30 @@
       </VBox>
    </top>
    <bottom>
-      <HBox alignment="CENTER_LEFT" spacing="5.0" BorderPane.alignment="CENTER">
-         <children>
-            <Label text="Public Key:" />
-            <ChoiceBox fx:id="choice_public_key" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
-            <Button fx:id="btn_analyze" mnemonicParsing="false" onAction="#actn_analyze" text="Analyze" />
-            <Button fx:id="btn_start_sync" mnemonicParsing="false" onAction="#actn_start_sync" text="Start Sync" />
-            <Button fx:id="btn_stop" mnemonicParsing="false" onAction="#actn_stop" text="Stop" />
-            <ProgressIndicator fx:id="progress_sync" progress="0.0" />
-         </children>
+      <VBox BorderPane.alignment="CENTER">
          <BorderPane.margin>
             <Insets left="5.0" right="5.0" />
          </BorderPane.margin>
-         <padding>
-            <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
-         </padding>
-      </HBox>
+         <children>
+            <HBox alignment="CENTER_LEFT" spacing="5.0">
+               <children>
+                  <Label text="Public Key:" />
+                  <ChoiceBox fx:id="choice_public_key" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
+                  <Button fx:id="btn_analyze" mnemonicParsing="false" onAction="#actn_analyze" text="Analyze" />
+                  <Button fx:id="btn_start_sync" mnemonicParsing="false" onAction="#actn_start_sync" text="Start Sync" />
+                  <Button fx:id="btn_stop" mnemonicParsing="false" onAction="#actn_stop" text="Stop" />
+                  <ProgressIndicator fx:id="progress_sync" progress="0.0" />
+               </children>
+               <padding>
+                  <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
+               </padding>
+            </HBox>
+            <CheckBox fx:id="chk_checksum" mnemonicParsing="false" text="compare using checksum (slow!)">
+               <padding>
+                  <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
+               </padding>
+            </CheckBox>
+         </children>
+      </VBox>
    </bottom>
 </BorderPane>
