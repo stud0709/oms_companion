@@ -64,24 +64,26 @@
          <children>
             <HBox alignment="CENTER_LEFT" spacing="5.0">
                <children>
-                  <Label text="Profile:" />
-                  <ChoiceBox fx:id="choice_profile" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
+                  <Label minWidth="40.0" text="Profile:" />
+                  <Label fx:id="lbl_profile" maxWidth="1.7976931348623157E308" text="(new profile)" textOverrun="LEADING_ELLIPSIS" HBox.hgrow="ALWAYS" />
+                  <Button fx:id="btn_open" mnemonicParsing="false" onAction="#actn_open_profile" text="Open..." />
+                  <Button fx:id="btn_new" mnemonicParsing="false" onAction="#actn_btn_new" text="New" />
                   <Button fx:id="btn_save_as" mnemonicParsing="false" onAction="#actn_save_as" text="Save As..." />
-                  <Button fx:id="btn_save" mnemonicParsing="false" onAction="#actn_save" text="Save..." />
+                  <Button fx:id="btn_save" mnemonicParsing="false" onAction="#actn_save" text="Save" />
                   <Button fx:id="btn_del_profile" mnemonicParsing="false" onAction="#actn_del_profile" text="Del." />
                </children>
             </HBox>
             <HBox alignment="CENTER_LEFT" spacing="5.0">
                <children>
                   <Label text="Source Directory:" />
-                  <Label fx:id="lbl_srcdir" maxWidth="1.7976931348623157E308" text="(please select)" HBox.hgrow="ALWAYS" />
+                  <Label fx:id="lbl_srcdir" maxWidth="1.7976931348623157E308" text="(please select)" textOverrun="LEADING_ELLIPSIS" HBox.hgrow="ALWAYS" />
                   <Button fx:id="btn_srcdir" mnemonicParsing="false" onAction="#actn_select_src" text="..." />
                </children>
             </HBox>
             <HBox alignment="CENTER_LEFT" layoutX="10.0" layoutY="10.0" spacing="5.0">
                <children>
                   <Label text="Destination Directory:" />
-                  <Label fx:id="lbl_targetdir" maxWidth="1.7976931348623157E308" text="(please select)" HBox.hgrow="ALWAYS" />
+                  <Label fx:id="lbl_targetdir" maxWidth="1.7976931348623157E308" text="(please select)" textOverrun="LEADING_ELLIPSIS" HBox.hgrow="ALWAYS" />
                   <Button fx:id="btn_destdir" mnemonicParsing="false" onAction="#actn_select_dest" text="..." />
                </children>
             </HBox>
@@ -110,7 +112,7 @@
                   <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
                </padding>
             </HBox>
-            <CheckBox fx:id="chk_checksum" mnemonicParsing="false" text="compare using checksum (slow!)">
+            <CheckBox fx:id="chk_checksum" mnemonicParsing="false" text="compare using checksum (thorough, but slow!)">
                <padding>
                   <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
                </padding>
