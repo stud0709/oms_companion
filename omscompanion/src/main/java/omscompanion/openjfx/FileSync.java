@@ -20,7 +20,10 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
@@ -32,6 +35,8 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.stage.DirectoryChooser;
+import javafx.stage.FileChooser;
+import javafx.stage.FileChooser.ExtensionFilter;
 import javafx.stage.Stage;
 import omscompanion.FxMain;
 import omscompanion.Main;
@@ -353,13 +358,26 @@ public class FileSync {
 		var s = sourceDir.get();
 		var d = destinationDir.get();
 
-		return
-		// at least source and target directories should be set
-		s != null && d != null
-		// source and target must be different
-				&& !s.equals(d)
-				// and not a subfolder of the other one
-				&& !s.toPath().startsWith(d.toPath()) && !d.toPath().startsWith(s.toPath());
+		if (s == null || d == null)
+			return false;
+
+		if (s.equals(d)) {
+			var alert = new Alert(AlertType.ERROR);
+			alert.setHeaderText("Invalid Directories");
+			alert.setContentText("Source and Destination directories may not be the same");
+			alert.showAndWait();
+			return false;
+		}
+
+		if (s.toPath().startsWith(d.toPath()) || d.toPath().startsWith(s.toPath())) {
+			var alert = new Alert(AlertType.ERROR);
+			alert.setHeaderText("Invalid Directories");
+			alert.setContentText("Source and Destination directories may not subfolders of each other");
+			alert.showAndWait();
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
@@ -424,41 +442,32 @@ public class FileSync {
 
 	@FXML
 	void actn_select_dest(ActionEvent event) {
-		try {
-			Platform.runLater(() -> {
-				var dirChooser = new DirectoryChooser();
-				dirChooser.setTitle("FileSync Destination Directory");
-				dirChooser.setInitialDirectory(new File(System.getProperty("user.home")));
-				var result = dirChooser.showDialog(FxMain.getPrimaryStage());
-				if (result == null) {
-					return;
-				}
+		Platform.runLater(() -> {
+			var dirChooser = new DirectoryChooser();
+			dirChooser.setTitle("FileSync Destination Directory");
+			dirChooser.setInitialDirectory(new File(System.getProperty("user.home")));
+			var result = dirChooser.showDialog(FxMain.getPrimaryStage());
+			if (result == null) {
+				return;
+			}
 
-				destinationDir.set(result);
-			});
-
-		} catch (Exception ex) {
-			ex.printStackTrace();
-		}
+			destinationDir.set(result);
+		});
 	}
 
 	@FXML
 	void actn_select_src(ActionEvent event) {
-		try {
-			Platform.runLater(() -> {
-				var dirChooser = new DirectoryChooser();
-				dirChooser.setTitle("FileSync Source Directory");
-				dirChooser.setInitialDirectory(new File(System.getProperty("user.home")));
-				var result = dirChooser.showDialog(FxMain.getPrimaryStage());
-				if (result == null) {
-					return;
-				}
+		Platform.runLater(() -> {
+			var dirChooser = new DirectoryChooser();
+			dirChooser.setTitle("FileSync Source Directory");
+			dirChooser.setInitialDirectory(new File(System.getProperty("user.home")));
+			var result = dirChooser.showDialog(FxMain.getPrimaryStage());
+			if (result == null) {
+				return;
+			}
 
-				sourceDir.set(result);
-			});
-		} catch (Exception ex) {
-			ex.printStackTrace();
-		}
+			sourceDir.set(result);
+		});
 	}
 
 	@FXML
@@ -480,21 +489,47 @@ public class FileSync {
 
 	@FXML
 	void actn_btn_new(ActionEvent event) {
+		if (isProfileChanged()) {
+			var alert = new Alert(AlertType.CONFIRMATION);
+			alert.setHeaderText("New Profile");
+			alert.setContentText("Discard current changes" + (currentProfile.get().file.get() == null ? ""
+					: " of " + currentProfile.get().file.get().getName()) + "?");
 
+			alert.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
+			alert.showAndWait().ifPresent(buttonType -> {
+				if (buttonType == ButtonType.YES)
+					currentProfile.set(newProfile());
+			});
+			return;
+		}
+
+		currentProfile.set(newProfile());
 	}
 
 	@FXML
 	void actn_open_profile(ActionEvent event) throws StreamReadException, DatabindException, IOException {
-		// set source directory to Main.FILESYNC
-		// file type: TYPE_PROFILE
+		Platform.runLater(() -> {
+			var fileChooser = new FileChooser();
+			fileChooser.setInitialDirectory(Main.FILESYNC.toFile());
+			fileChooser.setTitle("Open Profile");
+			fileChooser.getExtensionFilters().add(new ExtensionFilter("FileSync Profile", "*" + TYPE_PROFILE));
 
-		File selectedFile = null; // TODO: dialog
+			var selectedFile = fileChooser.showOpenDialog(FxMain.getPrimaryStage());
 
-		lbl_profile.setText(selectedFile.getAbsolutePath());
-		var profile = objectMapper.readValue(selectedFile, Profile.class);
-		profile.backup = objectMapper.readValue(selectedFile, Profile.class);
-		profile.file.set(selectedFile);
-		currentProfile.set(profile);
+			if (selectedFile == null)
+				return;
+
+			lbl_profile.setText(selectedFile.getAbsolutePath());
+			try {
+				var profile = objectMapper.readValue(selectedFile, Profile.class);
+				profile.backup = objectMapper.readValue(selectedFile, Profile.class);
+				profile.file.set(selectedFile);
+				currentProfile.set(profile);
+			} catch (Exception ex) {
+				currentProfile.set(null);
+				FxMain.handleException(ex);
+			}
+		});
 	}
 
 	private void onProfileFileChanged(File f) {

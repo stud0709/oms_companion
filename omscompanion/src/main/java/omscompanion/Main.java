@@ -35,7 +35,7 @@ public class Main {
 	public static Path PUBLIC_KEY_STORAGE = new File("public").toPath(), TMP = new File("tmp").toPath(),
 			FILESYNC = new File("filesync").toPath();
 	public static final Properties properties = new Properties();
-	private static final String PROP_DEFAULT_KEY = "default_key";
+	private static final String PROP_DEFAULT_KEY = "default_key", PROPERTY_FILE = "omscompanion.properties";
 	public static final String APP_NAME = "omsCompanion";
 	private static MenuItem filesyncMenuItem = null, passwordGeneratorMenuItem = null, importPublicKeyMenuItem = null,
 			newPrivateKeyMenuItem = null;
@@ -47,7 +47,7 @@ public class Main {
 
 		purge(TMP.toFile());
 
-		var pf = new File("omscompanion.properties");
+		var pf = new File(PROPERTY_FILE);
 		if (pf.exists()) {
 			try (var fr = new FileReader(pf)) {
 				properties.load(fr);
