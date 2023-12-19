@@ -32,8 +32,7 @@ import omscompanion.openjfx.PasswordGenerator;
 import omscompanion.openjfx.PublicKeyImport;
 
 public class Main {
-	public static Path PUBLIC_KEY_STORAGE = new File("public").toPath(), TMP = new File("tmp").toPath(),
-			FILESYNC = new File("filesync").toPath();
+	public static Path PUBLIC_KEY_STORAGE = new File("public").toPath(), TMP = new File("tmp").toPath();
 	public static final Properties properties = new Properties();
 	private static final String PROP_DEFAULT_KEY = "default_key", PROPERTY_FILE = "omscompanion.properties";
 	public static final String APP_NAME = "omsCompanion";
@@ -43,7 +42,6 @@ public class Main {
 	public static void main(String[] args) throws Exception {
 		Files.createDirectories(PUBLIC_KEY_STORAGE);
 		Files.createDirectories(TMP);
-		Files.createDirectories(FILESYNC);
 
 		purge(TMP.toFile());
 

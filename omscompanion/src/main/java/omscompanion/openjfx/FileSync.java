@@ -2,6 +2,8 @@ package omscompanion.openjfx;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -42,7 +44,7 @@ import omscompanion.FxMain;
 import omscompanion.Main;
 
 public class FileSync {
-	private static final String TYPE_PROFILE = ".profile", NEW_PROFILE = "(new profile)",
+	private static final String TYPE_PROFILE = ".omsfs", NEW_PROFILE = "(new profile)",
 			PLEASE_SELECT = "(please select)";
 	private final ObjectMapper objectMapper = new ObjectMapper();
 	private final SimpleObjectProperty<File> sourceDir = new SimpleObjectProperty<>(),
@@ -425,9 +427,24 @@ public class FileSync {
 	void actn_analyze(ActionEvent event) {
 		state.set(STATE_ANALYZING);
 
-		// ...
+		new Thread(() -> analyze()).start();
+	}
 
-		state.set(STATE_READY_TO_SYNC);
+	private void analyze() {
+		try {
+			Files.walk(sourceDir.get().toPath()).anyMatch(p -> analyzeSingle(p));
+
+			state.set(STATE_READY_TO_SYNC);
+		} catch (Exception ex) {
+			FxMain.handleException(ex);
+		}
+	}
+
+	private boolean analyzeSingle(Path p) {
+		if (state.get() != STATE_ANALYZING)
+			return true; // stop processing
+
+		return false; // continue processing
 	}
 
 	@FXML
@@ -456,7 +473,23 @@ public class FileSync {
 
 	@FXML
 	void actn_save_as(ActionEvent event) {
+		Platform.runLater(() -> {
+			var fileChooser = new FileChooser();
+			fileChooser.setTitle("Save Profile As...");
+			fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));
+			fileChooser.getExtensionFilters().setAll(new ExtensionFilter("FileSync Profile", "*" + TYPE_PROFILE));
+			var file = fileChooser.showSaveDialog(FxMain.getPrimaryStage());
+			if (file == null) {
+				return;
+			}
 
+			try {
+				objectMapper.writeValue(file, currentProfile);
+				currentProfile.get().file.set(file);
+			} catch (Exception ex) {
+				FxMain.handleException(ex);
+			}
+		});
 	}
 
 	@FXML
@@ -530,7 +563,7 @@ public class FileSync {
 	void actn_open_profile(ActionEvent event) throws StreamReadException, DatabindException, IOException {
 		Platform.runLater(() -> {
 			var fileChooser = new FileChooser();
-			fileChooser.setInitialDirectory(Main.FILESYNC.toFile());
+			fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));
 			fileChooser.setTitle("Open Profile");
 			fileChooser.getExtensionFilters().add(new ExtensionFilter("FileSync Profile", "*" + TYPE_PROFILE));
 
