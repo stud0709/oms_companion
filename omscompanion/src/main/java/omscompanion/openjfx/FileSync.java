@@ -149,7 +149,24 @@ public class FileSync {
 	@FXML
 	private ProgressIndicator progress_sync;
 
-	private void init(Runnable andThen) throws Exception {
+	private void init(Scene scene) throws Exception {
+		Platform.runLater(() -> {
+			scene.getWindow().setOnCloseRequest(event -> {
+				if (isProfileChanged()) {
+					var alert = new Alert(AlertType.WARNING);
+					alert.setTitle(Main.APP_NAME);
+					alert.setHeaderText("Unsaved Changes Detected");
+					alert.setContentText("Close FileSync without saving changes?");
+					alert.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
+					var result = alert.showAndWait();
+					result.ifPresent(bt -> {
+						if (bt == ButtonType.NO) // do not close window
+							event.consume();
+					});
+				}
+			});
+		});
+
 		btn_analyze.setText(null);
 		setIcon("analyze", btn_analyze);
 		btn_analyze.setTooltip(new Tooltip("Analyze"));
@@ -339,7 +356,7 @@ public class FileSync {
 				var url = Main.class.getResource("openjfx/FileSync.fxml");
 				var fxmlLoader = new FXMLLoader(url);
 				var scene = new Scene(fxmlLoader.load());
-				((FileSync) fxmlLoader.getController()).init(andThen);
+				((FileSync) fxmlLoader.getController()).init(scene);
 				var stage = new Stage();
 				stage.setTitle(Main.APP_NAME + ": FileSync");
 				stage.setScene(scene);
@@ -363,6 +380,7 @@ public class FileSync {
 
 		if (s.equals(d)) {
 			var alert = new Alert(AlertType.ERROR);
+			alert.setTitle(Main.APP_NAME);
 			alert.setHeaderText("Invalid Directories");
 			alert.setContentText("Source and Destination directories may not be the same");
 			alert.showAndWait();
@@ -371,6 +389,7 @@ public class FileSync {
 
 		if (s.toPath().startsWith(d.toPath()) || d.toPath().startsWith(s.toPath())) {
 			var alert = new Alert(AlertType.ERROR);
+			alert.setTitle(Main.APP_NAME);
 			alert.setHeaderText("Invalid Directories");
 			alert.setContentText("Source and Destination directories may not subfolders of each other");
 			alert.showAndWait();
@@ -491,6 +510,7 @@ public class FileSync {
 	void actn_btn_new(ActionEvent event) {
 		if (isProfileChanged()) {
 			var alert = new Alert(AlertType.CONFIRMATION);
+			alert.setTitle(Main.APP_NAME);
 			alert.setHeaderText("New Profile");
 			alert.setContentText("Discard current changes" + (currentProfile.get().file.get() == null ? ""
 					: " of " + currentProfile.get().file.get().getName()) + "?");
