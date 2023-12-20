@@ -31,8 +31,13 @@ import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Labeled;
 import javafx.scene.control.ListView;
+import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.SelectionMode;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
+import javafx.scene.control.TableView;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -47,13 +52,21 @@ public class FileSync {
 	private static final String TYPE_PROFILE = ".omsfs", NEW_PROFILE = "(new profile)",
 			PLEASE_SELECT = "(please select)";
 	private final ObjectMapper objectMapper = new ObjectMapper();
-	private final SimpleObjectProperty<File> sourceDir = new SimpleObjectProperty<>(),
+	private final SimpleObjectProperty<Path> sourceDir = new SimpleObjectProperty<>(),
 			destinationDir = new SimpleObjectProperty<>();
 	private final SimpleObjectProperty<Profile> currentProfile = new SimpleObjectProperty<>();
 
 	private static final int STATE_INITIAL = 0, STATE_READY_TO_ANALYZE = 1, STATE_ANALYZING = 2,
 			STATE_READY_TO_SYNC = 3, STATE_SYNCING = 4;
 	private final SimpleIntegerProperty state = new SimpleIntegerProperty(-1);
+
+	private class SyncEntry {
+		public final SimpleObjectProperty<Path> pathProperty = new SimpleObjectProperty<>();
+
+		public SyncEntry(Path path) {
+			pathProperty.set(path);
+		}
+	}
 
 	public class Profile {
 		public String sourceDir, destinationDir, publicKeyName;
@@ -131,6 +144,21 @@ public class FileSync {
 	private ChoiceBox<String> choice_public_key;
 
 	@FXML
+	private TableColumn<SyncEntry, Path> col_filename;
+
+	@FXML
+	private TableColumn<?, ?> col_flag_compare;
+
+	@FXML
+	private TableColumn<SyncEntry, Path> col_flag_document;
+
+	@FXML
+	private TableColumn<SyncEntry, Path> col_flag_folder;
+
+	@FXML
+	private TableColumn<SyncEntry, Path> col_level;
+
+	@FXML
 	private Label lbl_srcdir;
 
 	@FXML
@@ -146,7 +174,7 @@ public class FileSync {
 	private ListView<String> list_include;
 
 	@FXML
-	private ListView<String> list_source;
+	private TableView<SyncEntry> tbl_source;
 
 	@FXML
 	private ProgressIndicator progress_sync;
@@ -154,7 +182,7 @@ public class FileSync {
 	private void init(Scene scene) throws Exception {
 		Platform.runLater(() -> {
 			scene.getWindow().setOnCloseRequest(event -> {
-				if (isProfileChanged()) {
+				if (isProfileChanged() && isDirConfigValid()) {
 					var alert = new Alert(AlertType.WARNING);
 					alert.setTitle(Main.APP_NAME);
 					alert.setHeaderText("Unsaved Changes Detected");
@@ -227,6 +255,8 @@ public class FileSync {
 		btn_start_sync.setDisable(true);
 		btn_stop.setDisable(true);
 
+		setupTable();
+
 		list_exclude.getItems().addListener(new ListChangeListener<String>() {
 
 			@Override
@@ -272,13 +302,13 @@ public class FileSync {
 		});
 
 		sourceDir.addListener((observable, oldValue, newValue) -> {
-			lbl_srcdir.setText(newValue == null ? PLEASE_SELECT : newValue.getAbsolutePath().toString());
+			lbl_srcdir.setText(newValue == null ? PLEASE_SELECT : newValue.toFile().getAbsolutePath());
 			if (!loading.get())
-				currentProfile.get().sourceDir = newValue.getAbsolutePath().toString();
+				currentProfile.get().sourceDir = newValue.toFile().getAbsolutePath();
 
 			list_exclude.getItems().clear();
 			list_include.getItems().clear();
-			list_source.getItems().clear();
+			tbl_source.getItems().clear();
 
 			state.set(isDirConfigValid() ? STATE_READY_TO_ANALYZE : STATE_INITIAL);
 		});
@@ -286,9 +316,9 @@ public class FileSync {
 		lbl_srcdir.setText(PLEASE_SELECT);
 
 		destinationDir.addListener((observable, oldValue, newValue) -> {
-			lbl_targetdir.setText(newValue == null ? PLEASE_SELECT : newValue.getAbsolutePath().toString());
+			lbl_targetdir.setText(newValue == null ? PLEASE_SELECT : newValue.toFile().getAbsolutePath());
 			if (!loading.get())
-				currentProfile.get().destinationDir = newValue.getAbsolutePath().toString();
+				currentProfile.get().destinationDir = newValue.toFile().getAbsolutePath();
 
 			state.set(isDirConfigValid() ? STATE_READY_TO_ANALYZE : STATE_INITIAL);
 		});
@@ -300,6 +330,79 @@ public class FileSync {
 		lbl_profile.setText(NEW_PROFILE);
 
 		currentProfile.set(newProfile());
+	}
+
+	private void setupTable() {
+		tbl_source.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+		col_filename.prefWidthProperty()
+				.bind(tbl_source.widthProperty().subtract(col_flag_compare.widthProperty())
+						.subtract(col_flag_document.widthProperty()).subtract(col_flag_folder.widthProperty())
+						.subtract(col_level.widthProperty()));
+		col_filename.setCellValueFactory(cellDataFeatures -> cellDataFeatures.getValue().pathProperty);
+		col_filename.setCellFactory(col -> new TableCell<SyncEntry, Path>() {
+			@Override
+			protected void updateItem(Path item, boolean empty) {
+				if (empty) {
+					setText(null);
+				} else {
+					setText("..." + File.separatorChar + item.getFileName().toString());
+				}
+			};
+		});
+		col_flag_folder.setCellValueFactory(cellDataFeatures -> cellDataFeatures.getValue().pathProperty);
+		col_flag_folder.setCellFactory(col -> new TableCell<SyncEntry, Path>() {
+			@Override
+			protected void updateItem(Path item, boolean empty) {
+				if (!empty && Files.isDirectory(item)) {
+					setIcon("folder_icon", this);
+				} else {
+					setGraphic(null);
+				}
+			};
+		});
+
+		col_flag_document.setCellValueFactory(cellDataFeatures -> cellDataFeatures.getValue().pathProperty);
+		col_flag_document.setCellFactory(col -> new TableCell<SyncEntry, Path>() {
+			@Override
+			protected void updateItem(Path item, boolean empty) {
+				if (!empty) {
+					if (Files.isDirectory(item)) {
+						setGraphic(null);
+					} else {
+						setIcon("document_icon", this);
+					}
+				} else {
+					setGraphic(null);
+				}
+			};
+		});
+
+		col_level.setCellValueFactory(cellDataFeatures -> cellDataFeatures.getValue().pathProperty);
+		col_level.setCellFactory(col -> new TableCell<SyncEntry, Path>() {
+			@Override
+			protected void updateItem(Path item, boolean empty) {
+				if (empty) {
+					setText(null);
+				} else {
+					setText(Integer.toString(item.getNameCount() - sourceDir.get().getNameCount()));
+				}
+			};
+		});
+
+		// TODO col_compare
+
+		tbl_source.setRowFactory(tv -> {
+			TableRow<SyncEntry> row = new TableRow<>();
+			row.setOnMouseClicked(event -> {
+				if (row.isEmpty() || event.getClickCount() != 2)
+					return;
+
+				var syncEntry = row.getItem();
+
+				// TODO
+			});
+			return row;
+		});
 	}
 
 	private void updateUI(Number newValue) {
@@ -389,7 +492,7 @@ public class FileSync {
 			return false;
 		}
 
-		if (s.toPath().startsWith(d.toPath()) || d.toPath().startsWith(s.toPath())) {
+		if (s.startsWith(d) || d.startsWith(s)) {
 			var alert = new Alert(AlertType.ERROR);
 			alert.setTitle(Main.APP_NAME);
 			alert.setHeaderText("Invalid Directories");
@@ -413,8 +516,8 @@ public class FileSync {
 			onProfileFileChanged(profile.file.get());
 			lbl_profile.setText(
 					profile.file.get() == null ? NEW_PROFILE : profile.file.get().getAbsolutePath().toString());
-			sourceDir.set(profile.sourceDir == null ? null : new File(profile.sourceDir));
-			destinationDir.set(profile.destinationDir == null ? null : new File(profile.destinationDir));
+			sourceDir.set(profile.sourceDir == null ? null : Path.of(profile.sourceDir));
+			destinationDir.set(profile.destinationDir == null ? null : Path.of(profile.destinationDir));
 			list_exclude.getItems().setAll(profile.exclusionList);
 			list_include.getItems().setAll(profile.inclusionList);
 			chk_checksum.setSelected(profile.checksum);
@@ -432,7 +535,7 @@ public class FileSync {
 
 	private void analyze() {
 		try {
-			Files.walk(sourceDir.get().toPath()).anyMatch(p -> analyzeSingle(p));
+			Files.walk(sourceDir.get()).anyMatch(p -> analyzeSingle(p));
 
 			state.set(STATE_READY_TO_SYNC);
 		} catch (Exception ex) {
@@ -443,6 +546,16 @@ public class FileSync {
 	private boolean analyzeSingle(Path p) {
 		if (state.get() != STATE_ANALYZING)
 			return true; // stop processing
+
+		var level = p.getNameCount() - sourceDir.get().getNameCount();
+
+		if (level == 0)
+			return false; // parent folder
+
+		var labelText = new Label(String.format("[%s] ...", level) + File.separatorChar + p.getFileName());
+		labelText.setTextOverrun(OverrunStyle.LEADING_ELLIPSIS);
+
+		tbl_source.getItems().add(new SyncEntry(p));
 
 		return false; // continue processing
 	}
@@ -503,7 +616,7 @@ public class FileSync {
 				return;
 			}
 
-			destinationDir.set(result);
+			destinationDir.set(result.toPath());
 		});
 	}
 
@@ -518,7 +631,7 @@ public class FileSync {
 				return;
 			}
 
-			sourceDir.set(result);
+			sourceDir.set(result.toPath());
 		});
 	}
 

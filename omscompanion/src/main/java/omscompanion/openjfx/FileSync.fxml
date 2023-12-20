@@ -8,6 +8,8 @@
 <?import javafx.scene.control.ListView?>
 <?import javafx.scene.control.ProgressIndicator?>
 <?import javafx.scene.control.SplitPane?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
@@ -22,11 +24,15 @@
                      <VBox.margin>
                         <Insets left="5.0" />
                      </VBox.margin></Label>
-                  <ListView fx:id="list_source">
-                     <VBox.margin>
-                        <Insets />
-                     </VBox.margin>
-                  </ListView>
+                  <TableView fx:id="tbl_source">
+                    <columns>
+                      <TableColumn fx:id="col_level" maxWidth="-1.0" minWidth="20.0" prefWidth="-1.0" resizable="false" sortable="false" />
+                      <TableColumn fx:id="col_flag_folder" maxWidth="-1.0" minWidth="20.0" prefWidth="-1.0" resizable="false" sortable="false" />
+                        <TableColumn fx:id="col_flag_document" maxWidth="-1.0" minWidth="20.0" prefWidth="-1.0" resizable="false" sortable="false" />
+                        <TableColumn fx:id="col_flag_compare" maxWidth="-1.0" minWidth="20.0" prefWidth="-1.0" resizable="false" sortable="false" />
+                        <TableColumn fx:id="col_filename" maxWidth="1.7976931348623157E308" minWidth="100.0" prefWidth="-1.0" sortable="false" text="Filename" />
+                    </columns>
+                  </TableView>
                </children>
                <padding>
                   <Insets top="5.0" />
@@ -75,14 +81,14 @@
             </HBox>
             <HBox alignment="CENTER_LEFT" spacing="5.0">
                <children>
-                  <Label text="Source Directory:" />
+                  <Label minWidth="95.0" text="Source Directory:" />
                   <Label fx:id="lbl_srcdir" maxWidth="1.7976931348623157E308" text="(please select)" textOverrun="LEADING_ELLIPSIS" HBox.hgrow="ALWAYS" />
                   <Button fx:id="btn_srcdir" mnemonicParsing="false" onAction="#actn_select_src" text="..." />
                </children>
             </HBox>
             <HBox alignment="CENTER_LEFT" layoutX="10.0" layoutY="10.0" spacing="5.0">
                <children>
-                  <Label text="Destination Directory:" />
+                  <Label minWidth="120.0" text="Destination Directory:" />
                   <Label fx:id="lbl_targetdir" maxWidth="1.7976931348623157E308" text="(please select)" textOverrun="LEADING_ELLIPSIS" HBox.hgrow="ALWAYS" />
                   <Button fx:id="btn_destdir" mnemonicParsing="false" onAction="#actn_select_dest" text="..." />
                </children>
