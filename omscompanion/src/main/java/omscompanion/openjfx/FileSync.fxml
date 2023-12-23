@@ -18,30 +18,19 @@
    <center>
       <SplitPane dividerPositions="0.5" prefHeight="160.0" prefWidth="200.0" BorderPane.alignment="CENTER">
         <items>
-            <VBox>
-               <children>
-                  <Label text="Source Files And Directories:">
-                     <VBox.margin>
-                        <Insets left="5.0" />
-                     </VBox.margin></Label>
-                  <TableView fx:id="tbl_source">
-                    <columns>
-                      <TableColumn fx:id="col_level" maxWidth="-1.0" minWidth="20.0" prefWidth="-1.0" resizable="false" sortable="false" />
-                      <TableColumn fx:id="col_flag_folder" maxWidth="-1.0" minWidth="20.0" prefWidth="-1.0" resizable="false" sortable="false" />
-                        <TableColumn fx:id="col_flag_document" maxWidth="-1.0" minWidth="20.0" prefWidth="-1.0" resizable="false" sortable="false" />
-                        <TableColumn fx:id="col_flag_compare" maxWidth="-1.0" minWidth="20.0" prefWidth="-1.0" resizable="false" sortable="false" />
-                        <TableColumn fx:id="col_filename" maxWidth="1.7976931348623157E308" minWidth="100.0" prefWidth="-1.0" sortable="false" text="Filename" />
-                    </columns>
-                  </TableView>
-               </children>
-               <padding>
-                  <Insets top="5.0" />
-               </padding>
-            </VBox>
+            <TableView fx:id="tbl_source">
+              <columns>
+                <TableColumn fx:id="col_level" maxWidth="-1.0" minWidth="20.0" prefWidth="-1.0" resizable="false" sortable="false" />
+                <TableColumn fx:id="col_flag_folder" maxWidth="-1.0" minWidth="20.0" prefWidth="-1.0" resizable="false" sortable="false" />
+                  <TableColumn fx:id="col_flag_compare" maxWidth="-1.0" minWidth="20.0" prefWidth="-1.0" resizable="false" sortable="false" />
+                  <TableColumn fx:id="col_filename" maxWidth="1.7976931348623157E308" minWidth="100.0" prefWidth="-1.0" sortable="false" text="Filename" />
+              </columns>
+            </TableView>
             <VBox>
                <children>
                   <HBox alignment="CENTER_LEFT" spacing="5.0">
                      <children>
+                        <Button fx:id="btn_add_include" mnemonicParsing="false" onAction="#actn_add_to_list" text="&gt;&gt;" />
                         <Label maxWidth="1.7976931348623157E308" text="INCLUDE Rules:" HBox.hgrow="ALWAYS" />
                         <Button fx:id="btn_del_include" mnemonicParsing="false" onAction="#actn_del_include" text="Del." />
                      </children>
@@ -52,6 +41,7 @@
                   <ListView fx:id="list_include" />
                   <HBox alignment="CENTER_LEFT" layoutX="10.0" layoutY="10.0" spacing="5.0">
                      <children>
+                        <Button fx:id="btn_add_exclude" mnemonicParsing="false" onAction="#actn_add_to_list" text="&gt;&gt;" />
                         <Label maxWidth="1.7976931348623157E308" text="EXCLUDE Rules:" HBox.hgrow="ALWAYS" />
                         <Button fx:id="btn_del_exclude" mnemonicParsing="false" onAction="#actn_del_exclude" text="Del." />
                      </children>
