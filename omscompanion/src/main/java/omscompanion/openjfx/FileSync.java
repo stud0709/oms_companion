@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -16,6 +17,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javafx.application.Platform;
 import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.property.SimpleLongProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
@@ -35,7 +37,6 @@ import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.OverrunStyle;
-import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
@@ -60,15 +61,17 @@ public class FileSync {
 	private final SimpleObjectProperty<Profile> currentProfile = new SimpleObjectProperty<>();
 
 	private static final int STATE_INITIAL = 0, STATE_READY_TO_ANALYZE = 1, STATE_ANALYZING = 2,
-			STATE_READY_TO_SYNC = 3, STATE_SYNCING = 4;
+			STATE_READY_TO_SYNC = 3, STATE_SYNCING = 4, TOTAL_SIZE_UNKNOWN = -1;
 	private final SimpleIntegerProperty state = new SimpleIntegerProperty(-1);
 	private final ObservableList<SyncEntry> tableItems = FXCollections.observableArrayList();
 	private final FilteredList<SyncEntry> filteredList = new FilteredList<>(tableItems);
+	private final SimpleLongProperty totalSize = new SimpleLongProperty();
 
 	private class SyncEntry {
 		public final SimpleObjectProperty<Path> pathProperty = new SimpleObjectProperty<>();
 		public final long length;
-		public final Exception accessException;
+
+		public Exception accessException = null;
 
 		public SyncEntry(Path path) {
 			pathProperty.set(path);
@@ -82,8 +85,6 @@ public class FileSync {
 
 			length = _length;
 			accessException = ex;
-
-			// TODO: compare with shadow copy using the selected method
 		}
 	}
 
@@ -194,7 +195,7 @@ public class FileSync {
 	private TableColumn<SyncEntry, Path> col_filename;
 
 	@FXML
-	private TableColumn<?, ?> col_flag_compare;
+	private TableColumn<SyncEntry, SyncEntry> col_flag_compare;
 
 	@FXML
 	private TableColumn<SyncEntry, Path> col_flag_folder;
@@ -212,6 +213,9 @@ public class FileSync {
 	private Label lbl_targetdir;
 
 	@FXML
+	private Label lbl_total;
+
+	@FXML
 	private ListView<String> list_exclude;
 
 	@FXML
@@ -219,9 +223,6 @@ public class FileSync {
 
 	@FXML
 	private TableView<SyncEntry> tbl_source;
-
-	@FXML
-	private ProgressIndicator progress_sync;
 
 	private void init(Scene scene) throws Exception {
 		Platform.runLater(() -> {
@@ -307,6 +308,11 @@ public class FileSync {
 		btn_add_exclude.setDisable(true);
 		btn_add_include.setDisable(true);
 
+		lbl_total.setGraphic(getIcon("database_icon"));
+		lbl_total.setTooltip(new Tooltip("Total Data"));
+
+		filteredList.predicateProperty().addListener((observable, oldValue, newValue) -> calculateTotalSize());
+
 		setupTable();
 
 		list_exclude.getItems().addListener(new ListChangeListener<String>() {
@@ -319,6 +325,9 @@ public class FileSync {
 				updateUI();
 			}
 		});
+
+		totalSize.addListener((observable, oldValue, newValue) -> onTotalSizeChanged(newValue));
+		totalSize.set(TOTAL_SIZE_UNKNOWN);
 
 		list_exclude.getSelectionModel().getSelectedItems()
 				.addListener((ListChangeListener.Change<? extends String> c) -> updateUI());
@@ -344,8 +353,10 @@ public class FileSync {
 		state.addListener((observable, oldValue, newValue) -> updateUI());
 
 		chk_checksum.selectedProperty().addListener((observable, oldValue, newValue) -> {
-			if (!loading.get())
+			if (!loading.get()) {
 				currentProfile.get().settings.checksum = newValue;
+				state.set(isDirConfigValid() ? STATE_READY_TO_ANALYZE : STATE_INITIAL);
+			}
 			updateUI();
 		});
 
@@ -356,7 +367,6 @@ public class FileSync {
 
 			list_exclude.getItems().clear();
 			list_include.getItems().clear();
-			tbl_source.getItems().clear();
 
 			state.set(isDirConfigValid() ? STATE_READY_TO_ANALYZE : STATE_INITIAL);
 		});
@@ -378,6 +388,39 @@ public class FileSync {
 		lbl_profile.setText(NEW_PROFILE);
 
 		currentProfile.set(newProfile());
+	}
+
+	private void calculateTotalSize() {
+		totalSize
+				.set(filteredList.stream().collect(Collectors.summarizingLong(syncEntry -> syncEntry.length)).getSum());
+	}
+
+	private void onTotalSizeChanged(Number newValue) {
+		Platform.runLater(() -> {
+			if (newValue.longValue() == TOTAL_SIZE_UNKNOWN) {
+				lbl_total.setText("unknown");
+			} else {
+				var size = newValue.doubleValue();
+				var uom = "B";
+
+				if (size > 1024) {
+					uom = "KB";
+					size /= 1024D;
+				}
+
+				if (size > 1024) {
+					uom = "MB";
+					size /= 1024D;
+				}
+
+				if (size > 1024) {
+					uom = "GB";
+					size /= 1024D;
+				}
+
+				lbl_total.setText(String.format("%.3f %s", size, uom));
+			}
+		});
 	}
 
 	private void setupTable() {
@@ -425,6 +468,24 @@ public class FileSync {
 			};
 		});
 
+		col_flag_compare.setCellFactory(col -> new TableCell<SyncEntry, SyncEntry>() {
+			@Override
+			protected void updateItem(SyncEntry item, boolean empty) {
+				if (empty) {
+					setGraphic(null);
+					setTooltip(null);
+				} else {
+					if (item != null && item.accessException != null) {
+						this.setGraphic(getIcon("lightning_bolt_icon"));
+						this.setTooltip(new Tooltip(item.accessException.getMessage()));
+					} else {
+						setGraphic(null);
+						setTooltip(null);
+					}
+				}
+			}
+		});
+
 		var lvl_label = new Label();
 		lvl_label.setGraphic(getIcon("down_double_icon"));
 		lvl_label.setTooltip(new Tooltip("Drilldown Level"));
@@ -435,8 +496,6 @@ public class FileSync {
 			btn_add_exclude.setDisable(newValue == null);
 			btn_add_include.setDisable(newValue == null);
 		});
-
-		// TODO col_compare
 	}
 
 	private void updateUI() {
@@ -470,6 +529,11 @@ public class FileSync {
 
 			btn_del_include.setDisable(list_include.getSelectionModel().getSelectedItems().isEmpty()
 					|| state.get() != STATE_READY_TO_SYNC);
+
+			if (Arrays.asList(new Integer[] { STATE_READY_TO_ANALYZE, STATE_INITIAL }).contains(state.get())) {
+				tableItems.clear();
+				totalSize.set(TOTAL_SIZE_UNKNOWN);
+			}
 		});
 	}
 
@@ -569,7 +633,6 @@ public class FileSync {
 
 	@FXML
 	void actn_analyze(ActionEvent event) {
-		tableItems.clear();
 		state.set(STATE_ANALYZING);
 
 		new Thread(() -> analyze()).start();
@@ -578,7 +641,7 @@ public class FileSync {
 	private void analyze() {
 		try {
 			Files.walk(sourceDir.get()).anyMatch(p -> analyzeSingle(p));
-
+			calculateTotalSize();
 			state.set(STATE_READY_TO_SYNC);
 		} catch (Exception ex) {
 			FxMain.handleException(ex);
@@ -696,9 +759,12 @@ public class FileSync {
 	void actn_start_sync(ActionEvent event) {
 		state.set(STATE_SYNCING);
 
-		// ...
+		new Thread(() -> {
+			// as the files are encrypted, we can only compare against the data in the
+			// profile.
+			state.set(STATE_READY_TO_SYNC);
+		}).start();
 
-		state.set(STATE_READY_TO_SYNC);
 	}
 
 	@FXML
@@ -809,7 +875,7 @@ public class FileSync {
 		StringBuilder sb = new StringBuilder();
 		while (m.find()) {
 			if (m.group(1) != null)
-				sb.append(m.group(1));
+				sb.append(Pattern.quote(m.group(1)));
 
 			if (m.group(2) != null)
 				switch (m.group(2)) {

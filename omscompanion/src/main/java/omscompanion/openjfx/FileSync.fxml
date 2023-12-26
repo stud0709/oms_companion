@@ -6,7 +6,6 @@
 <?import javafx.scene.control.ChoiceBox?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ListView?>
-<?import javafx.scene.control.ProgressIndicator?>
 <?import javafx.scene.control.SplitPane?>
 <?import javafx.scene.control.TableColumn?>
 <?import javafx.scene.control.TableView?>
@@ -102,17 +101,21 @@
                   <Button fx:id="btn_analyze" mnemonicParsing="false" onAction="#actn_analyze" text="Analyze" />
                   <Button fx:id="btn_start_sync" mnemonicParsing="false" onAction="#actn_start_sync" text="Start Sync" />
                   <Button fx:id="btn_stop" mnemonicParsing="false" onAction="#actn_stop" text="Stop" />
-                  <ProgressIndicator fx:id="progress_sync" progress="0.0" />
                </children>
                <padding>
                   <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
                </padding>
             </HBox>
-            <CheckBox fx:id="chk_checksum" mnemonicParsing="false" text="compare using checksum (thorough, but slow!)">
-               <padding>
-                  <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
-               </padding>
-            </CheckBox>
+            <HBox spacing="5.0">
+               <children>
+                  <CheckBox fx:id="chk_checksum" maxWidth="1.7976931348623157E308" mnemonicParsing="false" text="compare using checksum (thorough, but slow!)" HBox.hgrow="ALWAYS">
+                     <padding>
+                        <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
+                     </padding>
+                  </CheckBox>
+                  <Label fx:id="lbl_total" contentDisplay="RIGHT" maxHeight="1.7976931348623157E308" text="unknown" />
+               </children>
+            </HBox>
          </children>
       </VBox>
    </bottom>
