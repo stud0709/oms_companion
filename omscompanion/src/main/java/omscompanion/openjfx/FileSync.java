@@ -9,14 +9,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.exc.StreamReadException;
 import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javafx.application.Platform;
-import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleLongProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.collections.FXCollections;
@@ -51,6 +49,7 @@ import javafx.stage.FileChooser.ExtensionFilter;
 import javafx.stage.Stage;
 import omscompanion.FxMain;
 import omscompanion.Main;
+import omscompanion.MessageComposer;
 
 public class FileSync {
 	private static final String TYPE_PROFILE = ".omsfs", NEW_PROFILE = "(new profile)",
@@ -58,81 +57,56 @@ public class FileSync {
 	private final ObjectMapper objectMapper = new ObjectMapper();
 	private final SimpleObjectProperty<Path> sourceDir = new SimpleObjectProperty<>(),
 			destinationDir = new SimpleObjectProperty<>();
-	private final SimpleObjectProperty<Profile> currentProfile = new SimpleObjectProperty<>();
+	private final SimpleObjectProperty<Profile> currentProfileProperty = new SimpleObjectProperty<>();
 
-	private static final int STATE_INITIAL = 0, STATE_READY_TO_ANALYZE = 1, STATE_ANALYZING = 2,
-			STATE_READY_TO_SYNC = 3, STATE_SYNCING = 4, TOTAL_SIZE_UNKNOWN = -1;
-	private final SimpleIntegerProperty state = new SimpleIntegerProperty(-1);
+	private enum State {
+		INITIAL, READY_TO_ANALYZE, ANALYZING, READY_TO_SYNC, SYNCING;
+	}
+
+	private enum Result {
+		ERROR, UNCHANGED, DELETED, COPIED;
+	}
+
+	private static final int TOTAL_SIZE_UNKNOWN = -1;
+
+	private final SimpleObjectProperty<State> stateProperty = new SimpleObjectProperty<>(State.INITIAL);
 	private final ObservableList<SyncEntry> tableItems = FXCollections.observableArrayList();
 	private final FilteredList<SyncEntry> filteredList = new FilteredList<>(tableItems);
-	private final SimpleLongProperty totalSize = new SimpleLongProperty();
+	private final SimpleLongProperty totalSizeProperty = new SimpleLongProperty();
 
 	private class SyncEntry {
 		public final SimpleObjectProperty<Path> pathProperty = new SimpleObjectProperty<>();
 		public final long length;
-
-		public Exception accessException = null;
+		public final SimpleObjectProperty<CompareResult> compareProperty = new SimpleObjectProperty<>();
 
 		public SyncEntry(Path path) {
 			pathProperty.set(path);
 			var _length = 0L;
-			Exception ex = null;
 			try {
 				_length = Files.isDirectory(path) ? 0 : Files.size(path);
 			} catch (IOException e) {
-				ex = e;
+				e.printStackTrace();
+				compareProperty.set(new CompareResult(e));
 			}
 
 			length = _length;
-			accessException = ex;
 		}
 	}
 
-	public static record PathAndChecksum(String path, byte[] checksum) {
+	public static record CompareResult(Result result, Exception exception) {
+		public CompareResult(Exception e) {
+			this(Result.ERROR, e);
+		}
+
+		public CompareResult(Result compare) {
+			this(compare, null);
+		}
 	};
-
-	public static record PathLengthAndDate(String path, long length, long date) {
-	};
-
-	public static class ProfileSettings {
-		public String sourceDir, destinationDir, publicKeyName;
-		public String[] exclusionList, inclusionList;
-		boolean checksum;
-
-		public ProfileSettings(String sourceDir, String destinationDir, String[] exclusionList, String[] inclusionList,
-				String publicKeyName, boolean checksum) {
-			this.sourceDir = sourceDir;
-			this.destinationDir = destinationDir;
-			this.publicKeyName = publicKeyName;
-			this.exclusionList = exclusionList;
-			this.inclusionList = inclusionList;
-			this.checksum = checksum;
-		}
-	}
-
-	public static class Profile {
-		public ProfileSettings settings;
-		public PathAndChecksum[] pathAndChecksum;
-		public PathLengthAndDate[] pathLengthAndDate;
-
-		@JsonIgnore
-		public SimpleObjectProperty<File> file = new SimpleObjectProperty<>();
-		@JsonIgnore
-		public Profile backup;
-
-		public Profile(ProfileSettings settings, PathAndChecksum[] pathAndChecksum,
-				PathLengthAndDate[] pathLengthAndDate) {
-			this.settings = settings;
-			this.pathAndChecksum = pathAndChecksum;
-			this.pathLengthAndDate = pathLengthAndDate;
-		}
-	}
 
 	private Profile newProfile() {
 		var profile = new Profile(new ProfileSettings(null, null, new String[] {}, new String[] {},
 				choice_public_key.getValue(), chk_checksum.isSelected()), new PathAndChecksum[] {},
 				new PathLengthAndDate[] {});
-		profile.file.addListener((observable, oldValue, newValue) -> onProfileFileChanged(newValue));
 		profile.backup = new Profile(new ProfileSettings(null, null, new String[] {}, new String[] {},
 				choice_public_key.getValue(), chk_checksum.isSelected()), new PathAndChecksum[] {},
 				new PathLengthAndDate[] {});
@@ -195,7 +169,7 @@ public class FileSync {
 	private TableColumn<SyncEntry, Path> col_filename;
 
 	@FXML
-	private TableColumn<SyncEntry, SyncEntry> col_flag_compare;
+	private TableColumn<SyncEntry, CompareResult> col_sync_result;
 
 	@FXML
 	private TableColumn<SyncEntry, Path> col_flag_folder;
@@ -321,13 +295,14 @@ public class FileSync {
 			public void onChanged(Change<? extends String> c) {
 				btn_del_exclude.setDisable(list_exclude.getItems().isEmpty());
 				if (!loading.get())
-					currentProfile.get().settings.exclusionList = list_exclude.getItems().toArray(new String[] {});
+					currentProfileProperty.get().settings.exclusionList = list_exclude.getItems()
+							.toArray(new String[] {});
 				updateUI();
 			}
 		});
 
-		totalSize.addListener((observable, oldValue, newValue) -> onTotalSizeChanged(newValue));
-		totalSize.set(TOTAL_SIZE_UNKNOWN);
+		totalSizeProperty.addListener((observable, oldValue, newValue) -> onTotalSizeChanged(newValue));
+		totalSizeProperty.set(TOTAL_SIZE_UNKNOWN);
 
 		list_exclude.getSelectionModel().getSelectedItems()
 				.addListener((ListChangeListener.Change<? extends String> c) -> updateUI());
@@ -340,7 +315,8 @@ public class FileSync {
 			public void onChanged(Change<? extends String> c) {
 				btn_del_include.setDisable(list_include.getItems().isEmpty());
 				if (!loading.get())
-					currentProfile.get().settings.inclusionList = list_include.getItems().toArray(new String[] {});
+					currentProfileProperty.get().settings.inclusionList = list_include.getItems()
+							.toArray(new String[] {});
 				updateUI();
 			}
 		});
@@ -350,12 +326,12 @@ public class FileSync {
 
 		list_include.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
 
-		state.addListener((observable, oldValue, newValue) -> updateUI());
+		stateProperty.addListener((observable, oldValue, newValue) -> updateUI());
 
 		chk_checksum.selectedProperty().addListener((observable, oldValue, newValue) -> {
 			if (!loading.get()) {
-				currentProfile.get().settings.checksum = newValue;
-				state.set(isDirConfigValid() ? STATE_READY_TO_ANALYZE : STATE_INITIAL);
+				currentProfileProperty.get().settings.checksum = newValue;
+				stateProperty.set(isDirConfigValid() ? State.READY_TO_ANALYZE : State.INITIAL);
 			}
 			updateUI();
 		});
@@ -363,12 +339,12 @@ public class FileSync {
 		sourceDir.addListener((observable, oldValue, newValue) -> {
 			lbl_srcdir.setText(newValue == null ? PLEASE_SELECT : newValue.toFile().getAbsolutePath());
 			if (!loading.get())
-				currentProfile.get().settings.sourceDir = newValue.toFile().getAbsolutePath();
+				currentProfileProperty.get().settings.sourceDir = newValue.toFile().getAbsolutePath();
 
 			list_exclude.getItems().clear();
 			list_include.getItems().clear();
 
-			state.set(isDirConfigValid() ? STATE_READY_TO_ANALYZE : STATE_INITIAL);
+			stateProperty.set(isDirConfigValid() ? State.READY_TO_ANALYZE : State.INITIAL);
 		});
 
 		lbl_srcdir.setText(PLEASE_SELECT);
@@ -376,22 +352,22 @@ public class FileSync {
 		destinationDir.addListener((observable, oldValue, newValue) -> {
 			lbl_targetdir.setText(newValue == null ? PLEASE_SELECT : newValue.toFile().getAbsolutePath());
 			if (!loading.get())
-				currentProfile.get().settings.destinationDir = newValue.toFile().getAbsolutePath();
+				currentProfileProperty.get().settings.destinationDir = newValue.toFile().getAbsolutePath();
 
-			state.set(isDirConfigValid() ? STATE_READY_TO_ANALYZE : STATE_INITIAL);
+			stateProperty.set(isDirConfigValid() ? State.READY_TO_ANALYZE : State.INITIAL);
 		});
 
 		lbl_targetdir.setText(PLEASE_SELECT);
 
-		currentProfile.addListener((observable, oldValue, newValue) -> loadProfile(newValue));
+		currentProfileProperty.addListener((observable, oldValue, newValue) -> loadProfile(newValue));
 
 		lbl_profile.setText(NEW_PROFILE);
 
-		currentProfile.set(newProfile());
+		currentProfileProperty.set(newProfile());
 	}
 
 	private void calculateTotalSize() {
-		totalSize
+		totalSizeProperty
 				.set(filteredList.stream().collect(Collectors.summarizingLong(syncEntry -> syncEntry.length)).getSum());
 	}
 
@@ -426,7 +402,7 @@ public class FileSync {
 	private void setupTable() {
 		tbl_source.setItems(filteredList);
 		tbl_source.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-		col_filename.prefWidthProperty().bind(tbl_source.widthProperty().subtract(col_flag_compare.widthProperty())
+		col_filename.prefWidthProperty().bind(tbl_source.widthProperty().subtract(col_sync_result.widthProperty())
 				.subtract(col_flag_folder.widthProperty()).subtract(col_level.widthProperty()));
 		col_filename.setCellValueFactory(cellDataFeatures -> cellDataFeatures.getValue().pathProperty);
 		col_filename.setCellFactory(col -> new TableCell<SyncEntry, Path>() {
@@ -437,7 +413,7 @@ public class FileSync {
 					setTooltip(null);
 				} else {
 					setText(item.getFileName().toString());
-					setTooltip(new Tooltip("..." + File.separatorChar + getSubpath(item)));
+					setTooltip(new Tooltip("..." + File.separatorChar + getSubpathOfSource(item)));
 				}
 			};
 		});
@@ -468,16 +444,36 @@ public class FileSync {
 			};
 		});
 
-		col_flag_compare.setCellFactory(col -> new TableCell<SyncEntry, SyncEntry>() {
+		col_sync_result.setCellValueFactory(param -> param.getValue().compareProperty);
+		col_sync_result.setCellFactory(col -> new TableCell<SyncEntry, CompareResult>() {
 			@Override
-			protected void updateItem(SyncEntry item, boolean empty) {
+			protected void updateItem(CompareResult compareResult, boolean empty) {
 				if (empty) {
 					setGraphic(null);
 					setTooltip(null);
 				} else {
-					if (item != null && item.accessException != null) {
-						this.setGraphic(getIcon("lightning_bolt_icon"));
-						this.setTooltip(new Tooltip(item.accessException.getMessage()));
+					if (compareResult != null) {
+						switch (compareResult.result) {
+						case ERROR -> {
+							this.setGraphic(getIcon("lightning_bolt_icon"));
+							var ex = compareResult.exception;
+							this.setTooltip(
+									new Tooltip(ex.getMessage() == null ? ex.getClass().getName() : ex.getMessage()));
+						}
+						case DELETED -> {
+							this.setGraphic(getIcon("x_icon"));
+							setTooltip(new Tooltip("Deleted"));
+						}
+						case COPIED -> {
+							this.setGraphic(getIcon("logout_icon"));
+							setTooltip(new Tooltip("Mirrored to the destination folder"));
+						}
+						case UNCHANGED -> {
+							this.setGraphic(getIcon("check_icon"));
+							setTooltip(new Tooltip("Unchanged"));
+						}
+						}
+
 					} else {
 						setGraphic(null);
 						setTooltip(null);
@@ -492,6 +488,12 @@ public class FileSync {
 
 		col_level.setGraphic(lvl_label);
 
+		var result_label = new Label();
+		result_label.setGraphic(getIcon("view_grid_icon"));
+		result_label.setTooltip(new Tooltip("Sync Result"));
+
+		col_sync_result.setGraphic(result_label);
+
 		tbl_source.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
 			btn_add_exclude.setDisable(newValue == null);
 			btn_add_include.setDisable(newValue == null);
@@ -500,47 +502,49 @@ public class FileSync {
 
 	private void updateUI() {
 		Platform.runLater(() -> {
-			btn_start_sync
-					.setDisable(state.get() != STATE_READY_TO_SYNC || choice_public_key.getSelectionModel().isEmpty());
+			btn_start_sync.setDisable(
+					stateProperty.get() != State.READY_TO_SYNC || choice_public_key.getSelectionModel().isEmpty());
 
-			btn_stop.setDisable(!Arrays.asList(new Integer[] { STATE_ANALYZING, STATE_SYNCING }).contains(state.get()));
+			btn_stop.setDisable(
+					!Arrays.asList(new State[] { State.ANALYZING, State.SYNCING }).contains(stateProperty.get()));
 
 			for (var node : new Node[] { chk_checksum, btn_destdir, btn_srcdir, btn_open, choice_public_key,
 					btn_del_include, btn_del_exclude, btn_new }) {
-				node.setDisable(Arrays.asList(new Integer[] { STATE_ANALYZING, STATE_SYNCING }).contains(state.get()));
+				node.setDisable(
+						Arrays.asList(new State[] { State.ANALYZING, State.SYNCING }).contains(stateProperty.get()));
 			}
 
-			btn_del_profile
-					.setDisable(Arrays.asList(new Integer[] { STATE_ANALYZING, STATE_SYNCING }).contains(state.get())
-							|| currentProfile.get().file.get() == null);
+			btn_del_profile.setDisable(
+					Arrays.asList(new State[] { State.ANALYZING, State.SYNCING }).contains(stateProperty.get())
+							|| currentProfileProperty.get().file.get() == null);
 
-			btn_analyze.setDisable(!Arrays.asList(new Integer[] { STATE_READY_TO_ANALYZE, STATE_READY_TO_SYNC })
-					.contains(state.get()));
+			btn_analyze.setDisable(!Arrays.asList(new State[] { State.READY_TO_ANALYZE, State.READY_TO_SYNC })
+					.contains(stateProperty.get()));
 
-			btn_save.setDisable(
-					!Arrays.asList(new Integer[] { STATE_READY_TO_ANALYZE, STATE_READY_TO_SYNC }).contains(state.get())
-							|| currentProfile.get().file.get() == null || !isProfileChanged());
+			btn_save.setDisable(!Arrays.asList(new State[] { State.READY_TO_ANALYZE, State.READY_TO_SYNC })
+					.contains(stateProperty.get()) || currentProfileProperty.get().file.get() == null
+					|| !isProfileChanged());
 
-			btn_save_as.setDisable(!Arrays.asList(new Integer[] { STATE_READY_TO_ANALYZE, STATE_READY_TO_SYNC })
-					.contains(state.get()));
+			btn_save_as.setDisable(!Arrays.asList(new State[] { State.READY_TO_ANALYZE, State.READY_TO_SYNC })
+					.contains(stateProperty.get()));
 
 			btn_del_exclude.setDisable(list_exclude.getSelectionModel().getSelectedItems().isEmpty()
-					|| state.get() != STATE_READY_TO_SYNC);
+					|| stateProperty.get() != State.READY_TO_SYNC);
 
 			btn_del_include.setDisable(list_include.getSelectionModel().getSelectedItems().isEmpty()
-					|| state.get() != STATE_READY_TO_SYNC);
+					|| stateProperty.get() != State.READY_TO_SYNC);
 
-			if (Arrays.asList(new Integer[] { STATE_READY_TO_ANALYZE, STATE_INITIAL }).contains(state.get())) {
+			if (Arrays.asList(new State[] { State.READY_TO_ANALYZE, State.INITIAL }).contains(stateProperty.get())) {
 				tableItems.clear();
-				totalSize.set(TOTAL_SIZE_UNKNOWN);
+				totalSizeProperty.set(TOTAL_SIZE_UNKNOWN);
 			}
 		});
 	}
 
 	protected boolean isProfileChanged() {
 		try {
-			String backup = objectMapper.writeValueAsString(currentProfile.get().backup.settings);
-			String current = objectMapper.writeValueAsString(currentProfile.get().settings);
+			String backup = objectMapper.writeValueAsString(currentProfileProperty.get().backup.settings);
+			String current = objectMapper.writeValueAsString(currentProfileProperty.get().settings);
 
 			return !backup.equals(current);
 		} catch (JsonProcessingException ex) {
@@ -617,6 +621,7 @@ public class FileSync {
 		loading.set(true);
 
 		try {
+			profile.file.addListener((observable, oldValue, newValue) -> onProfileFileChanged(newValue));
 			onProfileFileChanged(profile.file.get());
 			lbl_profile.setText(
 					profile.file.get() == null ? NEW_PROFILE : profile.file.get().getAbsolutePath().toString());
@@ -633,7 +638,7 @@ public class FileSync {
 
 	@FXML
 	void actn_analyze(ActionEvent event) {
-		state.set(STATE_ANALYZING);
+		stateProperty.set(State.ANALYZING);
 
 		new Thread(() -> analyze()).start();
 	}
@@ -642,14 +647,14 @@ public class FileSync {
 		try {
 			Files.walk(sourceDir.get()).anyMatch(p -> analyzeSingle(p));
 			calculateTotalSize();
-			state.set(STATE_READY_TO_SYNC);
+			stateProperty.set(State.READY_TO_SYNC);
 		} catch (Exception ex) {
 			FxMain.handleException(ex);
 		}
 	}
 
 	private boolean analyzeSingle(Path p) {
-		if (state.get() != STATE_ANALYZING)
+		if (stateProperty.get() != State.ANALYZING)
 			return true; // stop processing
 
 		var level = p.getNameCount() - sourceDir.get().getNameCount();
@@ -682,13 +687,13 @@ public class FileSync {
 		var alert = new Alert(AlertType.CONFIRMATION);
 		alert.setTitle(Main.APP_NAME);
 		alert.setHeaderText("Delete Profile");
-		alert.setContentText("Delete " + currentProfile.get().file.get().getName() + "?");
+		alert.setContentText("Delete " + currentProfileProperty.get().file.get().getName() + "?");
 		alert.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
 		alert.showAndWait().ifPresent(buttonType -> {
 			if (buttonType == ButtonType.YES)
 				try {
-					Files.delete(currentProfile.get().file.get().toPath());
-					currentProfile.set(newProfile());
+					Files.delete(currentProfileProperty.get().file.get().toPath());
+					currentProfileProperty.set(newProfile());
 				} catch (IOException e) {
 					FxMain.handleException(e);
 				}
@@ -698,7 +703,9 @@ public class FileSync {
 	@FXML
 	void actn_save(ActionEvent event) {
 		try {
-			objectMapper.writeValue(currentProfile.get().file.get(), currentProfile);
+			objectMapper.writeValue(currentProfileProperty.get().file.get(), currentProfileProperty);
+			currentProfileProperty.get().backup = objectMapper.readValue(currentProfileProperty.get().file.get(),
+					Profile.class);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -717,8 +724,9 @@ public class FileSync {
 			}
 
 			try {
-				objectMapper.writeValue(file, currentProfile);
-				currentProfile.get().file.set(file);
+				objectMapper.writeValue(file, currentProfileProperty.get());
+				currentProfileProperty.get().file.set(file);
+				currentProfileProperty.get().backup = objectMapper.readValue(file, Profile.class);
 			} catch (Exception ex) {
 				FxMain.handleException(ex);
 			}
@@ -757,21 +765,79 @@ public class FileSync {
 
 	@FXML
 	void actn_start_sync(ActionEvent event) {
-		state.set(STATE_SYNCING);
+		stateProperty.set(State.SYNCING);
 
 		new Thread(() -> {
 			// as the files are encrypted, we can only compare against the data in the
 			// profile.
-			state.set(STATE_READY_TO_SYNC);
+			var pathChecksum = Arrays.stream(currentProfileProperty.get().pathAndChecksum)
+					.collect(Collectors.toMap(pac -> pac.path, pac -> pac.checksum));
+			var checksumPath = Arrays.stream(currentProfileProperty.get().pathAndChecksum)
+					.collect(Collectors.toMap(pac -> pac.checksum, pac -> pac.path));
+			var pathLengthDate = Arrays.stream(currentProfileProperty.get().pathAndChecksum)
+					.collect(Collectors.toMap(pld -> pld.path, pld -> pld));
+
+			// Part 1: left to right
+			tbl_source.getItems().stream().forEach(item -> {
+				try {
+					var keyPath = getSubpathOfSource(item.pathProperty.get());
+
+					if (Files.isDirectory(item.pathProperty.get())) {
+						var targetPath = destinationDir.get().resolve(keyPath);
+
+						if (Files.exists(targetPath)) {
+							item.compareProperty.set(new CompareResult(Result.UNCHANGED));
+						} else {
+							Files.createDirectories(targetPath); // create if not exists
+							item.compareProperty.set(new CompareResult(Result.COPIED));
+						}
+					} else {
+						var encryptedFileName = String.format("%s.%s", keyPath.getFileName().toString(),
+								MessageComposer.OMS_FILE_TYPE);
+						var targetPath = keyPath.getNameCount() == 1 ? destinationDir.get().resolve(encryptedFileName)
+								: destinationDir.get().resolve(keyPath.getParent()).resolve(encryptedFileName);
+
+						// lookup reference data
+						boolean processFile = false;
+
+						if (chk_checksum.isSelected()) {
+							// use checksum
+							String checksumRef = pathChecksum.get(keyPath);
+							if (checksumRef == null) {
+								// new file
+								processFile = true;
+							} else {
+
+								// TODO: calculate checksum, compare
+							}
+						} else {
+							// use file date and size
+							var pld = pathLengthDate.get(keyPath);
+
+							if (pld == null) {
+								processFile = true;
+							} else {
+								// TODO: compare length and date
+							}
+						}
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+					item.compareProperty.set(new CompareResult(e));
+				}
+			});
+
+			stateProperty.set(State.READY_TO_SYNC);
 		}).start();
 
 	}
 
 	@FXML
 	void actn_stop(ActionEvent event) {
-		switch (state.get()) {
-		case STATE_ANALYZING -> state.set(STATE_READY_TO_ANALYZE);
-		case STATE_SYNCING -> state.set(STATE_READY_TO_SYNC);
+		switch (stateProperty.get()) {
+		case ANALYZING -> stateProperty.set(State.READY_TO_ANALYZE);
+		case SYNCING -> stateProperty.set(State.READY_TO_SYNC);
+		default -> throw new IllegalStateException();
 		}
 	}
 
@@ -781,18 +847,18 @@ public class FileSync {
 			var alert = new Alert(AlertType.CONFIRMATION);
 			alert.setTitle(Main.APP_NAME);
 			alert.setHeaderText("New Profile");
-			alert.setContentText("Discard current changes" + (currentProfile.get().file.get() == null ? ""
-					: " of " + currentProfile.get().file.get().getName()) + "?");
+			alert.setContentText("Discard current changes" + (currentProfileProperty.get().file.get() == null ? ""
+					: " of " + currentProfileProperty.get().file.get().getName()) + "?");
 
 			alert.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
 			alert.showAndWait().ifPresent(buttonType -> {
 				if (buttonType == ButtonType.YES)
-					currentProfile.set(newProfile());
+					currentProfileProperty.set(newProfile());
 			});
 			return;
 		}
 
-		currentProfile.set(newProfile());
+		currentProfileProperty.set(newProfile());
 	}
 
 	@FXML
@@ -815,9 +881,9 @@ public class FileSync {
 				profile.file.addListener((observable, oldValue, newValue) -> onProfileFileChanged(newValue));
 
 				profile.file.set(selectedFile);
-				currentProfile.set(profile);
+				currentProfileProperty.set(profile);
 			} catch (Exception ex) {
-				currentProfile.set(null);
+				currentProfileProperty.set(null);
 				FxMain.handleException(ex);
 			}
 		});
@@ -825,13 +891,14 @@ public class FileSync {
 
 	private void onProfileFileChanged(File f) {
 		btn_del_profile.setDisable(f == null);
+		lbl_profile.setText(f == null ? NEW_PROFILE : f.getAbsolutePath().toString());
 	}
 
 	@FXML
 	private void actn_add_to_list(ActionEvent event) {
 		var syncEntry = tbl_source.getSelectionModel().selectedItemProperty().get();
 
-		var textInputDialog = new TextInputDialog(getSubpath(syncEntry.pathProperty.get()));
+		var textInputDialog = new TextInputDialog(getSubpathOfSource(syncEntry.pathProperty.get()).toString());
 
 		textInputDialog.setTitle(Main.APP_NAME);
 		textInputDialog.setHeaderText(String.format(
@@ -853,12 +920,12 @@ public class FileSync {
 		filteredList.setPredicate(e -> matches(e));
 	}
 
-	private String getSubpath(Path item) {
-		return item.subpath(sourceDir.get().getNameCount(), item.getNameCount()).toString();
+	private Path getSubpathOfSource(Path item) {
+		return item.subpath(sourceDir.get().getNameCount(), item.getNameCount());
 	}
 
 	private boolean matches(SyncEntry syncEntry) {
-		var subpath = getSubpath(syncEntry.pathProperty.get());
+		var subpath = getSubpathOfSource(syncEntry.pathProperty.get()).toString();
 
 		if (!list_include.getItems().isEmpty()) {
 			// check for include

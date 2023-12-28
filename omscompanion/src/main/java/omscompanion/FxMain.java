@@ -32,9 +32,9 @@ public class FxMain extends Application {
 		ex.printStackTrace();
 		Platform.runLater(() -> {
 			var alert = new Alert(AlertType.ERROR);
-			alert.setTitle("Oops...");
-			alert.setHeaderText(ex.getMessage());
-			alert.setContentText(ex.toString());
+			alert.setTitle(Main.APP_NAME);
+			alert.setHeaderText(ex.getClass().getName());
+			alert.setContentText(ex.getMessage());
 			alert.showAndWait();
 		});
 	}

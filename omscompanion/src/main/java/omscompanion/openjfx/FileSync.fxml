@@ -21,7 +21,7 @@
               <columns>
                 <TableColumn fx:id="col_level" maxWidth="-1.0" minWidth="20.0" prefWidth="-1.0" resizable="false" sortable="false" />
                 <TableColumn fx:id="col_flag_folder" maxWidth="-1.0" minWidth="20.0" prefWidth="-1.0" resizable="false" sortable="false" />
-                  <TableColumn fx:id="col_flag_compare" maxWidth="-1.0" minWidth="20.0" prefWidth="-1.0" resizable="false" sortable="false" />
+                  <TableColumn fx:id="col_sync_result" maxWidth="-1.0" minWidth="20.0" prefWidth="-1.0" resizable="false" sortable="false" />
                   <TableColumn fx:id="col_filename" maxWidth="1.7976931348623157E308" minWidth="100.0" prefWidth="-1.0" sortable="false" text="Filename" />
               </columns>
             </TableView>
