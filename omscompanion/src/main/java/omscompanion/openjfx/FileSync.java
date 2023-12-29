@@ -1,11 +1,14 @@
 package omscompanion.openjfx;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -64,7 +67,7 @@ public class FileSync {
 	}
 
 	private enum Result {
-		ERROR, UNCHANGED, DELETED, COPIED;
+		ERROR, UNCHANGED, COPIED, DUPLICATED;
 	}
 
 	private static final int TOTAL_SIZE_UNKNOWN = -1;
@@ -76,20 +79,23 @@ public class FileSync {
 
 	private class SyncEntry {
 		public final SimpleObjectProperty<Path> pathProperty = new SimpleObjectProperty<>();
-		public final long length;
+		public final long length, lastModified;
 		public final SimpleObjectProperty<CompareResult> compareProperty = new SimpleObjectProperty<>();
 
 		public SyncEntry(Path path) {
 			pathProperty.set(path);
 			var _length = 0L;
+			var _date = 0L;
 			try {
 				_length = Files.isDirectory(path) ? 0 : Files.size(path);
+				_date = Files.getLastModifiedTime(path).toMillis();
 			} catch (IOException e) {
 				e.printStackTrace();
 				compareProperty.set(new CompareResult(e));
 			}
 
 			length = _length;
+			lastModified = _date;
 		}
 	}
 
@@ -402,6 +408,7 @@ public class FileSync {
 	private void setupTable() {
 		tbl_source.setItems(filteredList);
 		tbl_source.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+
 		col_filename.prefWidthProperty().bind(tbl_source.widthProperty().subtract(col_sync_result.widthProperty())
 				.subtract(col_flag_folder.widthProperty()).subtract(col_level.widthProperty()));
 		col_filename.setCellValueFactory(cellDataFeatures -> cellDataFeatures.getValue().pathProperty);
@@ -432,6 +439,11 @@ public class FileSync {
 
 		col_flag_folder.setGraphic(getIcon("folder_icon"));
 
+		var lvl_label = new Label();
+		lvl_label.setGraphic(getIcon("down_double_icon"));
+		lvl_label.setTooltip(new Tooltip("Drilldown Level"));
+
+		col_level.setGraphic(lvl_label);
 		col_level.setCellValueFactory(cellDataFeatures -> cellDataFeatures.getValue().pathProperty);
 		col_level.setCellFactory(col -> new TableCell<SyncEntry, Path>() {
 			@Override
@@ -444,6 +456,11 @@ public class FileSync {
 			};
 		});
 
+		var result_label = new Label();
+		result_label.setGraphic(getIcon("view_grid_icon"));
+		result_label.setTooltip(new Tooltip("Sync Result"));
+
+		col_sync_result.setGraphic(result_label);
 		col_sync_result.setCellValueFactory(param -> param.getValue().compareProperty);
 		col_sync_result.setCellFactory(col -> new TableCell<SyncEntry, CompareResult>() {
 			@Override
@@ -460,10 +477,6 @@ public class FileSync {
 							this.setTooltip(
 									new Tooltip(ex.getMessage() == null ? ex.getClass().getName() : ex.getMessage()));
 						}
-						case DELETED -> {
-							this.setGraphic(getIcon("x_icon"));
-							setTooltip(new Tooltip("Deleted"));
-						}
 						case COPIED -> {
 							this.setGraphic(getIcon("logout_icon"));
 							setTooltip(new Tooltip("Mirrored to the destination folder"));
@@ -472,8 +485,11 @@ public class FileSync {
 							this.setGraphic(getIcon("check_icon"));
 							setTooltip(new Tooltip("Unchanged"));
 						}
+						case DUPLICATED -> {
+							this.setGraphic(getIcon("duplicate_icon"));
+							setTooltip(new Tooltip("Already exists elsewhere; duplicated"));
 						}
-
+						}
 					} else {
 						setGraphic(null);
 						setTooltip(null);
@@ -481,18 +497,6 @@ public class FileSync {
 				}
 			}
 		});
-
-		var lvl_label = new Label();
-		lvl_label.setGraphic(getIcon("down_double_icon"));
-		lvl_label.setTooltip(new Tooltip("Drilldown Level"));
-
-		col_level.setGraphic(lvl_label);
-
-		var result_label = new Label();
-		result_label.setGraphic(getIcon("view_grid_icon"));
-		result_label.setTooltip(new Tooltip("Sync Result"));
-
-		col_sync_result.setGraphic(result_label);
 
 		tbl_source.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
 			btn_add_exclude.setDisable(newValue == null);
@@ -770,26 +774,28 @@ public class FileSync {
 		new Thread(() -> {
 			// as the files are encrypted, we can only compare against the data in the
 			// profile.
-			var pathChecksum = Arrays.stream(currentProfileProperty.get().pathAndChecksum)
+			var pathChecksumMap = Arrays.stream(currentProfileProperty.get().pathAndChecksum)
 					.collect(Collectors.toMap(pac -> pac.path, pac -> pac.checksum));
-			var checksumPath = Arrays.stream(currentProfileProperty.get().pathAndChecksum)
+			var checksumPathMap = Arrays.stream(currentProfileProperty.get().pathAndChecksum)
 					.collect(Collectors.toMap(pac -> pac.checksum, pac -> pac.path));
-			var pathLengthDate = Arrays.stream(currentProfileProperty.get().pathAndChecksum)
+			var pathLengthDateMap = Arrays.stream(currentProfileProperty.get().pathLengthAndDate)
 					.collect(Collectors.toMap(pld -> pld.path, pld -> pld));
 
 			// Part 1: left to right
-			tbl_source.getItems().stream().forEach(item -> {
-				try {
-					var keyPath = getSubpathOfSource(item.pathProperty.get());
+			tbl_source.getItems().stream().forEach(syncEntry -> {
+				var sourcePath = syncEntry.pathProperty.get();
 
-					if (Files.isDirectory(item.pathProperty.get())) {
+				try {
+					var keyPath = getSubpathOfSource(sourcePath);
+
+					if (Files.isDirectory(sourcePath)) {
 						var targetPath = destinationDir.get().resolve(keyPath);
 
 						if (Files.exists(targetPath)) {
-							item.compareProperty.set(new CompareResult(Result.UNCHANGED));
+							syncEntry.compareProperty.set(new CompareResult(Result.UNCHANGED));
 						} else {
 							Files.createDirectories(targetPath); // create if not exists
-							item.compareProperty.set(new CompareResult(Result.COPIED));
+							syncEntry.compareProperty.set(new CompareResult(Result.COPIED));
 						}
 					} else {
 						var encryptedFileName = String.format("%s.%s", keyPath.getFileName().toString(),
@@ -798,38 +804,97 @@ public class FileSync {
 								: destinationDir.get().resolve(keyPath.getParent()).resolve(encryptedFileName);
 
 						// lookup reference data
-						boolean processFile = false;
+						BiConsumer<SyncEntry, Path> fileProcessor = null;
 
-						if (chk_checksum.isSelected()) {
-							// use checksum
-							String checksumRef = pathChecksum.get(keyPath);
-							if (checksumRef == null) {
-								// new file
-								processFile = true;
+						PathAndChecksum pathAndChecksum;
+
+						try (FileInputStream fis = new FileInputStream(sourcePath.toFile())) {
+							var md = MessageDigest.getInstance("SHA-256");
+							var bArr = new byte[1024];
+							int cnt;
+							while ((cnt = fis.read(bArr)) != -1) {
+								md.update(bArr, 0, cnt);
+							}
+							pathAndChecksum = new PathAndChecksum(keyPath.toString(), Main.byteArrayToHex(md.digest()));
+						}
+
+						var pathLengthAndDate = new PathLengthAndDate(keyPath.toString(), syncEntry.length,
+								syncEntry.lastModified);
+
+						if (Files.exists(targetPath)) {
+							if (chk_checksum.isSelected()) {
+								// use checksum
+								String checksumRef = pathChecksumMap.get(keyPath.toString());
+								if (checksumRef == null) {
+									// new file
+									fileProcessor = ENCRYPT_FILE;
+								} else {
+
+									if (!checksumRef.equals(pathAndChecksum.checksum)) {
+										fileProcessor = ENCRYPT_FILE;
+
+										// check if there is another encrypted file with the same checksum
+										var copyFrom = checksumPathMap.get(pathAndChecksum.checksum);
+										if (copyFrom != null) {
+											var copyFromPath = destinationDir.get().resolve(Path.of(copyFrom));
+
+											if (Files.exists(copyFromPath)) {
+												fileProcessor = copyFile(copyFromPath);
+											}
+										}
+									}
+								}
 							} else {
+								// use file date and size
+								var pld = pathLengthDateMap.get(keyPath.toString());
 
-								// TODO: calculate checksum, compare
+								if (pld == null || !Files.exists(targetPath) || syncEntry.length != pld.length
+										|| syncEntry.lastModified != pld.lastModified) {
+									fileProcessor = ENCRYPT_FILE;
+								}
 							}
 						} else {
-							// use file date and size
-							var pld = pathLengthDate.get(keyPath);
+							fileProcessor = ENCRYPT_FILE;
+						}
 
-							if (pld == null) {
-								processFile = true;
-							} else {
-								// TODO: compare length and date
+						if (fileProcessor == null) {
+							syncEntry.compareProperty.set(new CompareResult(Result.UNCHANGED));
+						} else {
+							fileProcessor.accept(syncEntry, targetPath);
+							if (syncEntry.compareProperty.get().result != Result.ERROR) {
+								// all is well, update hash maps
+								checksumPathMap.put(pathAndChecksum.path, pathAndChecksum.checksum);
+								pathChecksumMap.put(pathAndChecksum.checksum, pathAndChecksum.path);
+								pathLengthDateMap.put(pathLengthAndDate.path, pathLengthAndDate);
 							}
 						}
 					}
 				} catch (Exception e) {
 					e.printStackTrace();
-					item.compareProperty.set(new CompareResult(e));
+					syncEntry.compareProperty.set(new CompareResult(e));
 				}
 			});
 
 			stateProperty.set(State.READY_TO_SYNC);
 		}).start();
 
+	}
+
+	private static final BiConsumer<SyncEntry, Path> ENCRYPT_FILE = (syncEntry, targetPath) -> {
+		// TODO
+		syncEntry.compareProperty.set(new CompareResult(Result.COPIED));
+	};
+
+	private BiConsumer<SyncEntry, Path> copyFile(Path copyFrom) {
+		return (syncEntry, targetPath) -> {
+			try {
+				Files.copy(copyFrom, targetPath);
+				syncEntry.compareProperty.set(new CompareResult(Result.DUPLICATED));
+			} catch (IOException e) {
+				e.printStackTrace();
+				syncEntry.compareProperty.set(new CompareResult(e));
+			}
+		};
 	}
 
 	@FXML
