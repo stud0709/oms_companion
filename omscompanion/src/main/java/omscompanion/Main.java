@@ -242,10 +242,20 @@ public class Main {
 		}
 	};
 
+	/**
+	 * Byte array to hex string adding divider (space) for readability
+	 * 
+	 * @param a
+	 * @return
+	 */
 	public static String byteArrayToHex(byte[] a) {
+		return byteArrayToHex(a, true);
+	}
+
+	public static String byteArrayToHex(byte[] a, boolean addDivider) {
 		var sb = new StringBuilder(a.length * 2);
 		for (int i = 0; i < a.length; i++) {
-			sb.append(String.format("%02x", a[i])).append(i % 2 == 1 ? " " : "");
+			sb.append(String.format("%02x", a[i])).append(i % 2 == 1 && addDivider ? " " : "");
 		}
 		return sb.toString().trim();
 	}

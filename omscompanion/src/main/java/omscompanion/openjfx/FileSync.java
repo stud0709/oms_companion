@@ -62,72 +62,6 @@ import omscompanion.crypto.EncryptedFile;
 import omscompanion.crypto.RSAUtils;
 
 public class FileSync {
-	private static final String TYPE_PROFILE = ".omsfs", NEW_PROFILE = "(new profile)",
-			PLEASE_SELECT = "(please select)";
-	private final ObjectMapper objectMapper = new ObjectMapper();
-	private final SimpleObjectProperty<Path> sourceDir = new SimpleObjectProperty<>(),
-			destinationDir = new SimpleObjectProperty<>();
-	private final SimpleObjectProperty<Profile> currentProfileProperty = new SimpleObjectProperty<>();
-
-	private enum State {
-		INITIAL, READY_TO_ANALYZE, ANALYZING, READY_TO_SYNC, SYNCING, DONE_SYNCING;
-	}
-
-	private enum Result {
-		ERROR, MATCH, MIRRORED;
-	}
-
-	private static final int TOTAL_SIZE_UNKNOWN = -1, TOTAL_SIZE_DONE = -2;
-
-	private final SimpleObjectProperty<State> stateProperty = new SimpleObjectProperty<>(State.INITIAL);
-	private final ObservableList<SyncEntry> tableItems = FXCollections.observableArrayList();
-	private final FilteredList<SyncEntry> filteredList = new FilteredList<>(tableItems);
-	private final SimpleLongProperty totalSizeProperty = new SimpleLongProperty();
-	private final SimpleIntegerProperty matchesProperty = new SimpleIntegerProperty(),
-			errorsProperty = new SimpleIntegerProperty(), mirrorsProperty = new SimpleIntegerProperty(),
-			deletionsProperty = new SimpleIntegerProperty();
-
-	private class SyncEntry {
-		public final SimpleObjectProperty<Path> sourcePathProperty = new SimpleObjectProperty<>();
-		public final long length;
-		public final SimpleObjectProperty<CompareResult> compareProperty = new SimpleObjectProperty<>();
-		public final SimpleObjectProperty<Path> keyPathProperty = new SimpleObjectProperty<>();
-
-		public SyncEntry(Path sourcePath) {
-			sourcePathProperty.set(sourcePath);
-			var _length = 0L;
-			try {
-				_length = Files.isDirectory(sourcePath) ? 0 : Files.size(sourcePath);
-			} catch (IOException e) {
-				e.printStackTrace();
-				compareProperty.set(new CompareResult(e));
-			}
-
-			length = _length;
-			keyPathProperty.set(sourcePath.subpath(sourceDir.get().getNameCount(), sourcePath.getNameCount()));
-
-			compareProperty.addListener((observable, oldValue, newValue) -> {
-				switch (newValue.result) {
-				case MIRRORED -> mirrorsProperty.add(1);
-				case ERROR -> errorsProperty.add(1);
-				case MATCH -> matchesProperty.add(1);
-				}
-			});
-		}
-	}
-
-	public static record CompareResult(Result result, Exception exception) {
-		public CompareResult(Exception e) {
-			this(Result.ERROR, e);
-		}
-
-		public CompareResult(Result compare) {
-			this(compare, null);
-		}
-	};
-
-	private AtomicBoolean loading = new AtomicBoolean();
-
 	// icons by https://www.iconfinder.com/search?q=&iconset=heroicons-solid
 
 	@FXML
@@ -220,11 +154,83 @@ public class FileSync {
 	@FXML
 	private TableView<SyncEntry> tbl_source;
 
+	private static final String TYPE_PROFILE = ".omsfs", NEW_PROFILE = "(new profile)",
+			PLEASE_SELECT = "(please select)";
+	private final ObjectMapper objectMapper = new ObjectMapper();
+	private final SimpleObjectProperty<Path> sourceDir = new SimpleObjectProperty<>(),
+			destinationDir = new SimpleObjectProperty<>();
+	private final SimpleObjectProperty<Profile> currentProfileProperty = new SimpleObjectProperty<>();
+
+	private enum State {
+		INITIAL, READY_TO_ANALYZE, ANALYZING, READY_TO_SYNC, SYNCING, DONE_SYNCING;
+	}
+
+	private enum Result {
+		ERROR, MATCH, MIRRORED;
+	}
+
+	private static final int TOTAL_SIZE_UNKNOWN = -1, TOTAL_SIZE_DONE = -2;
+
+	private final SimpleObjectProperty<State> stateProperty = new SimpleObjectProperty<>(State.INITIAL);
+	private final ObservableList<SyncEntry> tableItems = FXCollections.observableArrayList();
+	private final FilteredList<SyncEntry> filteredList = new FilteredList<>(tableItems);
+	private final SimpleLongProperty totalSizeProperty = new SimpleLongProperty();
+	private final SimpleIntegerProperty matchesProperty = new SimpleIntegerProperty(),
+			errorsProperty = new SimpleIntegerProperty(), mirrorsProperty = new SimpleIntegerProperty(),
+			deletionsProperty = new SimpleIntegerProperty();
+
+	private class SyncEntry {
+		public final SimpleObjectProperty<Path> sourcePathProperty = new SimpleObjectProperty<>();
+		public final long length;
+		public final SimpleObjectProperty<CompareResult> compareProperty = new SimpleObjectProperty<>();
+		public final SimpleObjectProperty<Path> keyPathProperty = new SimpleObjectProperty<>();
+
+		public SyncEntry(Path sourcePath) {
+			sourcePathProperty.set(sourcePath);
+			var _length = 0L;
+			try {
+				_length = Files.isDirectory(sourcePath) ? 0 : Files.size(sourcePath);
+			} catch (IOException e) {
+				e.printStackTrace();
+				compareProperty.set(new CompareResult(e));
+			}
+
+			length = _length;
+			keyPathProperty.set(sourcePath.subpath(sourceDir.get().getNameCount(), sourcePath.getNameCount()));
+
+			compareProperty.addListener((observable, oldValue, newValue) -> {
+				synchronized (FileSync.this) {
+					switch (newValue.result) {
+					case MIRRORED -> mirrorsProperty.set(mirrorsProperty.get() + 1);
+					case ERROR -> errorsProperty.set(errorsProperty.get() + 1);
+					case MATCH -> matchesProperty.set(matchesProperty.get() + 1);
+					}
+				}
+			});
+		}
+	}
+
+	public static record CompareResult(Result result, Exception exception) {
+		public CompareResult(Exception e) {
+			this(Result.ERROR, e);
+		}
+
+		public CompareResult(Result compare) {
+			this(compare, null);
+		}
+	};
+
+	private AtomicBoolean loading = new AtomicBoolean(true);
+
 	private Profile newProfile() {
-		var profile = new Profile(new ProfileSettings(null, null, new String[] {}, new String[] {},
-				choice_public_key.getValue().toString()), new PathAndChecksum[] {});
-		profile.backup = new Profile(new ProfileSettings(null, null, new String[] {}, new String[] {},
-				choice_public_key.getValue().toString()), new PathAndChecksum[] {});
+		var profile = new Profile(
+				new ProfileSettings(null, null, new String[] {}, new String[] {},
+						choice_public_key.getValue() == null ? null : choice_public_key.getValue().toString()),
+				new PathAndChecksum[] {});
+		profile.backup = new Profile(
+				new ProfileSettings(null, null, new String[] {}, new String[] {},
+						choice_public_key.getValue() == null ? null : choice_public_key.getValue().toString()),
+				new PathAndChecksum[] {});
 		return profile;
 	}
 
@@ -299,6 +305,12 @@ public class FileSync {
 
 		btn_add_include.setGraphic(getIcon("plus_circle_icon"));
 		btn_add_include.setText(null);
+
+		choice_public_key.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
+			if (loading.get())
+				return;
+			currentProfileProperty.get().settings.publicKeyName = newValue.toString();
+		});
 
 		EncryptionToolBar.initChoiceBox(choice_public_key);
 
@@ -405,25 +417,25 @@ public class FileSync {
 
 		currentProfileProperty.set(newProfile());
 
-		errorsProperty.addListener((observable, oldValue, newValue) -> toggle_errors
-				.setText(NumberFormat.getNumberInstance().format(newValue)));
-		matchesProperty.addListener((observable, oldValue, newValue) -> lbl_matches
-				.setText(NumberFormat.getNumberInstance().format(newValue)));
-		deletionsProperty.addListener((observable, oldValue, newValue) -> lbl_deletions
-				.setText(NumberFormat.getNumberInstance().format(newValue)));
-		mirrorsProperty.addListener((observable, oldValue, newValue) -> lbl_mirrors
-				.setText(NumberFormat.getNumberInstance().format(newValue)));
+		errorsProperty.addListener((observable, oldValue, newValue) -> Platform
+				.runLater(() -> toggle_errors.setText(NumberFormat.getNumberInstance().format(newValue))));
+		matchesProperty.addListener((observable, oldValue, newValue) -> Platform
+				.runLater(() -> lbl_matches.setText(NumberFormat.getNumberInstance().format(newValue))));
+		deletionsProperty.addListener((observable, oldValue, newValue) -> Platform
+				.runLater(() -> lbl_deletions.setText(NumberFormat.getNumberInstance().format(newValue))));
+		mirrorsProperty.addListener((observable, oldValue, newValue) -> Platform
+				.runLater(() -> lbl_mirrors.setText(NumberFormat.getNumberInstance().format(newValue))));
 	}
 
 	private void calculateTotals() {
 		totalSizeProperty
 				.set(filteredList.stream().collect(Collectors.summarizingLong(syncEntry -> syncEntry.length)).getSum());
-		errorsProperty.set((int) filteredList.stream()
-				.filter(syncEntry -> syncEntry.compareProperty.get().result == Result.ERROR).count());
-		matchesProperty.set((int) filteredList.stream()
-				.filter(syncEntry -> syncEntry.compareProperty.get().result == Result.MATCH).count());
-		mirrorsProperty.set((int) filteredList.stream()
-				.filter(syncEntry -> syncEntry.compareProperty.get().result == Result.MIRRORED).count());
+		errorsProperty.set((int) filteredList.stream().filter(syncEntry -> syncEntry.compareProperty.get() != null
+				&& syncEntry.compareProperty.get().result == Result.ERROR).count());
+		matchesProperty.set((int) filteredList.stream().filter(syncEntry -> syncEntry.compareProperty.get() != null
+				&& syncEntry.compareProperty.get().result == Result.MATCH).count());
+		mirrorsProperty.set((int) filteredList.stream().filter(syncEntry -> syncEntry.compareProperty.get() != null
+				&& syncEntry.compareProperty.get().result == Result.MIRRORED).count());
 	}
 
 	private void onTotalSizeChanged(Number newValue) {
@@ -546,15 +558,19 @@ public class FileSync {
 		});
 
 		tbl_source.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
-			btn_add_exclude.setDisable(newValue == null);
-			btn_add_include.setDisable(newValue == null);
+			var state = stateProperty.get();
+			btn_add_exclude.setDisable(
+					newValue == null || Arrays.asList(new State[] { State.ANALYZING, State.SYNCING }).contains(state));
+			btn_add_include.setDisable(
+					newValue == null || Arrays.asList(new State[] { State.ANALYZING, State.SYNCING }).contains(state));
 		});
 	}
 
 	private void updateUI() {
 		Platform.runLater(() -> {
 			var state = stateProperty.get();
-			btn_start_sync.setDisable(state != State.READY_TO_SYNC || choice_public_key.getSelectionModel().isEmpty());
+			btn_start_sync.setDisable(
+					state != State.READY_TO_SYNC || currentProfileProperty.get().settings.publicKeyName == null);
 
 			btn_stop.setDisable(!Arrays.asList(new State[] { State.ANALYZING, State.SYNCING }).contains(state));
 
@@ -593,11 +609,17 @@ public class FileSync {
 				deletionsProperty.set(0);
 			}
 
+			if (state == State.SYNCING) {
+				calculateTotals();
+			}
+
 			if (state == State.DONE_SYNCING) {
 				totalSizeProperty.set(TOTAL_SIZE_DONE);
 			}
 
 			toggle_errors.setSelected(false);
+			toggle_errors.setDisable(
+					!Arrays.asList(new State[] { State.READY_TO_SYNC, State.DONE_SYNCING }).contains(state));
 		});
 	}
 
@@ -759,8 +781,14 @@ public class FileSync {
 
 	@FXML
 	void actn_save(ActionEvent event) {
+		if (!currentProfileProperty.get().backup.settings.publicKeyName
+				.equals(currentProfileProperty.get().settings.publicKeyName)) {
+			// public key has changed, revoke all checksums - this will cause the encryption
+			// of files with the new key next time FileSync runs
+			currentProfileProperty.get().pathAndChecksum = new PathAndChecksum[] {};
+		}
 		try {
-			objectMapper.writeValue(currentProfileProperty.get().file.get(), currentProfileProperty);
+			objectMapper.writeValue(currentProfileProperty.get().file.get(), currentProfileProperty.get());
 			currentProfileProperty.get().backup = objectMapper.readValue(currentProfileProperty.get().file.get(),
 					Profile.class);
 		} catch (IOException e) {
@@ -778,6 +806,13 @@ public class FileSync {
 			var file = fileChooser.showSaveDialog(FxMain.getPrimaryStage());
 			if (file == null) {
 				return;
+			}
+
+			if (!currentProfileProperty.get().backup.settings.publicKeyName
+					.equals(currentProfileProperty.get().settings.publicKeyName)) {
+				// public key has changed, revoke all checksums - this will cause the encryption
+				// of files with the new key next time FileSync runs
+				currentProfileProperty.get().pathAndChecksum = new PathAndChecksum[] {};
 			}
 
 			try {
@@ -828,76 +863,22 @@ public class FileSync {
 			// as the files are encrypted, we can only compare against the data in the
 			// profile.
 			var pathChecksumMap = Arrays.stream(currentProfileProperty.get().pathAndChecksum)
+					.filter(pac -> pac.checksum != null) // a directory
 					.collect(Collectors.toMap(pac -> pac.path, pac -> pac.checksum));
 
 			// Part 1: left to right
-			tbl_source.getItems().stream().filter(syncEntry -> syncEntry.compareProperty.get().result != Result.ERROR)
-					.forEach(syncEntry -> {
-						var sourcePath = syncEntry.sourcePathProperty.get();
+			tbl_source.getItems().stream().filter(syncEntry -> syncEntry.compareProperty.get() == null
+					|| syncEntry.compareProperty.get().result != Result.ERROR).anyMatch(syncEntry -> {
+						if (stateProperty.get() != State.SYNCING)
+							return true;
 
-						try {
-							var keyPath = syncEntry.keyPathProperty.get();
+						syncSingle(syncEntry, pathChecksumMap);
 
-							if (Files.isDirectory(sourcePath)) {
-								var targetPath = destinationDir.get().resolve(keyPath);
-
-								if (Files.exists(targetPath)) {
-									syncEntry.compareProperty.set(new CompareResult(Result.MATCH));
-								} else {
-									Files.createDirectories(targetPath); // create if not exists
-									syncEntry.compareProperty.set(new CompareResult(Result.MIRRORED));
-								}
-
-								pathChecksumMap.put(keyPath.toString(), null);
-							} else {
-								var encryptedFileName = String.format("%s.%s", keyPath.getFileName().toString(),
-										MessageComposer.OMS_FILE_TYPE);
-								var targetPath = keyPath.getNameCount() == 1
-										? destinationDir.get().resolve(encryptedFileName)
-										: destinationDir.get().resolve(keyPath.getParent()).resolve(encryptedFileName);
-
-								// lookup reference data
-								BiConsumer<SyncEntry, Path> fileProcessor = null;
-
-								PathAndChecksum pathAndChecksum;
-
-								try (FileInputStream fis = new FileInputStream(sourcePath.toFile())) {
-									var md = MessageDigest.getInstance("SHA-256");
-									var bArr = new byte[1024];
-									int cnt;
-									while ((cnt = fis.read(bArr)) != -1) {
-										md.update(bArr, 0, cnt);
-									}
-									pathAndChecksum = new PathAndChecksum(keyPath.toString(),
-											Main.byteArrayToHex(md.digest()));
-								}
-
-								if (Files.exists(targetPath)) {
-									String checksumRef = pathChecksumMap.get(keyPath.toString());
-									if (checksumRef == null || !checksumRef.equals(pathAndChecksum.checksum)) {
-										fileProcessor = mirrorFile;
-									}
-								} else {
-									fileProcessor = mirrorFile;
-								}
-
-								if (fileProcessor == null) {
-									syncEntry.compareProperty.set(new CompareResult(Result.MATCH));
-								} else {
-									fileProcessor.accept(syncEntry, targetPath);
-									if (syncEntry.compareProperty.get().result != Result.ERROR) {
-										// all is well, update hash maps
-										pathChecksumMap.put(pathAndChecksum.checksum, pathAndChecksum.path);
-									}
-								}
-							}
-						} catch (Exception e) {
-							e.printStackTrace();
-							syncEntry.compareProperty.set(new CompareResult(e));
-						} finally {
-							totalSizeProperty.subtract(syncEntry.length);
-						}
+						return false;
 					});
+
+			if (stateProperty.get() != State.SYNCING)
+				return;
 
 			deleteFromMirror(pathChecksumMap);
 
@@ -906,6 +887,8 @@ public class FileSync {
 					.toArray(new PathAndChecksum[] {});
 
 			if (currentProfileProperty.get().file.get() != null) {
+				currentProfileProperty.get().backup.settings.publicKeyName = currentProfileProperty
+						.get().settings.publicKeyName;
 				actn_save(null);
 			}
 
@@ -913,11 +896,105 @@ public class FileSync {
 		}).start();
 	}
 
+	private void syncSingle(SyncEntry syncEntry, Map<String, String> pathChecksumMap) {
+		var sourcePath = syncEntry.sourcePathProperty.get();
+
+		try {
+			var keyPath = syncEntry.keyPathProperty.get();
+
+			if (Files.isDirectory(sourcePath)) {
+				var targetPath = destinationDir.get().resolve(keyPath);
+
+				if (Files.exists(targetPath)) {
+					syncEntry.compareProperty.set(new CompareResult(Result.MATCH));
+				} else {
+					Files.createDirectories(targetPath); // create if not exists
+					syncEntry.compareProperty.set(new CompareResult(Result.MIRRORED));
+				}
+
+				pathChecksumMap.put(keyPath.toString(), null);
+			} else {
+				var encryptedFileName = String.format("%s.%s", keyPath.getFileName().toString(),
+						MessageComposer.OMS_FILE_TYPE);
+				var targetPath = keyPath.getNameCount() == 1 ? destinationDir.get().resolve(encryptedFileName)
+						: destinationDir.get().resolve(keyPath.getParent()).resolve(encryptedFileName);
+
+				// lookup reference data
+				BiConsumer<SyncEntry, Path> fileProcessor = null;
+
+				PathAndChecksum pathAndChecksum;
+
+				try (FileInputStream fis = new FileInputStream(sourcePath.toFile())) {
+					var md = MessageDigest.getInstance("SHA-256");
+					var bArr = new byte[1024];
+					int cnt;
+					while ((cnt = fis.read(bArr)) != -1) {
+						md.update(bArr, 0, cnt);
+					}
+					pathAndChecksum = new PathAndChecksum(keyPath.toString(), Main.byteArrayToHex(md.digest(), false));
+				}
+
+				if (Files.exists(targetPath)) {
+					String checksumRef = pathChecksumMap.get(keyPath.toString());
+					if (checksumRef == null || !checksumRef.equals(pathAndChecksum.checksum) ||
+					/*
+					 * if public key changes, all data has to be encrypted with the new one
+					 */
+							!currentProfileProperty.get().settings.publicKeyName
+									.equals(currentProfileProperty.get().backup.settings.publicKeyName)) {
+						fileProcessor = mirrorFile;
+					}
+				} else {
+					fileProcessor = mirrorFile;
+				}
+
+				if (fileProcessor == null) {
+					syncEntry.compareProperty.set(new CompareResult(Result.MATCH));
+				} else {
+					fileProcessor.accept(syncEntry, targetPath);
+					if (syncEntry.compareProperty.get().result != Result.ERROR) {
+						// all is well, update hash maps
+						pathChecksumMap.put(pathAndChecksum.path, pathAndChecksum.checksum);
+					}
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			syncEntry.compareProperty.set(new CompareResult(e));
+		} finally {
+			if (stateProperty.get() == State.SYNCING)
+				synchronized (totalSizeProperty) {
+					totalSizeProperty.set(totalSizeProperty.get() - syncEntry.length);
+				}
+		}
+	}
+
 	private void deleteFromMirror(Map<String, String> pathChecksumMap) {
 		var destPath = destinationDir.get();
 		try {
 			var deletions = Files.walk(destPath).filter(p -> !p.equals(destPath))
-					.map(p -> p.subpath(destPath.getNameCount(), p.getNameCount()))
+					.map(p -> p.subpath(destPath.getNameCount(), p.getNameCount())).map(p -> {
+						/*
+						 * we are walking through the encrypted directory. Directory names are
+						 * unchanged, but file names end with OMS_FILE_TYPE
+						 */
+						if (Files.isDirectory(p))
+							return p;
+
+						var fn = p.getFileName().toString();
+
+						if (!fn.endsWith("." + MessageComposer.OMS_FILE_TYPE))
+							return p;
+
+						var fn_original = Path.of(fn.substring(0,
+								fn.length() - MessageComposer.OMS_FILE_TYPE.length() - 1 /* the dot */));
+
+						if (p.getNameCount() == 1) {
+							return fn_original;
+						} else {
+							return p.getParent().resolve(fn_original);
+						}
+					})
 					.filter(p -> !filteredList.stream()
 							.anyMatch(syncEntry -> syncEntry.keyPathProperty.get().equals(p)))
 					.collect(Collectors.toList());
@@ -933,7 +1010,9 @@ public class FileSync {
 				try {
 					Files.delete(destPath.resolve(p));
 					pathChecksumMap.remove(p.toString());
-					deletionsProperty.add(1);
+					synchronized (deletionsProperty) {
+						deletionsProperty.set(deletionsProperty.get() + 1);
+					}
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
@@ -960,7 +1039,7 @@ public class FileSync {
 	void actn_stop(ActionEvent event) {
 		switch (stateProperty.get()) {
 		case ANALYZING -> stateProperty.set(State.READY_TO_ANALYZE);
-		case SYNCING -> stateProperty.set(State.READY_TO_SYNC);
+		case SYNCING -> stateProperty.set(State.DONE_SYNCING);
 		default -> throw new IllegalStateException();
 		}
 	}
@@ -1054,7 +1133,8 @@ public class FileSync {
 
 		return !list_exclude.getItems().stream().map(s -> toPattern(s))
 				.anyMatch(s -> syncEntry.keyPathProperty.get().toString().matches(s))
-				&& (!toggle_errors.isSelected() || syncEntry.compareProperty.get().result == Result.ERROR);
+				&& (!toggle_errors.isSelected() || (syncEntry.compareProperty.get() != null
+						&& syncEntry.compareProperty.get().result == Result.ERROR));
 	}
 
 	private String toPattern(String s) {

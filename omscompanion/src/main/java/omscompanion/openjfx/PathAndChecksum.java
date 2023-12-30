@@ -7,4 +7,7 @@ public class PathAndChecksum {
 		this.path = path;
 		this.checksum = checksum;
 	}
+
+	public PathAndChecksum() {
+	}
 }
