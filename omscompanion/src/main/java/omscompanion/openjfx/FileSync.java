@@ -7,6 +7,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.regex.Pattern;
@@ -83,6 +85,7 @@ public class FileSync {
 		public final SimpleObjectProperty<Path> sourcePathProperty = new SimpleObjectProperty<>();
 		public final long length;
 		public final SimpleObjectProperty<CompareResult> compareProperty = new SimpleObjectProperty<>();
+		public final SimpleObjectProperty<Path> keyPathProperty = new SimpleObjectProperty<>();
 
 		public SyncEntry(Path sourcePath) {
 			sourcePathProperty.set(sourcePath);
@@ -95,6 +98,7 @@ public class FileSync {
 			}
 
 			length = _length;
+			keyPathProperty.set(sourcePath.subpath(sourceDir.get().getNameCount(), sourcePath.getNameCount()));
 		}
 	}
 
@@ -397,7 +401,7 @@ public class FileSync {
 
 		col_filename.prefWidthProperty().bind(tbl_source.widthProperty().subtract(col_sync_result.widthProperty())
 				.subtract(col_flag_folder.widthProperty()).subtract(col_level.widthProperty()));
-		col_filename.setCellValueFactory(cellDataFeatures -> cellDataFeatures.getValue().sourcePathProperty);
+		col_filename.setCellValueFactory(cellDataFeatures -> cellDataFeatures.getValue().keyPathProperty);
 		col_filename.setCellFactory(col -> new TableCell<SyncEntry, Path>() {
 			@Override
 			protected void updateItem(Path item, boolean empty) {
@@ -406,7 +410,7 @@ public class FileSync {
 					setTooltip(null);
 				} else {
 					setText(item.getFileName().toString());
-					setTooltip(new Tooltip("..." + File.separatorChar + getSubpathOfSource(item)));
+					setTooltip(new Tooltip("..." + File.separatorChar + item.toString()));
 				}
 			};
 		});
@@ -629,17 +633,15 @@ public class FileSync {
 	void actn_analyze(ActionEvent event) {
 		stateProperty.set(State.ANALYZING);
 
-		new Thread(() -> analyze()).start();
-	}
-
-	private void analyze() {
-		try {
-			Files.walk(sourceDir.get()).anyMatch(p -> analyzeSingle(p));
-			calculateTotalSize();
-			stateProperty.set(State.READY_TO_SYNC);
-		} catch (Exception ex) {
-			FxMain.handleException(ex);
-		}
+		new Thread(() -> {
+			try {
+				Files.walk(sourceDir.get()).anyMatch(p -> analyzeSingle(p));
+				calculateTotalSize();
+				stateProperty.set(State.READY_TO_SYNC);
+			} catch (Exception ex) {
+				FxMain.handleException(ex);
+			}
+		}).start();
 	}
 
 	private boolean analyzeSingle(Path p) {
@@ -768,7 +770,7 @@ public class FileSync {
 						var sourcePath = syncEntry.sourcePathProperty.get();
 
 						try {
-							var keyPath = getSubpathOfSource(sourcePath);
+							var keyPath = syncEntry.keyPathProperty.get();
 
 							if (Files.isDirectory(sourcePath)) {
 								var targetPath = destinationDir.get().resolve(keyPath);
@@ -779,6 +781,8 @@ public class FileSync {
 									Files.createDirectories(targetPath); // create if not exists
 									syncEntry.compareProperty.set(new CompareResult(Result.COPIED));
 								}
+
+								pathChecksumMap.put(keyPath.toString(), null);
 							} else {
 								var encryptedFileName = String.format("%s.%s", keyPath.getFileName().toString(),
 										MessageComposer.OMS_FILE_TYPE);
@@ -830,8 +834,47 @@ public class FileSync {
 						}
 					});
 
+			deleteFromMirror(pathChecksumMap);
+
+			currentProfileProperty.get().pathAndChecksum = pathChecksumMap.entrySet().stream()
+					.map(e -> new PathAndChecksum(e.getKey(), e.getValue())).collect(Collectors.toList())
+					.toArray(new PathAndChecksum[] {});
+
+			if (currentProfileProperty.get().file.get() != null) {
+				actn_save(null);
+			}
+
 			stateProperty.set(State.READY_TO_SYNC);
 		}).start();
+	}
+
+	private void deleteFromMirror(Map<String, String> pathChecksumMap) {
+		var destPath = destinationDir.get();
+		try {
+			var deletions = Files.walk(destPath).filter(p -> !p.equals(destPath))
+					.map(p -> p.subpath(destPath.getNameCount(), p.getNameCount()))
+					.filter(p -> !filteredList.stream()
+							.anyMatch(syncEntry -> syncEntry.keyPathProperty.get().equals(p)))
+					.collect(Collectors.toList());
+
+			Collections.sort(deletions, (p1, p2) -> {
+				var i = Integer.compare(p2.getNameCount(), p1.getNameCount());
+				if (i == 0)
+					i = p2.toString().compareTo(p1.toString());
+				return i;
+			});
+
+			deletions.stream().forEach(p -> {
+				try {
+					Files.deleteIfExists(destPath.resolve(p));
+					pathChecksumMap.remove(p);
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			});
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 	private BiConsumer<SyncEntry, Path> mirrorFile = (syncEntry, targetPath) -> {
@@ -913,7 +956,7 @@ public class FileSync {
 	private void actn_add_to_list(ActionEvent event) {
 		var syncEntry = tbl_source.getSelectionModel().selectedItemProperty().get();
 
-		var textInputDialog = new TextInputDialog(getSubpathOfSource(syncEntry.sourcePathProperty.get()).toString());
+		var textInputDialog = new TextInputDialog(syncEntry.keyPathProperty.get().toString());
 
 		textInputDialog.setTitle(Main.APP_NAME);
 		textInputDialog.setHeaderText(String.format(
@@ -935,20 +978,16 @@ public class FileSync {
 		filteredList.setPredicate(e -> matches(e));
 	}
 
-	private Path getSubpathOfSource(Path item) {
-		return item.subpath(sourceDir.get().getNameCount(), item.getNameCount());
-	}
-
 	private boolean matches(SyncEntry syncEntry) {
-		var subpath = getSubpathOfSource(syncEntry.sourcePathProperty.get()).toString();
-
 		if (!list_include.getItems().isEmpty()) {
 			// check for include
-			if (!list_include.getItems().stream().map(s -> toPattern(s)).anyMatch(s -> subpath.matches(s)))
+			if (!list_include.getItems().stream().map(s -> toPattern(s))
+					.anyMatch(s -> syncEntry.keyPathProperty.get().toString().matches(s)))
 				return false;
 		}
 
-		return !list_exclude.getItems().stream().map(s -> toPattern(s)).anyMatch(s -> subpath.matches(s));
+		return !list_exclude.getItems().stream().map(s -> toPattern(s))
+				.anyMatch(s -> syncEntry.keyPathProperty.get().toString().matches(s));
 	}
 
 	private String toPattern(String s) {
