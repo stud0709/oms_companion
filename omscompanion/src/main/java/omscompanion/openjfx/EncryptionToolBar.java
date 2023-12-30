@@ -22,7 +22,7 @@ import omscompanion.crypto.AESUtil;
 import omscompanion.crypto.EncryptedMessageTransfer;
 import omscompanion.crypto.RSAUtils;
 
-public class EncryptionToolBar extends GridPane implements ChangeListener<String> {
+public class EncryptionToolBar extends GridPane implements ChangeListener<RSAPublicKeyItem> {
 	public static final String FILE_TYPE_PUCLIC_KEY = ".x.509";
 
 	private byte[] message;
@@ -44,7 +44,7 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<String
 	private Button btnPreviewQr;
 
 	@FXML
-	ChoiceBox<String> choiceKey;
+	ChoiceBox<RSAPublicKeyItem> choiceKey;
 
 	@FXML
 	private Label lblKey;
@@ -63,9 +63,12 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<String
 		FxMain.createTextLink(message);
 	}
 
-	public static void initChoiceBox(ChoiceBox<String> choiceBox) throws Exception {
-		var publicKeys = Files.list(Main.PUBLIC_KEY_STORAGE).map(p -> p.getFileName().toString())
-				.filter(fn -> fn.toLowerCase().endsWith(FILE_TYPE_PUCLIC_KEY)).collect(Collectors.toList());
+	public static void initChoiceBox(ChoiceBox<RSAPublicKeyItem> choiceBox) throws Exception {
+		var publicKeys = Files.list(Main.PUBLIC_KEY_STORAGE)
+				.filter(fn -> fn.getFileName().toString().toLowerCase().endsWith(FILE_TYPE_PUCLIC_KEY))
+				.map(p -> new RSAPublicKeyItem(p))
+				.filter(p -> p.publicKey != null /* this happens if the key could not be restored */)
+				.collect(Collectors.toList());
 
 		if (publicKeys.isEmpty()) {
 			throw new Exception(
@@ -75,12 +78,12 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<String
 		var os = FXCollections.observableArrayList(publicKeys);
 		choiceBox.setItems(os);
 
-		var defaultKey = Main.getDefaultKey();
+		var defaultKey = os.stream().filter(i -> i.toString().equals(Main.getDefaultKey())).findAny();
 
-		if (publicKeys.size() == 1 || defaultKey == null || !publicKeys.contains(defaultKey)) {
+		if (publicKeys.size() == 1 || !defaultKey.isPresent()) {
 			choiceBox.getSelectionModel().selectFirst();
 		} else {
-			choiceBox.getSelectionModel().select(defaultKey);
+			choiceBox.getSelectionModel().select(defaultKey.get());
 		}
 	}
 
@@ -102,7 +105,7 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<String
 			FxMain.onAsText(message);
 			break;
 		case "btnDefault":
-			Main.setDefaultKeyAlias(choiceKey.getSelectionModel().getSelectedItem());
+			Main.setDefaultKeyAlias(choiceKey.getSelectionModel().getSelectedItem().toString());
 			break;
 		case "btnPreviewQr":
 			btnPreviewQr.setDisable(true);
@@ -112,14 +115,11 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<String
 	}
 
 	@Override
-	public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
+	public void changed(ObservableValue<? extends RSAPublicKeyItem> observable, RSAPublicKeyItem oldValue,
+			RSAPublicKeyItem newValue) {
 		try {
-			var pkPath = Main.PUBLIC_KEY_STORAGE.resolve(newValue);
-
-			var pk = RSAUtils.getPublicKey(Files.readAllBytes(pkPath));
-
-			message = new EncryptedMessageTransfer(unprotected, pk, RSAUtils.getRsaTransformationIdx(),
-					AESUtil.getKeyLength(), AESUtil.getAesTransformationIdx()).getMessage();
+			message = new EncryptedMessageTransfer(unprotected, newValue.publicKey, RSAUtils.getRsaTransformationIdx(),
+					AESUtil.getKeyLength(), AESUtil.getTransformationIdx()).getMessage();
 
 		} catch (Exception ex) {
 			FxMain.handleException(ex);

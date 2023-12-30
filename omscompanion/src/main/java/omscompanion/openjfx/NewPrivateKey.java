@@ -281,7 +281,7 @@ public class NewPrivateKey {
 				var alias = txtKeyAlias.getText().trim();
 
 				var message = new AesEncryptedPrivateKeyTransfer(alias, keyPair, secretKey, iv, salt,
-						AESUtil.getAesTransformationIdx(), AESUtil.getAesKeyAlgorithmIdx(), aesKeyLength,
+						AESUtil.getTransformationIdx(), AESUtil.getAesKeyAlgorithmIdx(), aesKeyLength,
 						aesKeyspecIterations).getMessage();
 
 				var backupFile = new File(txtBackupFile.getText());

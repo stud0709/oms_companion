@@ -48,12 +48,6 @@ public final class RSAUtils {
 		return sha256.digest(publicExp);
 	}
 
-	public static PublicKey restorePublicKey(byte[] encoded) throws NoSuchAlgorithmException, InvalidKeySpecException {
-		var publicKeySpec = new X509EncodedKeySpec(encoded);
-		var keyFactory = KeyFactory.getInstance("RSA");
-		return keyFactory.generatePublic(publicKeySpec);
-	}
-
 	public static byte[] process(int cipherMode, PublicKey rsaPublicKey, String transformation, byte[] data)
 			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, IllegalBlockSizeException,
 			BadPaddingException {
@@ -64,10 +58,18 @@ public final class RSAUtils {
 		return cipher.doFinal(data);
 	}
 
-	public static RSAPublicKey getPublicKey(byte[] encoded) throws InvalidKeySpecException, NoSuchAlgorithmException {
-		var publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(encoded));
-	
-		return (RSAPublicKey) publicKey;
+	/**
+	 * Retrieve public key from X509 format
+	 * 
+	 * @param encoded
+	 * @return
+	 * @throws InvalidKeySpecException
+	 * @throws NoSuchAlgorithmException
+	 */
+	public static RSAPublicKey getFromX509(byte[] encoded) throws InvalidKeySpecException, NoSuchAlgorithmException {
+		var publicKeySpec = new X509EncodedKeySpec(encoded);
+		var keyFactory = KeyFactory.getInstance("RSA");
+		return (RSAPublicKey) keyFactory.generatePublic(publicKeySpec);
 	}
 
 }

@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.bouncycastle.util.encoders.Base64;
@@ -50,6 +51,7 @@ import omscompanion.crypto.RSAUtils;
 import omscompanion.openjfx.EncryptionToolBar;
 import omscompanion.openjfx.NewItem;
 import omscompanion.openjfx.QRFrame;
+import omscompanion.openjfx.RSAPublicKeyItem;
 
 public class ClipboardUtil {
 	private static Thread t = null;
@@ -262,14 +264,14 @@ public class ClipboardUtil {
 
 	private static void encrypt(List<File> listOfFile) throws Exception {
 		try {
-			var choiceBox = new ChoiceBox<String>();
+			var choiceBox = new ChoiceBox<RSAPublicKeyItem>();
 			EncryptionToolBar.initChoiceBox(choiceBox);
 			choiceBox.setPrefWidth(Double.MAX_VALUE);
-			var pkFuture = new CompletableFuture<String>();
+			var pkFuture = new CompletableFuture<RSAPublicKey>();
 
 			if (choiceBox.getItems().size() == 1) {
 				// there is only one key
-				pkFuture.complete(choiceBox.getItems().get(0));
+				pkFuture.complete(choiceBox.getItems().get(0).publicKey);
 			} else {
 				// show dialog
 				Platform.runLater(() -> {
@@ -291,17 +293,16 @@ public class ClipboardUtil {
 					if (result != okButton)
 						pkFuture.complete(null);
 
-					pkFuture.complete(choiceBox.getSelectionModel().getSelectedItem());
+					pkFuture.complete(choiceBox.getSelectionModel().getSelectedItem().publicKey);
 				});
 			}
 
-			if (pkFuture.get() == null) {
+			var pk = pkFuture.get();
+
+			if (pk == null) {
 				resumeClipboardCheck();
 				return;
 			}
-
-			var pkPath = Main.PUBLIC_KEY_STORAGE.resolve(choiceBox.getSelectionModel().getSelectedItem());
-			var pk = RSAUtils.getPublicKey(Files.readAllBytes(pkPath));
 
 			if (listOfFile.size() > 1 || listOfFile.get(0).isDirectory()) {
 				var targetDirFuture = new CompletableFuture<File>();
@@ -324,7 +325,7 @@ public class ClipboardUtil {
 				var cancelled = new AtomicBoolean(false);
 
 				listOfFile.stream().forEach(source -> {
-					encryptAndMirror(source, targetDir.toPath(), pk, executorService, cancelled, e -> {
+					encryptAndMirror(source, targetDir.toPath(), pk, executorService, () -> cancelled.get(), e -> {
 					}, (f, p) -> {
 						totalLength.addAndGet(f.length());
 						fileCnt.incrementAndGet();
@@ -361,7 +362,7 @@ public class ClipboardUtil {
 				var dirCnt = new AtomicInteger();
 
 				listOfFile.stream().forEach(source -> {
-					encryptAndMirror(source, targetDir.toPath(), pk, executorService, cancelled, e -> {
+					encryptAndMirror(source, targetDir.toPath(), pk, executorService, () -> cancelled.get(), e -> {
 						errorCnt.incrementAndGet();
 						e.printStackTrace();
 					}, (f, p) -> {
@@ -417,7 +418,7 @@ public class ClipboardUtil {
 
 				try (var fis = new FileInputStream(listOfFile.get(0))) {
 					EncryptedFile.create(fis, oFile, pk, RSAUtils.getRsaTransformationIdx(), AESUtil.getKeyLength(),
-							AESUtil.getAesTransformationIdx(), null);
+							AESUtil.getTransformationIdx(), null);
 				}
 
 				oFile.deleteOnExit();
@@ -446,7 +447,7 @@ public class ClipboardUtil {
 	}
 
 	private static void encryptAndMirror(File f, Path targetDir, RSAPublicKey pk, ExecutorService executorService,
-			AtomicBoolean cancelled, Consumer<Exception> onError, BiConsumer<File, Path> onFile,
+			Supplier<Boolean> cancelled, Consumer<Exception> onError, BiConsumer<File, Path> onFile,
 			BiConsumer<File, Path> onDir, boolean simulate) {
 
 		if (cancelled.get())
@@ -462,7 +463,7 @@ public class ClipboardUtil {
 					executorService.submit(() -> {
 						try (var fis = new FileInputStream(f)) {
 							EncryptedFile.create(fis, mirrorPath.toFile(), pk, RSAUtils.getRsaTransformationIdx(),
-									AESUtil.getKeyLength(), AESUtil.getAesTransformationIdx(), cancelled);
+									AESUtil.getKeyLength(), AESUtil.getTransformationIdx(), cancelled);
 							onFile.accept(f, mirrorPath);
 						} catch (Exception ex) {
 							onError.accept(ex);

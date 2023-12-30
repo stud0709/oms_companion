@@ -8,7 +8,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPublicKey;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -20,7 +20,7 @@ import omscompanion.OmsDataOutputStream;
 
 public class EncryptedFile {
 	public static void create(InputStream fis, File oFile, RSAPublicKey rsaPublicKey, int rsaTransformationIdx,
-			int aesKeyLength, int aesTransformationIdx, AtomicBoolean cancelled)
+			int aesKeyLength, int aesTransformationIdx, Supplier<Boolean> cancelled)
 			throws NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException,
 			InvalidKeyException, InvalidAlgorithmParameterException, IOException {
 

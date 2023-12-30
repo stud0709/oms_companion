@@ -33,7 +33,6 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
-import javafx.scene.control.CheckBox;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
@@ -53,6 +52,9 @@ import javafx.stage.Stage;
 import omscompanion.FxMain;
 import omscompanion.Main;
 import omscompanion.MessageComposer;
+import omscompanion.crypto.AESUtil;
+import omscompanion.crypto.EncryptedFile;
+import omscompanion.crypto.RSAUtils;
 
 public class FileSync {
 	private static final String TYPE_PROFILE = ".omsfs", NEW_PROFILE = "(new profile)",
@@ -78,24 +80,21 @@ public class FileSync {
 	private final SimpleLongProperty totalSizeProperty = new SimpleLongProperty();
 
 	private class SyncEntry {
-		public final SimpleObjectProperty<Path> pathProperty = new SimpleObjectProperty<>();
-		public final long length, lastModified;
+		public final SimpleObjectProperty<Path> sourcePathProperty = new SimpleObjectProperty<>();
+		public final long length;
 		public final SimpleObjectProperty<CompareResult> compareProperty = new SimpleObjectProperty<>();
 
-		public SyncEntry(Path path) {
-			pathProperty.set(path);
+		public SyncEntry(Path sourcePath) {
+			sourcePathProperty.set(sourcePath);
 			var _length = 0L;
-			var _date = 0L;
 			try {
-				_length = Files.isDirectory(path) ? 0 : Files.size(path);
-				_date = Files.getLastModifiedTime(path).toMillis();
+				_length = Files.isDirectory(sourcePath) ? 0 : Files.size(sourcePath);
 			} catch (IOException e) {
 				e.printStackTrace();
 				compareProperty.set(new CompareResult(e));
 			}
 
 			length = _length;
-			lastModified = _date;
 		}
 	}
 
@@ -108,16 +107,6 @@ public class FileSync {
 			this(compare, null);
 		}
 	};
-
-	private Profile newProfile() {
-		var profile = new Profile(new ProfileSettings(null, null, new String[] {}, new String[] {},
-				choice_public_key.getValue(), chk_checksum.isSelected()), new PathAndChecksum[] {},
-				new PathLengthAndDate[] {});
-		profile.backup = new Profile(new ProfileSettings(null, null, new String[] {}, new String[] {},
-				choice_public_key.getValue(), chk_checksum.isSelected()), new PathAndChecksum[] {},
-				new PathLengthAndDate[] {});
-		return profile;
-	}
 
 	private AtomicBoolean loading = new AtomicBoolean();
 
@@ -166,10 +155,7 @@ public class FileSync {
 	private Button btn_stop;
 
 	@FXML
-	private CheckBox chk_checksum;
-
-	@FXML
-	private ChoiceBox<String> choice_public_key;
+	private ChoiceBox<RSAPublicKeyItem> choice_public_key;
 
 	@FXML
 	private TableColumn<SyncEntry, Path> col_filename;
@@ -203,6 +189,14 @@ public class FileSync {
 
 	@FXML
 	private TableView<SyncEntry> tbl_source;
+
+	private Profile newProfile() {
+		var profile = new Profile(new ProfileSettings(null, null, new String[] {}, new String[] {},
+				choice_public_key.getValue().toString()), new PathAndChecksum[] {});
+		profile.backup = new Profile(new ProfileSettings(null, null, new String[] {}, new String[] {},
+				choice_public_key.getValue().toString()), new PathAndChecksum[] {});
+		return profile;
+	}
 
 	private void init(Scene scene) throws Exception {
 		Platform.runLater(() -> {
@@ -334,14 +328,6 @@ public class FileSync {
 
 		stateProperty.addListener((observable, oldValue, newValue) -> updateUI());
 
-		chk_checksum.selectedProperty().addListener((observable, oldValue, newValue) -> {
-			if (!loading.get()) {
-				currentProfileProperty.get().settings.checksum = newValue;
-				stateProperty.set(isDirConfigValid() ? State.READY_TO_ANALYZE : State.INITIAL);
-			}
-			updateUI();
-		});
-
 		sourceDir.addListener((observable, oldValue, newValue) -> {
 			lbl_srcdir.setText(newValue == null ? PLEASE_SELECT : newValue.toFile().getAbsolutePath());
 			if (!loading.get())
@@ -411,7 +397,7 @@ public class FileSync {
 
 		col_filename.prefWidthProperty().bind(tbl_source.widthProperty().subtract(col_sync_result.widthProperty())
 				.subtract(col_flag_folder.widthProperty()).subtract(col_level.widthProperty()));
-		col_filename.setCellValueFactory(cellDataFeatures -> cellDataFeatures.getValue().pathProperty);
+		col_filename.setCellValueFactory(cellDataFeatures -> cellDataFeatures.getValue().sourcePathProperty);
 		col_filename.setCellFactory(col -> new TableCell<SyncEntry, Path>() {
 			@Override
 			protected void updateItem(Path item, boolean empty) {
@@ -425,7 +411,7 @@ public class FileSync {
 			};
 		});
 
-		col_flag_folder.setCellValueFactory(cellDataFeatures -> cellDataFeatures.getValue().pathProperty);
+		col_flag_folder.setCellValueFactory(cellDataFeatures -> cellDataFeatures.getValue().sourcePathProperty);
 		col_flag_folder.setCellFactory(col -> new TableCell<SyncEntry, Path>() {
 			@Override
 			protected void updateItem(Path item, boolean empty) {
@@ -444,7 +430,7 @@ public class FileSync {
 		lvl_label.setTooltip(new Tooltip("Drilldown Level"));
 
 		col_level.setGraphic(lvl_label);
-		col_level.setCellValueFactory(cellDataFeatures -> cellDataFeatures.getValue().pathProperty);
+		col_level.setCellValueFactory(cellDataFeatures -> cellDataFeatures.getValue().sourcePathProperty);
 		col_level.setCellFactory(col -> new TableCell<SyncEntry, Path>() {
 			@Override
 			protected void updateItem(Path item, boolean empty) {
@@ -512,8 +498,8 @@ public class FileSync {
 			btn_stop.setDisable(
 					!Arrays.asList(new State[] { State.ANALYZING, State.SYNCING }).contains(stateProperty.get()));
 
-			for (var node : new Node[] { chk_checksum, btn_destdir, btn_srcdir, btn_open, choice_public_key,
-					btn_del_include, btn_del_exclude, btn_new }) {
+			for (var node : new Node[] { btn_destdir, btn_srcdir, btn_open, choice_public_key, btn_del_include,
+					btn_del_exclude, btn_new }) {
 				node.setDisable(
 						Arrays.asList(new State[] { State.ANALYZING, State.SYNCING }).contains(stateProperty.get()));
 			}
@@ -634,7 +620,6 @@ public class FileSync {
 					.set(profile.settings.destinationDir == null ? null : Path.of(profile.settings.destinationDir));
 			list_exclude.getItems().setAll(profile.settings.exclusionList);
 			list_include.getItems().setAll(profile.settings.inclusionList);
-			chk_checksum.setSelected(profile.settings.checksum);
 		} finally {
 			loading.set(false);
 		}
@@ -776,126 +761,91 @@ public class FileSync {
 			// profile.
 			var pathChecksumMap = Arrays.stream(currentProfileProperty.get().pathAndChecksum)
 					.collect(Collectors.toMap(pac -> pac.path, pac -> pac.checksum));
-			var checksumPathMap = Arrays.stream(currentProfileProperty.get().pathAndChecksum)
-					.collect(Collectors.toMap(pac -> pac.checksum, pac -> pac.path));
-			var pathLengthDateMap = Arrays.stream(currentProfileProperty.get().pathLengthAndDate)
-					.collect(Collectors.toMap(pld -> pld.path, pld -> pld));
 
 			// Part 1: left to right
-			tbl_source.getItems().stream().forEach(syncEntry -> {
-				var sourcePath = syncEntry.pathProperty.get();
+			tbl_source.getItems().stream().filter(syncEntry -> syncEntry.compareProperty.get().result != Result.ERROR)
+					.forEach(syncEntry -> {
+						var sourcePath = syncEntry.sourcePathProperty.get();
 
-				try {
-					var keyPath = getSubpathOfSource(sourcePath);
+						try {
+							var keyPath = getSubpathOfSource(sourcePath);
 
-					if (Files.isDirectory(sourcePath)) {
-						var targetPath = destinationDir.get().resolve(keyPath);
+							if (Files.isDirectory(sourcePath)) {
+								var targetPath = destinationDir.get().resolve(keyPath);
 
-						if (Files.exists(targetPath)) {
-							syncEntry.compareProperty.set(new CompareResult(Result.UNCHANGED));
-						} else {
-							Files.createDirectories(targetPath); // create if not exists
-							syncEntry.compareProperty.set(new CompareResult(Result.COPIED));
-						}
-					} else {
-						var encryptedFileName = String.format("%s.%s", keyPath.getFileName().toString(),
-								MessageComposer.OMS_FILE_TYPE);
-						var targetPath = keyPath.getNameCount() == 1 ? destinationDir.get().resolve(encryptedFileName)
-								: destinationDir.get().resolve(keyPath.getParent()).resolve(encryptedFileName);
-
-						// lookup reference data
-						BiConsumer<SyncEntry, Path> fileProcessor = null;
-
-						PathAndChecksum pathAndChecksum;
-
-						try (FileInputStream fis = new FileInputStream(sourcePath.toFile())) {
-							var md = MessageDigest.getInstance("SHA-256");
-							var bArr = new byte[1024];
-							int cnt;
-							while ((cnt = fis.read(bArr)) != -1) {
-								md.update(bArr, 0, cnt);
-							}
-							pathAndChecksum = new PathAndChecksum(keyPath.toString(), Main.byteArrayToHex(md.digest()));
-						}
-
-						var pathLengthAndDate = new PathLengthAndDate(keyPath.toString(), syncEntry.length,
-								syncEntry.lastModified);
-
-						if (Files.exists(targetPath)) {
-							if (chk_checksum.isSelected()) {
-								// use checksum
-								String checksumRef = pathChecksumMap.get(keyPath.toString());
-								if (checksumRef == null) {
-									// new file
-									fileProcessor = ENCRYPT_FILE;
+								if (Files.exists(targetPath)) {
+									syncEntry.compareProperty.set(new CompareResult(Result.UNCHANGED));
 								} else {
-
-									if (!checksumRef.equals(pathAndChecksum.checksum)) {
-										fileProcessor = ENCRYPT_FILE;
-
-										// check if there is another encrypted file with the same checksum
-										var copyFrom = checksumPathMap.get(pathAndChecksum.checksum);
-										if (copyFrom != null) {
-											var copyFromPath = destinationDir.get().resolve(Path.of(copyFrom));
-
-											if (Files.exists(copyFromPath)) {
-												fileProcessor = copyFile(copyFromPath);
-											}
-										}
-									}
+									Files.createDirectories(targetPath); // create if not exists
+									syncEntry.compareProperty.set(new CompareResult(Result.COPIED));
 								}
 							} else {
-								// use file date and size
-								var pld = pathLengthDateMap.get(keyPath.toString());
+								var encryptedFileName = String.format("%s.%s", keyPath.getFileName().toString(),
+										MessageComposer.OMS_FILE_TYPE);
+								var targetPath = keyPath.getNameCount() == 1
+										? destinationDir.get().resolve(encryptedFileName)
+										: destinationDir.get().resolve(keyPath.getParent()).resolve(encryptedFileName);
 
-								if (pld == null || !Files.exists(targetPath) || syncEntry.length != pld.length
-										|| syncEntry.lastModified != pld.lastModified) {
-									fileProcessor = ENCRYPT_FILE;
+								// lookup reference data
+								BiConsumer<SyncEntry, Path> fileProcessor = null;
+
+								PathAndChecksum pathAndChecksum;
+
+								try (FileInputStream fis = new FileInputStream(sourcePath.toFile())) {
+									var md = MessageDigest.getInstance("SHA-256");
+									var bArr = new byte[1024];
+									int cnt;
+									while ((cnt = fis.read(bArr)) != -1) {
+										md.update(bArr, 0, cnt);
+									}
+									pathAndChecksum = new PathAndChecksum(keyPath.toString(),
+											Main.byteArrayToHex(md.digest()));
+								}
+
+								if (Files.exists(targetPath)) {
+									String checksumRef = pathChecksumMap.get(keyPath.toString());
+									if (checksumRef == null || !checksumRef.equals(pathAndChecksum.checksum)) {
+										fileProcessor = mirrorFile;
+									}
+								} else {
+									fileProcessor = mirrorFile;
+								}
+
+								if (fileProcessor == null) {
+									syncEntry.compareProperty.set(new CompareResult(Result.UNCHANGED));
+								} else {
+									fileProcessor.accept(syncEntry, targetPath);
+									if (syncEntry.compareProperty.get().result != Result.ERROR) {
+										// all is well, update hash maps
+										pathChecksumMap.put(pathAndChecksum.checksum, pathAndChecksum.path);
+									}
 								}
 							}
-						} else {
-							fileProcessor = ENCRYPT_FILE;
+						} catch (Exception e) {
+							e.printStackTrace();
+							syncEntry.compareProperty.set(new CompareResult(e));
+						} finally {
+							// reduce total size - SYNCHRONIZED???
+							totalSizeProperty.subtract(syncEntry.length);
 						}
-
-						if (fileProcessor == null) {
-							syncEntry.compareProperty.set(new CompareResult(Result.UNCHANGED));
-						} else {
-							fileProcessor.accept(syncEntry, targetPath);
-							if (syncEntry.compareProperty.get().result != Result.ERROR) {
-								// all is well, update hash maps
-								checksumPathMap.put(pathAndChecksum.path, pathAndChecksum.checksum);
-								pathChecksumMap.put(pathAndChecksum.checksum, pathAndChecksum.path);
-								pathLengthDateMap.put(pathLengthAndDate.path, pathLengthAndDate);
-							}
-						}
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-					syncEntry.compareProperty.set(new CompareResult(e));
-				}
-			});
+					});
 
 			stateProperty.set(State.READY_TO_SYNC);
 		}).start();
-
 	}
 
-	private static final BiConsumer<SyncEntry, Path> ENCRYPT_FILE = (syncEntry, targetPath) -> {
-		// TODO
-		syncEntry.compareProperty.set(new CompareResult(Result.COPIED));
+	private BiConsumer<SyncEntry, Path> mirrorFile = (syncEntry, targetPath) -> {
+		try (FileInputStream fis = new FileInputStream(syncEntry.sourcePathProperty.get().toFile())) {
+			EncryptedFile.create(fis, targetPath.toFile(),
+					choice_public_key.getSelectionModel().getSelectedItem().publicKey,
+					RSAUtils.getRsaTransformationIdx(), AESUtil.getKeyLength(), AESUtil.getTransformationIdx(),
+					() -> stateProperty.get() != State.SYNCING);
+			syncEntry.compareProperty.set(new CompareResult(Result.COPIED));
+		} catch (Exception e) {
+			e.printStackTrace();
+			syncEntry.compareProperty.set(new CompareResult(e));
+		}
 	};
-
-	private BiConsumer<SyncEntry, Path> copyFile(Path copyFrom) {
-		return (syncEntry, targetPath) -> {
-			try {
-				Files.copy(copyFrom, targetPath);
-				syncEntry.compareProperty.set(new CompareResult(Result.DUPLICATED));
-			} catch (IOException e) {
-				e.printStackTrace();
-				syncEntry.compareProperty.set(new CompareResult(e));
-			}
-		};
-	}
 
 	@FXML
 	void actn_stop(ActionEvent event) {
@@ -963,7 +913,7 @@ public class FileSync {
 	private void actn_add_to_list(ActionEvent event) {
 		var syncEntry = tbl_source.getSelectionModel().selectedItemProperty().get();
 
-		var textInputDialog = new TextInputDialog(getSubpathOfSource(syncEntry.pathProperty.get()).toString());
+		var textInputDialog = new TextInputDialog(getSubpathOfSource(syncEntry.sourcePathProperty.get()).toString());
 
 		textInputDialog.setTitle(Main.APP_NAME);
 		textInputDialog.setHeaderText(String.format(
@@ -990,7 +940,7 @@ public class FileSync {
 	}
 
 	private boolean matches(SyncEntry syncEntry) {
-		var subpath = getSubpathOfSource(syncEntry.pathProperty.get()).toString();
+		var subpath = getSubpathOfSource(syncEntry.sourcePathProperty.get()).toString();
 
 		if (!list_include.getItems().isEmpty()) {
 			// check for include

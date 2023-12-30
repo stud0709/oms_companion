@@ -8,7 +8,7 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -68,7 +68,7 @@ public final class AESUtil {
 	}
 
 	public static void process(int cipherMode, InputStream is, OutputStream os, SecretKey key, IvParameterSpec iv,
-			String aesTransformation, AtomicBoolean cancelled)
+			String aesTransformation, Supplier<Boolean> cancelled)
 			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
 			InvalidKeyException, BadPaddingException, IllegalBlockSizeException, IOException {
 
@@ -88,13 +88,13 @@ public final class AESUtil {
 		os.write(cipher.doFinal());
 	}
 
-	public static int getAesTransformationIdx() {
+	public static int getTransformationIdx() {
 		return Integer
 				.parseInt(Main.properties.getProperty(PROP_AES_TRANSFORMATION_IDX, "" + DEF_AES_TRANSFORMATION_IDX));
 	}
 
 	public static AesTransformation getAesTransformation() {
-		return AesTransformation.values()[getAesTransformationIdx()];
+		return AesTransformation.values()[getTransformationIdx()];
 	}
 
 	public static int getAesKeyAlgorithmIdx() {

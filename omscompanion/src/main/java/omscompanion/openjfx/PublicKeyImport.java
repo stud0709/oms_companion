@@ -80,7 +80,7 @@ public class PublicKeyImport {
 
 		if (Files.exists(publicKeyPath)) {
 			// create backup of the old key
-			var pk = RSAUtils.getPublicKey(Files.readAllBytes(publicKeyPath));
+			var pk = RSAUtils.getFromX509(Files.readAllBytes(publicKeyPath));
 
 			var fingerprint = RSAUtils.getFingerprint(pk);
 
