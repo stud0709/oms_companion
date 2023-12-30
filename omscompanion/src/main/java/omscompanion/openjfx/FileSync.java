@@ -867,7 +867,7 @@ public class FileSync {
 			deletions.stream().forEach(p -> {
 				try {
 					Files.deleteIfExists(destPath.resolve(p));
-					pathChecksumMap.remove(p);
+					pathChecksumMap.remove(p.toString());
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
