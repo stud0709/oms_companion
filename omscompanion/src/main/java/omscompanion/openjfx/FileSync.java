@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.text.NumberFormat;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -20,6 +21,7 @@ import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javafx.application.Platform;
+import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleLongProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.collections.FXCollections;
@@ -44,6 +46,7 @@ import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.ToggleButton;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -67,19 +70,22 @@ public class FileSync {
 	private final SimpleObjectProperty<Profile> currentProfileProperty = new SimpleObjectProperty<>();
 
 	private enum State {
-		INITIAL, READY_TO_ANALYZE, ANALYZING, READY_TO_SYNC, SYNCING;
+		INITIAL, READY_TO_ANALYZE, ANALYZING, READY_TO_SYNC, SYNCING, DONE_SYNCING;
 	}
 
 	private enum Result {
-		ERROR, UNCHANGED, COPIED, DUPLICATED;
+		ERROR, MATCH, MIRRORED;
 	}
 
-	private static final int TOTAL_SIZE_UNKNOWN = -1;
+	private static final int TOTAL_SIZE_UNKNOWN = -1, TOTAL_SIZE_DONE = -2;
 
 	private final SimpleObjectProperty<State> stateProperty = new SimpleObjectProperty<>(State.INITIAL);
 	private final ObservableList<SyncEntry> tableItems = FXCollections.observableArrayList();
 	private final FilteredList<SyncEntry> filteredList = new FilteredList<>(tableItems);
 	private final SimpleLongProperty totalSizeProperty = new SimpleLongProperty();
+	private final SimpleIntegerProperty matchesProperty = new SimpleIntegerProperty(),
+			errorsProperty = new SimpleIntegerProperty(), mirrorsProperty = new SimpleIntegerProperty(),
+			deletionsProperty = new SimpleIntegerProperty();
 
 	private class SyncEntry {
 		public final SimpleObjectProperty<Path> sourcePathProperty = new SimpleObjectProperty<>();
@@ -99,6 +105,14 @@ public class FileSync {
 
 			length = _length;
 			keyPathProperty.set(sourcePath.subpath(sourceDir.get().getNameCount(), sourcePath.getNameCount()));
+
+			compareProperty.addListener((observable, oldValue, newValue) -> {
+				switch (newValue.result) {
+				case MIRRORED -> mirrorsProperty.add(1);
+				case ERROR -> errorsProperty.add(1);
+				case MATCH -> matchesProperty.add(1);
+				}
+			});
 		}
 	}
 
@@ -184,6 +198,18 @@ public class FileSync {
 
 	@FXML
 	private Label lbl_total;
+
+	@FXML
+	private Label lbl_deletions;
+
+	@FXML
+	private Label lbl_matches;
+
+	@FXML
+	private Label lbl_mirrors;
+
+	@FXML
+	private ToggleButton toggle_errors;
 
 	@FXML
 	private ListView<String> list_exclude;
@@ -289,7 +315,25 @@ public class FileSync {
 		lbl_total.setGraphic(getIcon("database_icon"));
 		lbl_total.setTooltip(new Tooltip("Total Data"));
 
-		filteredList.predicateProperty().addListener((observable, oldValue, newValue) -> calculateTotalSize());
+		toggle_errors.setGraphic(getIcon("lightning_bolt_icon"));
+		toggle_errors.setTooltip(new Tooltip("Display errors only"));
+		toggle_errors.setText("0");
+		toggle_errors.selectedProperty()
+				.addListener((observable, oldValue, newValue) -> filteredList.setPredicate(e -> matches(e)));
+
+		lbl_deletions.setGraphic(getIcon("trash_icon"));
+		lbl_deletions.setTooltip(new Tooltip("Don't exist in the source folder any more; deleted"));
+		lbl_deletions.setText("0");
+
+		lbl_mirrors.setGraphic(getIcon("logout_icon"));
+		lbl_mirrors.setTooltip(new Tooltip("Mirrored"));
+		lbl_mirrors.setText("0");
+
+		lbl_matches.setGraphic(getIcon("check_icon"));
+		lbl_matches.setTooltip(new Tooltip("Unchanged"));
+		lbl_matches.setText("0");
+
+		filteredList.predicateProperty().addListener((observable, oldValue, newValue) -> calculateTotals());
 
 		setupTable();
 
@@ -360,17 +404,34 @@ public class FileSync {
 		lbl_profile.setText(NEW_PROFILE);
 
 		currentProfileProperty.set(newProfile());
+
+		errorsProperty.addListener((observable, oldValue, newValue) -> toggle_errors
+				.setText(NumberFormat.getNumberInstance().format(newValue)));
+		matchesProperty.addListener((observable, oldValue, newValue) -> lbl_matches
+				.setText(NumberFormat.getNumberInstance().format(newValue)));
+		deletionsProperty.addListener((observable, oldValue, newValue) -> lbl_deletions
+				.setText(NumberFormat.getNumberInstance().format(newValue)));
+		mirrorsProperty.addListener((observable, oldValue, newValue) -> lbl_mirrors
+				.setText(NumberFormat.getNumberInstance().format(newValue)));
 	}
 
-	private void calculateTotalSize() {
+	private void calculateTotals() {
 		totalSizeProperty
 				.set(filteredList.stream().collect(Collectors.summarizingLong(syncEntry -> syncEntry.length)).getSum());
+		errorsProperty.set((int) filteredList.stream()
+				.filter(syncEntry -> syncEntry.compareProperty.get().result == Result.ERROR).count());
+		matchesProperty.set((int) filteredList.stream()
+				.filter(syncEntry -> syncEntry.compareProperty.get().result == Result.MATCH).count());
+		mirrorsProperty.set((int) filteredList.stream()
+				.filter(syncEntry -> syncEntry.compareProperty.get().result == Result.MIRRORED).count());
 	}
 
 	private void onTotalSizeChanged(Number newValue) {
 		Platform.runLater(() -> {
-			if (newValue.longValue() == TOTAL_SIZE_UNKNOWN) {
+			if (newValue.intValue() == TOTAL_SIZE_UNKNOWN) {
 				lbl_total.setText("unknown");
+			} else if (newValue.intValue() == TOTAL_SIZE_DONE) {
+				lbl_total.setText("Done!");
 			} else {
 				var size = newValue.doubleValue();
 				var uom = "B";
@@ -467,17 +528,13 @@ public class FileSync {
 							this.setTooltip(
 									new Tooltip(ex.getMessage() == null ? ex.getClass().getName() : ex.getMessage()));
 						}
-						case COPIED -> {
+						case MIRRORED -> {
 							this.setGraphic(getIcon("logout_icon"));
 							setTooltip(new Tooltip("Mirrored to the destination folder"));
 						}
-						case UNCHANGED -> {
+						case MATCH -> {
 							this.setGraphic(getIcon("check_icon"));
 							setTooltip(new Tooltip("Unchanged"));
-						}
-						case DUPLICATED -> {
-							this.setGraphic(getIcon("duplicate_icon"));
-							setTooltip(new Tooltip("Already exists elsewhere; duplicated"));
 						}
 						}
 					} else {
@@ -496,42 +553,51 @@ public class FileSync {
 
 	private void updateUI() {
 		Platform.runLater(() -> {
-			btn_start_sync.setDisable(
-					stateProperty.get() != State.READY_TO_SYNC || choice_public_key.getSelectionModel().isEmpty());
+			var state = stateProperty.get();
+			btn_start_sync.setDisable(state != State.READY_TO_SYNC || choice_public_key.getSelectionModel().isEmpty());
 
-			btn_stop.setDisable(
-					!Arrays.asList(new State[] { State.ANALYZING, State.SYNCING }).contains(stateProperty.get()));
+			btn_stop.setDisable(!Arrays.asList(new State[] { State.ANALYZING, State.SYNCING }).contains(state));
 
 			for (var node : new Node[] { btn_destdir, btn_srcdir, btn_open, choice_public_key, btn_del_include,
-					btn_del_exclude, btn_new }) {
-				node.setDisable(
-						Arrays.asList(new State[] { State.ANALYZING, State.SYNCING }).contains(stateProperty.get()));
+					btn_del_exclude, btn_new, toggle_errors }) {
+				node.setDisable(Arrays.asList(new State[] { State.ANALYZING, State.SYNCING }).contains(state));
 			}
 
-			btn_del_profile.setDisable(
-					Arrays.asList(new State[] { State.ANALYZING, State.SYNCING }).contains(stateProperty.get())
-							|| currentProfileProperty.get().file.get() == null);
+			btn_del_profile.setDisable(Arrays.asList(new State[] { State.ANALYZING, State.SYNCING }).contains(state)
+					|| currentProfileProperty.get().file.get() == null);
 
-			btn_analyze.setDisable(!Arrays.asList(new State[] { State.READY_TO_ANALYZE, State.READY_TO_SYNC })
-					.contains(stateProperty.get()));
+			btn_analyze.setDisable(
+					!Arrays.asList(new State[] { State.READY_TO_ANALYZE, State.READY_TO_SYNC, State.DONE_SYNCING })
+							.contains(state));
 
-			btn_save.setDisable(!Arrays.asList(new State[] { State.READY_TO_ANALYZE, State.READY_TO_SYNC })
-					.contains(stateProperty.get()) || currentProfileProperty.get().file.get() == null
-					|| !isProfileChanged());
+			btn_save.setDisable(
+					!Arrays.asList(new State[] { State.READY_TO_ANALYZE, State.READY_TO_SYNC, State.DONE_SYNCING })
+							.contains(state) || currentProfileProperty.get().file.get() == null || !isProfileChanged());
 
-			btn_save_as.setDisable(!Arrays.asList(new State[] { State.READY_TO_ANALYZE, State.READY_TO_SYNC })
-					.contains(stateProperty.get()));
+			btn_save_as.setDisable(
+					!Arrays.asList(new State[] { State.READY_TO_ANALYZE, State.READY_TO_SYNC, State.DONE_SYNCING })
+							.contains(state));
 
-			btn_del_exclude.setDisable(list_exclude.getSelectionModel().getSelectedItems().isEmpty()
-					|| stateProperty.get() != State.READY_TO_SYNC);
+			btn_del_exclude.setDisable(
+					list_exclude.getSelectionModel().getSelectedItems().isEmpty() || state != State.READY_TO_SYNC);
 
-			btn_del_include.setDisable(list_include.getSelectionModel().getSelectedItems().isEmpty()
-					|| stateProperty.get() != State.READY_TO_SYNC);
+			btn_del_include.setDisable(
+					list_include.getSelectionModel().getSelectedItems().isEmpty() || state != State.READY_TO_SYNC);
 
-			if (Arrays.asList(new State[] { State.READY_TO_ANALYZE, State.INITIAL }).contains(stateProperty.get())) {
+			if (Arrays.asList(new State[] { State.READY_TO_ANALYZE, State.INITIAL, State.ANALYZING }).contains(state)) {
 				tableItems.clear();
 				totalSizeProperty.set(TOTAL_SIZE_UNKNOWN);
+				errorsProperty.set(0);
+				mirrorsProperty.set(0);
+				matchesProperty.set(0);
+				deletionsProperty.set(0);
 			}
+
+			if (state == State.DONE_SYNCING) {
+				totalSizeProperty.set(TOTAL_SIZE_DONE);
+			}
+
+			toggle_errors.setSelected(false);
 		});
 	}
 
@@ -636,7 +702,7 @@ public class FileSync {
 		new Thread(() -> {
 			try {
 				Files.walk(sourceDir.get()).anyMatch(p -> analyzeSingle(p));
-				calculateTotalSize();
+				calculateTotals();
 				stateProperty.set(State.READY_TO_SYNC);
 			} catch (Exception ex) {
 				FxMain.handleException(ex);
@@ -776,10 +842,10 @@ public class FileSync {
 								var targetPath = destinationDir.get().resolve(keyPath);
 
 								if (Files.exists(targetPath)) {
-									syncEntry.compareProperty.set(new CompareResult(Result.UNCHANGED));
+									syncEntry.compareProperty.set(new CompareResult(Result.MATCH));
 								} else {
 									Files.createDirectories(targetPath); // create if not exists
-									syncEntry.compareProperty.set(new CompareResult(Result.COPIED));
+									syncEntry.compareProperty.set(new CompareResult(Result.MIRRORED));
 								}
 
 								pathChecksumMap.put(keyPath.toString(), null);
@@ -816,7 +882,7 @@ public class FileSync {
 								}
 
 								if (fileProcessor == null) {
-									syncEntry.compareProperty.set(new CompareResult(Result.UNCHANGED));
+									syncEntry.compareProperty.set(new CompareResult(Result.MATCH));
 								} else {
 									fileProcessor.accept(syncEntry, targetPath);
 									if (syncEntry.compareProperty.get().result != Result.ERROR) {
@@ -829,7 +895,6 @@ public class FileSync {
 							e.printStackTrace();
 							syncEntry.compareProperty.set(new CompareResult(e));
 						} finally {
-							// reduce total size - SYNCHRONIZED???
 							totalSizeProperty.subtract(syncEntry.length);
 						}
 					});
@@ -844,7 +909,7 @@ public class FileSync {
 				actn_save(null);
 			}
 
-			stateProperty.set(State.READY_TO_SYNC);
+			stateProperty.set(State.DONE_SYNCING);
 		}).start();
 	}
 
@@ -866,8 +931,9 @@ public class FileSync {
 
 			deletions.stream().forEach(p -> {
 				try {
-					Files.deleteIfExists(destPath.resolve(p));
+					Files.delete(destPath.resolve(p));
 					pathChecksumMap.remove(p.toString());
+					deletionsProperty.add(1);
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
@@ -883,7 +949,7 @@ public class FileSync {
 					choice_public_key.getSelectionModel().getSelectedItem().publicKey,
 					RSAUtils.getRsaTransformationIdx(), AESUtil.getKeyLength(), AESUtil.getTransformationIdx(),
 					() -> stateProperty.get() != State.SYNCING);
-			syncEntry.compareProperty.set(new CompareResult(Result.COPIED));
+			syncEntry.compareProperty.set(new CompareResult(Result.MIRRORED));
 		} catch (Exception e) {
 			e.printStackTrace();
 			syncEntry.compareProperty.set(new CompareResult(e));
@@ -987,7 +1053,8 @@ public class FileSync {
 		}
 
 		return !list_exclude.getItems().stream().map(s -> toPattern(s))
-				.anyMatch(s -> syncEntry.keyPathProperty.get().toString().matches(s));
+				.anyMatch(s -> syncEntry.keyPathProperty.get().toString().matches(s))
+				&& (!toggle_errors.isSelected() || syncEntry.compareProperty.get().result == Result.ERROR);
 	}
 
 	private String toPattern(String s) {
