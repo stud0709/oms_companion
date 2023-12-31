@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.text.NumberFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -146,6 +147,9 @@ public class FileSync {
 	private Label lbl_total_files;
 
 	@FXML
+	private Label lbl_info;
+
+	@FXML
 	private ToggleButton toggle_errors;
 
 	@FXML
@@ -163,7 +167,6 @@ public class FileSync {
 	private final SimpleObjectProperty<Path> sourceDir = new SimpleObjectProperty<>(),
 			destinationDir = new SimpleObjectProperty<>();
 	private final SimpleObjectProperty<Profile> currentProfileProperty = new SimpleObjectProperty<>();
-	private boolean cancelled = false;
 
 	private enum State {
 		INITIAL, READY_TO_ANALYZE, ANALYZING, READY_TO_SYNC, SYNCING, DONE_SYNCING;
@@ -172,8 +175,6 @@ public class FileSync {
 	private enum Result {
 		ERROR, MATCH, MIRRORED;
 	}
-
-	private static final int TOTAL_SIZE_WORKING = -1, TOTAL_SIZE_DONE = -2, TOTAL_SIZE_CANCELLED = -3;
 
 	private final SimpleObjectProperty<State> stateProperty = new SimpleObjectProperty<>(State.INITIAL);
 	private final ObservableList<SyncEntry> tableItems = FXCollections.observableArrayList();
@@ -354,6 +355,9 @@ public class FileSync {
 		lbl_total_files.setTooltip(new Tooltip("Total Files"));
 		lbl_total_files.setText("0");
 
+		lbl_info.setGraphic(getIcon("circle_information_icon"));
+		lbl_info.setText(null);
+
 		filteredList.predicateProperty().addListener((observable, oldValue, newValue) -> calculateTotals());
 
 		setupTable();
@@ -436,6 +440,8 @@ public class FileSync {
 				.runLater(() -> lbl_mirrors.setText(NumberFormat.getNumberInstance().format(newValue))));
 		totalFilesProperty.addListener((observable, oldValue, newValue) -> Platform
 				.runLater(() -> lbl_total_files.setText(NumberFormat.getNumberInstance().format(newValue))));
+
+		info("Please select a profile or public key, source, and destination directories");
 	}
 
 	private void calculateTotals() {
@@ -453,33 +459,25 @@ public class FileSync {
 
 	private void onTotalSizeChanged(Number newValue) {
 		Platform.runLater(() -> {
-			if (newValue.intValue() == TOTAL_SIZE_WORKING) {
-				lbl_total.setText("Working...");
-			} else if (newValue.intValue() == TOTAL_SIZE_DONE) {
-				lbl_total.setText("Done!");
-			} else if (newValue.intValue() == TOTAL_SIZE_CANCELLED) {
-				lbl_total.setText("Cancelled!");
-			} else {
-				var size = newValue.doubleValue();
-				var uom = "B";
+			var size = newValue.doubleValue();
+			var uom = "B";
 
-				if (size > 1024) {
-					uom = "KB";
-					size /= 1024D;
-				}
-
-				if (size > 1024) {
-					uom = "MB";
-					size /= 1024D;
-				}
-
-				if (size > 1024) {
-					uom = "GB";
-					size /= 1024D;
-				}
-
-				lbl_total.setText(String.format("%.3f %s", size, uom));
+			if (size > 1024) {
+				uom = "KB";
+				size /= 1024D;
 			}
+
+			if (size > 1024) {
+				uom = "MB";
+				size /= 1024D;
+			}
+
+			if (size > 1024) {
+				uom = "GB";
+				size /= 1024D;
+			}
+
+			lbl_total.setText(String.format("%.3f %s", size, uom));
 		});
 	}
 
@@ -582,8 +580,20 @@ public class FileSync {
 	}
 
 	private void updateUI() {
+		var state = stateProperty.get();
+
+		if (Arrays.asList(new State[] { State.READY_TO_ANALYZE, State.INITIAL, State.ANALYZING }).contains(state)) {
+			tableItems.clear();
+			totalSizeProperty.set(0);
+			totalFilesProperty.set(0);
+			errorsProperty.set(0);
+			mirrorsProperty.set(0);
+			matchesProperty.set(0);
+			deletionsProperty.set(0);
+		}
+
 		Platform.runLater(() -> {
-			var state = stateProperty.get();
+
 			btn_start_sync.setDisable(
 					state != State.READY_TO_SYNC || currentProfileProperty.get().settings.publicKeyName == null);
 
@@ -615,26 +625,9 @@ public class FileSync {
 			btn_del_include.setDisable(
 					list_include.getSelectionModel().getSelectedItems().isEmpty() || state != State.READY_TO_SYNC);
 
-			if (Arrays.asList(new State[] { State.READY_TO_ANALYZE, State.INITIAL, State.ANALYZING }).contains(state)) {
-				tableItems.clear();
-				totalSizeProperty
-						.set(cancelled ? TOTAL_SIZE_CANCELLED : (state == State.ANALYZING ? TOTAL_SIZE_WORKING : 0));
-				totalFilesProperty.set(0);
-				errorsProperty.set(0);
-				mirrorsProperty.set(0);
-				matchesProperty.set(0);
-				deletionsProperty.set(0);
-			}
-
-			if (state == State.DONE_SYNCING) {
-				totalSizeProperty.set(cancelled ? TOTAL_SIZE_CANCELLED : TOTAL_SIZE_DONE);
-			}
-
 			toggle_errors.setSelected(false);
 			toggle_errors.setDisable(
 					!Arrays.asList(new State[] { State.READY_TO_SYNC, State.DONE_SYNCING }).contains(state));
-
-			cancelled = false;
 		});
 	}
 
@@ -735,13 +728,17 @@ public class FileSync {
 
 	@FXML
 	void actn_analyze(ActionEvent event) {
+		info("Analyzing source directory, please wait...");
 		stateProperty.set(State.ANALYZING);
 
 		new Thread(() -> {
 			try {
 				Files.walk(sourceDir.get()).anyMatch(p -> analyzeSingle(p));
 				calculateTotals();
+				if (stateProperty.get() != State.ANALYZING)// has been cancelled
+					return;
 				stateProperty.set(State.READY_TO_SYNC);
+				info("Finished analyzing!");
 			} catch (Exception ex) {
 				FxMain.handleException(ex);
 			}
@@ -873,14 +870,18 @@ public class FileSync {
 
 	@FXML
 	void actn_start_sync(ActionEvent event) {
+		info("Processing data, please wait...");
 		stateProperty.set(State.SYNCING);
 
 		new Thread(() -> {
 			// as the files are encrypted, we can only compare against the data in the
 			// profile.
-			var pathChecksumMap = Arrays.stream(currentProfileProperty.get().pathAndChecksum)
-					.filter(pac -> pac.checksum != null) // a directory
-					.collect(Collectors.toMap(pac -> pac.path, pac -> pac.checksum));
+			var pathHashAndChecksum = Collections
+					.unmodifiableMap(Arrays.stream(currentProfileProperty.get().pathAndChecksum)
+							.filter(pac -> pac.checksum != null) /* a directory */
+							.collect(Collectors.toMap(pac -> pac.getReadableHash(), pac -> pac.checksum)));
+
+			var pathAndChecksumNew = new ArrayList<PathAndChecksum>();
 
 			// Part 1: left to right
 			tbl_source.getItems().stream().filter(syncEntry -> syncEntry.compareProperty.get() == null
@@ -888,7 +889,7 @@ public class FileSync {
 						if (stateProperty.get() != State.SYNCING)
 							return true;
 
-						syncSingle(syncEntry, pathChecksumMap);
+						syncSingle(syncEntry, pathHashAndChecksum, pathAndChecksumNew);
 
 						return false;
 					});
@@ -896,11 +897,9 @@ public class FileSync {
 			if (stateProperty.get() != State.SYNCING)
 				return;
 
-			deleteFromMirror(pathChecksumMap);
+			deleteFromMirror();
 
-			currentProfileProperty.get().pathAndChecksum = pathChecksumMap.entrySet().stream()
-					.map(e -> new PathAndChecksum(e.getKey(), e.getValue())).collect(Collectors.toList())
-					.toArray(new PathAndChecksum[] {});
+			currentProfileProperty.get().pathAndChecksum = pathAndChecksumNew.toArray(new PathAndChecksum[] {});
 
 			if (currentProfileProperty.get().file.get() != null) {
 				currentProfileProperty.get().backup.settings.publicKeyName = currentProfileProperty
@@ -909,10 +908,13 @@ public class FileSync {
 			}
 
 			stateProperty.set(State.DONE_SYNCING);
+
+			info("Done!");
 		}).start();
 	}
 
-	private void syncSingle(SyncEntry syncEntry, Map<String, String> pathChecksumMap) {
+	private void syncSingle(SyncEntry syncEntry, Map<String, byte[]> pathAndChecksumRef,
+			ArrayList<PathAndChecksum> pathAndChecksumNew) {
 		var sourcePath = syncEntry.sourcePathProperty.get();
 
 		try {
@@ -928,7 +930,7 @@ public class FileSync {
 					syncEntry.compareProperty.set(new CompareResult(Result.MIRRORED));
 				}
 
-				pathChecksumMap.put(keyPath.toString(), null);
+				pathAndChecksumNew.add(new PathAndChecksum(keyPath, null));
 			} else {
 				var encryptedFileName = String.format("%s.%s", keyPath.getFileName().toString(),
 						MessageComposer.OMS_FILE_TYPE);
@@ -947,12 +949,12 @@ public class FileSync {
 					while ((cnt = fis.read(bArr)) != -1) {
 						md.update(bArr, 0, cnt);
 					}
-					pathAndChecksum = new PathAndChecksum(keyPath.toString(), Main.byteArrayToHex(md.digest(), false));
+					pathAndChecksum = new PathAndChecksum(keyPath, md.digest());
 				}
 
 				if (Files.exists(targetPath)) {
-					String checksumRef = pathChecksumMap.get(keyPath.toString());
-					if (checksumRef == null || !checksumRef.equals(pathAndChecksum.checksum) ||
+					var checksumRef = pathAndChecksumRef.get(pathAndChecksum.getReadableHash());
+					if (checksumRef == null || !Arrays.equals(checksumRef, pathAndChecksum.checksum) ||
 					/*
 					 * if public key changes, all data has to be encrypted with the new one
 					 */
@@ -966,11 +968,12 @@ public class FileSync {
 
 				if (fileProcessor == null) {
 					syncEntry.compareProperty.set(new CompareResult(Result.MATCH));
+					pathAndChecksumNew.add(pathAndChecksum);
 				} else {
 					fileProcessor.accept(syncEntry, targetPath);
 					if (syncEntry.compareProperty.get().result != Result.ERROR) {
 						// all is well, update hash maps
-						pathChecksumMap.put(pathAndChecksum.path, pathAndChecksum.checksum);
+						pathAndChecksumNew.add(pathAndChecksum);
 					}
 				}
 			}
@@ -987,7 +990,9 @@ public class FileSync {
 		}
 	}
 
-	private void deleteFromMirror(Map<String, String> pathChecksumMap) {
+	private void deleteFromMirror() {
+		info("Checking destination directory for deleted files...");
+
 		var destPath = destinationDir.get();
 		try {
 			var deletions = Files.walk(destPath).filter(p -> !p.equals(destPath))
@@ -1027,7 +1032,6 @@ public class FileSync {
 			deletions.stream().forEach(p -> {
 				try {
 					Files.delete(destPath.resolve(p));
-					pathChecksumMap.remove(p.toString());
 					synchronized (deletionsProperty) {
 						deletionsProperty.set(deletionsProperty.get() + 1);
 					}
@@ -1055,7 +1059,7 @@ public class FileSync {
 
 	@FXML
 	void actn_stop(ActionEvent event) {
-		cancelled = true;
+		info("Cancelled!");
 		switch (stateProperty.get()) {
 		case ANALYZING -> stateProperty.set(State.READY_TO_ANALYZE);
 		case SYNCING -> stateProperty.set(State.DONE_SYNCING);
@@ -1171,5 +1175,30 @@ public class FileSync {
 				}
 		}
 		return sb.toString();
+	}
+
+	private final SimpleObjectProperty<Thread> infoThreadProperty = new SimpleObjectProperty<>();
+
+	private void info(String message) {
+		Platform.runLater(() -> {
+			lbl_info.setText(message);
+			var t = new Thread(() -> {
+				try {
+					Thread.sleep(10_000);
+				} catch (InterruptedException e) {
+				}
+
+				synchronized (infoThreadProperty) {
+					if (infoThreadProperty.get() == Thread.currentThread()) {
+						Platform.runLater(() -> lbl_info.setText(null));
+						infoThreadProperty.set(null);
+					}
+				}
+			});
+			synchronized (infoThreadProperty) {
+				infoThreadProperty.set(t);
+			}
+			t.start();
+		});
 	}
 }
