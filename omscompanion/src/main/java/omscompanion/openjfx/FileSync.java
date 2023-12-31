@@ -727,6 +727,7 @@ public class FileSync {
 					.set(profile.settings.destinationDir == null ? null : Path.of(profile.settings.destinationDir));
 			list_exclude.getItems().setAll(profile.settings.exclusionList);
 			list_include.getItems().setAll(profile.settings.inclusionList);
+			filteredList.setPredicate(e -> matches(e));
 		} finally {
 			loading.set(false);
 		}
