@@ -143,6 +143,9 @@ public class FileSync {
 	private Label lbl_mirrors;
 
 	@FXML
+	private Label lbl_total_files;
+
+	@FXML
 	private ToggleButton toggle_errors;
 
 	@FXML
@@ -160,6 +163,7 @@ public class FileSync {
 	private final SimpleObjectProperty<Path> sourceDir = new SimpleObjectProperty<>(),
 			destinationDir = new SimpleObjectProperty<>();
 	private final SimpleObjectProperty<Profile> currentProfileProperty = new SimpleObjectProperty<>();
+	private boolean cancelled = false;
 
 	private enum State {
 		INITIAL, READY_TO_ANALYZE, ANALYZING, READY_TO_SYNC, SYNCING, DONE_SYNCING;
@@ -169,15 +173,15 @@ public class FileSync {
 		ERROR, MATCH, MIRRORED;
 	}
 
-	private static final int TOTAL_SIZE_UNKNOWN = -1, TOTAL_SIZE_DONE = -2;
+	private static final int TOTAL_SIZE_WORKING = -1, TOTAL_SIZE_DONE = -2, TOTAL_SIZE_CANCELLED = -3;
 
 	private final SimpleObjectProperty<State> stateProperty = new SimpleObjectProperty<>(State.INITIAL);
 	private final ObservableList<SyncEntry> tableItems = FXCollections.observableArrayList();
 	private final FilteredList<SyncEntry> filteredList = new FilteredList<>(tableItems);
-	private final SimpleLongProperty totalSizeProperty = new SimpleLongProperty();
+	private final SimpleLongProperty totalSizeProperty = new SimpleLongProperty(Long.MIN_VALUE);
 	private final SimpleIntegerProperty matchesProperty = new SimpleIntegerProperty(),
 			errorsProperty = new SimpleIntegerProperty(), mirrorsProperty = new SimpleIntegerProperty(),
-			deletionsProperty = new SimpleIntegerProperty();
+			deletionsProperty = new SimpleIntegerProperty(), totalFilesProperty = new SimpleIntegerProperty();
 
 	private class SyncEntry {
 		public final SimpleObjectProperty<Path> sourcePathProperty = new SimpleObjectProperty<>();
@@ -199,13 +203,14 @@ public class FileSync {
 			keyPathProperty.set(sourcePath.subpath(sourceDir.get().getNameCount(), sourcePath.getNameCount()));
 
 			compareProperty.addListener((observable, oldValue, newValue) -> {
-				synchronized (FileSync.this) {
-					switch (newValue.result) {
-					case MIRRORED -> mirrorsProperty.set(mirrorsProperty.get() + 1);
-					case ERROR -> errorsProperty.set(errorsProperty.get() + 1);
-					case MATCH -> matchesProperty.set(matchesProperty.get() + 1);
+				if (Arrays.asList(new State[] { State.ANALYZING, State.SYNCING }).contains(stateProperty.get()))
+					synchronized (FileSync.this) {
+						switch (newValue.result) {
+						case MIRRORED -> mirrorsProperty.set(mirrorsProperty.get() + 1);
+						case ERROR -> errorsProperty.set(errorsProperty.get() + 1);
+						case MATCH -> matchesProperty.set(matchesProperty.get() + 1);
+						}
 					}
-				}
 			});
 		}
 	}
@@ -345,6 +350,10 @@ public class FileSync {
 		lbl_matches.setTooltip(new Tooltip("Unchanged"));
 		lbl_matches.setText("0");
 
+		lbl_total_files.setGraphic(getIcon("document_icon"));
+		lbl_total_files.setTooltip(new Tooltip("Total Files"));
+		lbl_total_files.setText("0");
+
 		filteredList.predicateProperty().addListener((observable, oldValue, newValue) -> calculateTotals());
 
 		setupTable();
@@ -362,7 +371,7 @@ public class FileSync {
 		});
 
 		totalSizeProperty.addListener((observable, oldValue, newValue) -> onTotalSizeChanged(newValue));
-		totalSizeProperty.set(TOTAL_SIZE_UNKNOWN);
+		totalSizeProperty.set(0);
 
 		list_exclude.getSelectionModel().getSelectedItems()
 				.addListener((ListChangeListener.Change<? extends String> c) -> updateUI());
@@ -425,11 +434,15 @@ public class FileSync {
 				.runLater(() -> lbl_deletions.setText(NumberFormat.getNumberInstance().format(newValue))));
 		mirrorsProperty.addListener((observable, oldValue, newValue) -> Platform
 				.runLater(() -> lbl_mirrors.setText(NumberFormat.getNumberInstance().format(newValue))));
+		totalFilesProperty.addListener((observable, oldValue, newValue) -> Platform
+				.runLater(() -> lbl_total_files.setText(NumberFormat.getNumberInstance().format(newValue))));
 	}
 
 	private void calculateTotals() {
 		totalSizeProperty
 				.set(filteredList.stream().collect(Collectors.summarizingLong(syncEntry -> syncEntry.length)).getSum());
+		totalFilesProperty.set((int) filteredList.stream()
+				.filter(syncEntry -> !Files.isDirectory(syncEntry.sourcePathProperty.get())).count());
 		errorsProperty.set((int) filteredList.stream().filter(syncEntry -> syncEntry.compareProperty.get() != null
 				&& syncEntry.compareProperty.get().result == Result.ERROR).count());
 		matchesProperty.set((int) filteredList.stream().filter(syncEntry -> syncEntry.compareProperty.get() != null
@@ -440,10 +453,12 @@ public class FileSync {
 
 	private void onTotalSizeChanged(Number newValue) {
 		Platform.runLater(() -> {
-			if (newValue.intValue() == TOTAL_SIZE_UNKNOWN) {
-				lbl_total.setText("unknown");
+			if (newValue.intValue() == TOTAL_SIZE_WORKING) {
+				lbl_total.setText("Working...");
 			} else if (newValue.intValue() == TOTAL_SIZE_DONE) {
 				lbl_total.setText("Done!");
+			} else if (newValue.intValue() == TOTAL_SIZE_CANCELLED) {
+				lbl_total.setText("Cancelled!");
 			} else {
 				var size = newValue.doubleValue();
 				var uom = "B";
@@ -602,24 +617,24 @@ public class FileSync {
 
 			if (Arrays.asList(new State[] { State.READY_TO_ANALYZE, State.INITIAL, State.ANALYZING }).contains(state)) {
 				tableItems.clear();
-				totalSizeProperty.set(TOTAL_SIZE_UNKNOWN);
+				totalSizeProperty
+						.set(cancelled ? TOTAL_SIZE_CANCELLED : (state == State.ANALYZING ? TOTAL_SIZE_WORKING : 0));
+				totalFilesProperty.set(0);
 				errorsProperty.set(0);
 				mirrorsProperty.set(0);
 				matchesProperty.set(0);
 				deletionsProperty.set(0);
 			}
 
-			if (state == State.SYNCING) {
-				calculateTotals();
-			}
-
 			if (state == State.DONE_SYNCING) {
-				totalSizeProperty.set(TOTAL_SIZE_DONE);
+				totalSizeProperty.set(cancelled ? TOTAL_SIZE_CANCELLED : TOTAL_SIZE_DONE);
 			}
 
 			toggle_errors.setSelected(false);
 			toggle_errors.setDisable(
 					!Arrays.asList(new State[] { State.READY_TO_SYNC, State.DONE_SYNCING }).contains(state));
+
+			cancelled = false;
 		});
 	}
 
@@ -963,8 +978,10 @@ public class FileSync {
 			syncEntry.compareProperty.set(new CompareResult(e));
 		} finally {
 			if (stateProperty.get() == State.SYNCING)
-				synchronized (totalSizeProperty) {
+				synchronized (FileSync.this) {
 					totalSizeProperty.set(totalSizeProperty.get() - syncEntry.length);
+					if (!Files.isDirectory(syncEntry.sourcePathProperty.get()))
+						totalFilesProperty.set(totalFilesProperty.get() - 1);
 				}
 		}
 	}
@@ -1037,6 +1054,7 @@ public class FileSync {
 
 	@FXML
 	void actn_stop(ActionEvent event) {
+		cancelled = true;
 		switch (stateProperty.get()) {
 		case ANALYZING -> stateProperty.set(State.READY_TO_ANALYZE);
 		case SYNCING -> stateProperty.set(State.DONE_SYNCING);

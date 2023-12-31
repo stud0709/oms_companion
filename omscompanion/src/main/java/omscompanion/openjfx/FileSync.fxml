@@ -112,7 +112,8 @@
                   <Label fx:id="lbl_deletions" maxHeight="1.7976931348623157E308" prefWidth="50.0" text="Deletions" />
                   <Label fx:id="lbl_matches" maxHeight="1.7976931348623157E308" prefWidth="50.0" text="Matches" />
                   <Label fx:id="lbl_mirrors" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" text="Mirrors" HBox.hgrow="ALWAYS" />
-                  <Label fx:id="lbl_total" contentDisplay="RIGHT" maxHeight="1.7976931348623157E308" text="unknown" />
+                  <Label fx:id="lbl_total_files" maxHeight="1.7976931348623157E308" prefWidth="50.0" text="Files" />
+                  <Label fx:id="lbl_total" maxHeight="1.7976931348623157E308" prefWidth="90.0" text="unknown" />
                </children>
                <padding>
                   <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
