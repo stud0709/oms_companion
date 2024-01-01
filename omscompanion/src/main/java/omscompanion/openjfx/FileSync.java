@@ -570,13 +570,8 @@ public class FileSync {
 			}
 		});
 
-		tbl_source.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
-			var state = stateProperty.get();
-			btn_add_exclude.setDisable(
-					newValue == null || Arrays.asList(new State[] { State.ANALYZING, State.SYNCING }).contains(state));
-			btn_add_include.setDisable(
-					newValue == null || Arrays.asList(new State[] { State.ANALYZING, State.SYNCING }).contains(state));
-		});
+		tbl_source.getSelectionModel().selectedItemProperty()
+				.addListener((observable, oldValue, newValue) -> updateUI());
 	}
 
 	private void updateUI() {
@@ -619,11 +614,17 @@ public class FileSync {
 					!Arrays.asList(new State[] { State.READY_TO_ANALYZE, State.READY_TO_SYNC, State.DONE_SYNCING })
 							.contains(state));
 
-			btn_del_exclude.setDisable(
-					list_exclude.getSelectionModel().getSelectedItems().isEmpty() || state != State.READY_TO_SYNC);
+			btn_add_exclude.setDisable(tbl_source.getSelectionModel().isEmpty()
+					|| !Arrays.asList(new State[] { State.READY_TO_SYNC, State.DONE_SYNCING }).contains(state));
 
-			btn_del_include.setDisable(
-					list_include.getSelectionModel().getSelectedItems().isEmpty() || state != State.READY_TO_SYNC);
+			btn_add_include.setDisable(tbl_source.getSelectionModel().isEmpty()
+					|| !Arrays.asList(new State[] { State.READY_TO_SYNC, State.DONE_SYNCING }).contains(state));
+
+			btn_del_exclude.setDisable(list_exclude.getSelectionModel().getSelectedItems().isEmpty()
+					|| !Arrays.asList(new State[] { State.READY_TO_SYNC, State.DONE_SYNCING }).contains(state));
+
+			btn_del_include.setDisable(list_include.getSelectionModel().getSelectedItems().isEmpty()
+					|| !Arrays.asList(new State[] { State.READY_TO_SYNC, State.DONE_SYNCING }).contains(state));
 
 			toggle_errors.setSelected(false);
 			toggle_errors.setDisable(
@@ -901,7 +902,9 @@ public class FileSync {
 
 			currentProfileProperty.get().pathAndChecksum = pathAndChecksumNew.toArray(new PathAndChecksum[] {});
 
-			if (currentProfileProperty.get().file.get() != null) {
+			var profileFile = currentProfileProperty.get().file.get();
+
+			if (profileFile != null) {
 				currentProfileProperty.get().backup.settings.publicKeyName = currentProfileProperty
 						.get().settings.publicKeyName;
 				actn_save(null);
@@ -909,7 +912,8 @@ public class FileSync {
 
 			stateProperty.set(State.DONE_SYNCING);
 
-			info("Done!");
+			info("Sync is completed." + profileFile == null ? ""
+					: String.format(" Profile %s has been saved.", profileFile.getName()));
 		}).start();
 	}
 
@@ -995,32 +999,33 @@ public class FileSync {
 
 		var destPath = destinationDir.get();
 		try {
-			var deletions = Files.walk(destPath).filter(p -> !p.equals(destPath))
-					.map(p -> p.subpath(destPath.getNameCount(), p.getNameCount())).map(p -> {
+			var deletions = Files.walk(destPath).filter(p -> !p.equals(destPath)) /* exclude destination's root */
+					.map(p -> p.subpath(destPath.getNameCount(),
+							p.getNameCount())/* path relative to destination's root */)
+					.filter(p -> {
 						/*
 						 * we are walking through the encrypted directory. Directory names are
 						 * unchanged, but file names end with OMS_FILE_TYPE
 						 */
-						if (Files.isDirectory(p))
-							return p;
+						if (!Files.isDirectory(p)) {
+							var fn = p.getFileName().toString();
 
-						var fn = p.getFileName().toString();
+							if (fn.endsWith("." + MessageComposer.OMS_FILE_TYPE)) {
+								var fn_original = Path.of(fn.substring(0,
+										fn.length() - MessageComposer.OMS_FILE_TYPE.length() - 1 /* the dot */));
 
-						if (!fn.endsWith("." + MessageComposer.OMS_FILE_TYPE))
-							return p;
-
-						var fn_original = Path.of(fn.substring(0,
-								fn.length() - MessageComposer.OMS_FILE_TYPE.length() - 1 /* the dot */));
-
-						if (p.getNameCount() == 1) {
-							return fn_original;
-						} else {
-							return p.getParent().resolve(fn_original);
+								if (p.getNameCount() == 1) {
+									p = fn_original;
+								} else {
+									p = p.getParent().resolve(fn_original);
+								}
+							}
 						}
-					})
-					.filter(p -> !filteredList.stream()
-							.anyMatch(syncEntry -> syncEntry.keyPathProperty.get().equals(p)))
-					.collect(Collectors.toList());
+
+						Path _p = p;
+
+						return !filteredList.stream().anyMatch(syncEntry -> syncEntry.keyPathProperty.get().equals(_p));
+					}).collect(Collectors.toList());
 
 			Collections.sort(deletions, (p1, p2) -> {
 				var i = Integer.compare(p2.getNameCount(), p1.getNameCount());

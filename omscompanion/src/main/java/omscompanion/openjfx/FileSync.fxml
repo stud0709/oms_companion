@@ -97,7 +97,8 @@
             <HBox alignment="CENTER_LEFT" spacing="5.0">
                <children>
                   <Label text="Public Key:" />
-                  <ChoiceBox fx:id="choice_public_key" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
+                  <ChoiceBox fx:id="choice_public_key" HBox.hgrow="ALWAYS" />
+                  <Label maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
                   <Button fx:id="btn_analyze" mnemonicParsing="false" onAction="#actn_analyze" text="Analyze" />
                   <Button fx:id="btn_start_sync" mnemonicParsing="false" onAction="#actn_start_sync" text="Start Sync" />
                   <Button fx:id="btn_stop" mnemonicParsing="false" onAction="#actn_stop" text="Stop" />
