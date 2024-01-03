@@ -6,8 +6,11 @@ import java.util.Base64;
 
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.geometry.Dimension2D;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.stage.Stage;
 import omscompanion.qr.AnimatedQrHelper;
 
@@ -22,6 +25,19 @@ public class FxMain extends Application {
 	@Override
 	public void start(Stage primaryStage) throws Exception {
 		FxMain.primaryState = primaryStage;
+	}
+
+	public static ImageView getImageView(String name, Dimension2D size) {
+		var image = new Image(FxMain.class.getResourceAsStream("/omscompanion/img/" + name + ".png"));
+		var imageView = new ImageView(image);
+		imageView.setFitWidth(size.getWidth());
+		imageView.setFitHeight(size.getHeight());
+
+		return imageView;
+	}
+
+	public static Image getImage(String name) {
+		return new Image(FxMain.class.getResourceAsStream("/omscompanion/img/" + name + ".png"));
 	}
 
 	public static Stage getPrimaryStage() {

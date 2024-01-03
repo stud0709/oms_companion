@@ -32,6 +32,7 @@ import javafx.collections.transformation.FilteredList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
+import javafx.geometry.Dimension2D;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
@@ -49,7 +50,6 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.Tooltip;
-import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
@@ -259,57 +259,57 @@ public class FileSync {
 		});
 
 		btn_analyze.setText(null);
-		btn_analyze.setGraphic(getIcon("analyze"));
+		btn_analyze.setGraphic(getImageView("analyze"));
 		btn_analyze.setTooltip(new Tooltip("Analyze"));
 
 		btn_del_exclude.setText(null);
-		btn_del_exclude.setGraphic(getIcon("trash_icon"));
+		btn_del_exclude.setGraphic(getImageView("trash_icon"));
 		btn_del_exclude.setTooltip(new Tooltip("Delete Exclusion Rule"));
 
 		btn_del_include.setText(null);
-		btn_del_include.setGraphic(getIcon("trash_icon"));
+		btn_del_include.setGraphic(getImageView("trash_icon"));
 		btn_del_include.setTooltip(new Tooltip("Delete Inclusion Rule"));
 
 		btn_del_profile.setText(null);
-		btn_del_profile.setGraphic(getIcon("trash_icon"));
+		btn_del_profile.setGraphic(getImageView("trash_icon"));
 		btn_del_profile.setTooltip(new Tooltip("Delete Profile"));
 
 		btn_save.setText(null);
-		btn_save.setGraphic(getIcon("save_icon"));
+		btn_save.setGraphic(getImageView("save_icon"));
 		btn_save.setTooltip(new Tooltip("Save"));
 
 		btn_save_as.setText(null);
-		btn_save_as.setGraphic(getIcon("save_as_icon"));
+		btn_save_as.setGraphic(getImageView("save_as_icon"));
 		btn_save_as.setTooltip(new Tooltip("Save As..."));
 
 		btn_srcdir.setText(null);
 		btn_srcdir.setTooltip(new Tooltip("Select Source Directory..."));
-		btn_srcdir.setGraphic(getIcon("horizontal_dots"));
+		btn_srcdir.setGraphic(getImageView("horizontal_dots"));
 
 		btn_destdir.setText(null);
 		btn_destdir.setTooltip(new Tooltip("Select Destination Directory..."));
-		btn_destdir.setGraphic(getIcon("horizontal_dots"));
+		btn_destdir.setGraphic(getImageView("horizontal_dots"));
 
 		btn_start_sync.setText(null);
 		btn_start_sync.setTooltip(new Tooltip("Start Sync"));
-		btn_start_sync.setGraphic(getIcon("logout_icon"));
+		btn_start_sync.setGraphic(getImageView("logout_icon"));
 
 		btn_stop.setText(null);
 		btn_stop.setTooltip(new Tooltip("Stop Sync"));
-		btn_stop.setGraphic(getIcon("x_icon"));
+		btn_stop.setGraphic(getImageView("x_icon"));
 
 		btn_open.setText(null);
 		btn_open.setTooltip(new Tooltip("Open Profile"));
-		btn_open.setGraphic(getIcon("horizontal_dots"));
+		btn_open.setGraphic(getImageView("horizontal_dots"));
 
 		btn_new.setText(null);
 		btn_new.setTooltip(new Tooltip("New Profile"));
-		btn_new.setGraphic(getIcon("plus_circle_icon"));
+		btn_new.setGraphic(getImageView("plus_circle_icon"));
 
-		btn_add_exclude.setGraphic(getIcon("plus_circle_icon"));
+		btn_add_exclude.setGraphic(getImageView("plus_circle_icon"));
 		btn_add_exclude.setText(null);
 
-		btn_add_include.setGraphic(getIcon("plus_circle_icon"));
+		btn_add_include.setGraphic(getImageView("plus_circle_icon"));
 		btn_add_include.setText(null);
 
 		choice_public_key.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
@@ -330,32 +330,32 @@ public class FileSync {
 		btn_add_exclude.setDisable(true);
 		btn_add_include.setDisable(true);
 
-		lbl_total.setGraphic(getIcon("database_icon"));
+		lbl_total.setGraphic(getImageView("database_icon"));
 		lbl_total.setTooltip(new Tooltip("Total Data"));
 
-		toggle_errors.setGraphic(getIcon("lightning_bolt_icon"));
+		toggle_errors.setGraphic(getImageView("lightning_bolt_icon"));
 		toggle_errors.setTooltip(new Tooltip("Display errors only"));
 		toggle_errors.setText("0");
 		toggle_errors.selectedProperty()
 				.addListener((observable, oldValue, newValue) -> filteredList.setPredicate(e -> matches(e)));
 
-		lbl_deletions.setGraphic(getIcon("trash_icon"));
+		lbl_deletions.setGraphic(getImageView("trash_icon"));
 		lbl_deletions.setTooltip(new Tooltip("Don't exist in the source folder any more; deleted"));
 		lbl_deletions.setText("0");
 
-		lbl_mirrors.setGraphic(getIcon("logout_icon"));
+		lbl_mirrors.setGraphic(getImageView("logout_icon"));
 		lbl_mirrors.setTooltip(new Tooltip("Mirrored"));
 		lbl_mirrors.setText("0");
 
-		lbl_matches.setGraphic(getIcon("check_icon"));
+		lbl_matches.setGraphic(getImageView("check_icon"));
 		lbl_matches.setTooltip(new Tooltip("Unchanged"));
 		lbl_matches.setText("0");
 
-		lbl_total_files.setGraphic(getIcon("document_icon"));
+		lbl_total_files.setGraphic(getImageView("document_icon"));
 		lbl_total_files.setTooltip(new Tooltip("Total Files"));
 		lbl_total_files.setText("0");
 
-		lbl_info.setGraphic(getIcon("circle_information_icon"));
+		lbl_info.setGraphic(getImageView("circle_information_icon"));
 		lbl_info.setText(null);
 
 		filteredList.predicateProperty().addListener((observable, oldValue, newValue) -> calculateTotals());
@@ -506,17 +506,17 @@ public class FileSync {
 			@Override
 			protected void updateItem(Path item, boolean empty) {
 				if (!empty && Files.isDirectory(item)) {
-					this.setGraphic(getIcon("folder_icon"));
+					this.setGraphic(getImageView("folder_icon"));
 				} else {
 					setGraphic(null);
 				}
 			};
 		});
 
-		col_flag_folder.setGraphic(getIcon("folder_icon"));
+		col_flag_folder.setGraphic(getImageView("folder_icon"));
 
 		var lvl_label = new Label();
-		lvl_label.setGraphic(getIcon("down_double_icon"));
+		lvl_label.setGraphic(getImageView("down_double_icon"));
 		lvl_label.setTooltip(new Tooltip("Drilldown Level"));
 
 		col_level.setGraphic(lvl_label);
@@ -533,7 +533,7 @@ public class FileSync {
 		});
 
 		var result_label = new Label();
-		result_label.setGraphic(getIcon("view_grid_icon"));
+		result_label.setGraphic(getImageView("view_grid_icon"));
 		result_label.setTooltip(new Tooltip("Sync Result"));
 
 		col_sync_result.setGraphic(result_label);
@@ -548,17 +548,17 @@ public class FileSync {
 					if (compareResult != null) {
 						switch (compareResult.result) {
 						case ERROR -> {
-							this.setGraphic(getIcon("lightning_bolt_icon"));
+							this.setGraphic(getImageView("lightning_bolt_icon"));
 							var ex = compareResult.exception;
 							this.setTooltip(
 									new Tooltip(ex.getMessage() == null ? ex.getClass().getName() : ex.getMessage()));
 						}
 						case MIRRORED -> {
-							this.setGraphic(getIcon("logout_icon"));
+							this.setGraphic(getImageView("logout_icon"));
 							setTooltip(new Tooltip("Mirrored to the destination folder"));
 						}
 						case MATCH -> {
-							this.setGraphic(getIcon("check_icon"));
+							this.setGraphic(getImageView("check_icon"));
 							setTooltip(new Tooltip("Unchanged"));
 						}
 						}
@@ -645,15 +645,6 @@ public class FileSync {
 		return false;
 	}
 
-	private ImageView getIcon(String iconName) {
-		var image = new Image(getClass().getResourceAsStream("/omscompanion/img/" + iconName + ".png"));
-		var imageView = new ImageView(image);
-		imageView.setFitWidth(16);
-		imageView.setFitHeight(16);
-
-		return imageView;
-	}
-
 	public static void show(Runnable andThen) {
 		Platform.runLater(() -> {
 			try {
@@ -663,6 +654,7 @@ public class FileSync {
 				((FileSync) fxmlLoader.getController()).init(scene);
 				var stage = new Stage();
 				stage.setTitle(Main.APP_NAME + ": FileSync");
+				stage.getIcons().add(FxMain.getImage("qr-code"));
 				stage.setScene(scene);
 				stage.show();
 				scene.getWindow().setOnHidden(e -> {
@@ -1205,5 +1197,9 @@ public class FileSync {
 			}
 			t.start();
 		});
+	}
+
+	private static ImageView getImageView(String name) {
+		return FxMain.getImageView(name, new Dimension2D(16, 16));
 	}
 }

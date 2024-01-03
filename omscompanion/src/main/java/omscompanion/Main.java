@@ -95,7 +95,7 @@ public class Main {
 
 		var size = SystemTray.getSystemTray().getTrayIconSize();
 
-		var bi = ImageIO.read(Main.class.getResourceAsStream("qr-code.png"));
+		var bi = ImageIO.read(Main.class.getResourceAsStream("/omscompanion/img/qr-code.png"));
 		var image = bi.getScaledInstance(size.width, size.height, Image.SCALE_SMOOTH);
 		var trayIcon = new TrayIcon(image, APP_NAME);
 

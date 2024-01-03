@@ -384,7 +384,8 @@ public class NewPrivateKey {
 				var scene = new Scene(fxmlLoader.load());
 				((NewPrivateKey) fxmlLoader.getController()).init();
 				var stage = new Stage();
-				stage.setTitle(Main.APP_NAME + ": new private key");
+				stage.setTitle(Main.APP_NAME + ": New Private Key");
+				stage.getIcons().add(FxMain.getImage("qr-code"));
 				stage.setScene(scene);
 				stage.initStyle(StageStyle.UTILITY);
 				stage.show();

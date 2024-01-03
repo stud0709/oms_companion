@@ -54,6 +54,8 @@ For more information on decripting see OneMoreSecret [documentation](https://git
 ## Encrypting Files
 Copy files you want to encrypt to the clipboard and double-click the system tray icon of *omsCompanion*. The files will be encrypted with the public key of your choice. The resulting file(s) of type `.oms00` will be either set to the clipboard (if you encrypt a single file) or written to the folder of your choice.
 
+In case you want to mirror a specific folder "to the cloud" encrypting its content along the way, please refer to the [FileSync](./filesync.md) feature of *omsCompanion*.
+
 You may also like to use the [file encryption](https://github.com/stud0709/OneMoreSecret/blob/master/encrypt_file.md) functionality of *OneMoreSecret* to encrypt files on your smartphone. 
 
 ## Decrypting Files
@@ -89,3 +91,6 @@ The public key storage is accessible from the *Cryptography -> Public Key Folder
 
 ## Roadmap and Bugs
 For feature requests and bug report, please open a [GitHub Issue](https://github.com/stud0709/oms_companion/issues). 
+
+## Credits
+Icons by [Steve Schoger](https://www.iconfinder.com/search?q=&iconset=heroicons-solid)

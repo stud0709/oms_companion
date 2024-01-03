@@ -22,7 +22,6 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 import omscompanion.FxMain;
 import omscompanion.Main;
 import omscompanion.MessageComposer;
@@ -120,7 +119,8 @@ public class QRFrame {
 				frameController.init(message, stage, allowTextInput);
 				stage.setTitle("omsCompanion");
 				stage.setScene(scene);
-				stage.initStyle(StageStyle.UTILITY);
+				stage.setResizable(false);
+				stage.getIcons().add(FxMain.getImage("qr-code"));
 				stage.show();
 				scene.getWindow().setOnHidden(e -> {
 					String s = frameController.txtInput.getText();
@@ -154,7 +154,7 @@ public class QRFrame {
 	@FXML
 	void onKeyPressed(KeyEvent event) {
 		if (event.getCode() == KeyCode.ENTER) {
-			instance.getWindows().get(0).hide();
+			instance.close();
 		}
 	}
 }
