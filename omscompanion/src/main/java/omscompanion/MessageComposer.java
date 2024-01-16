@@ -1,13 +1,37 @@
 package omscompanion;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.interfaces.RSAPublicKey;
 import java.util.Base64;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
+
+import omscompanion.crypto.AESUtil;
+import omscompanion.crypto.AesTransformation;
+import omscompanion.crypto.RSAUtils;
+import omscompanion.crypto.RsaTransformation;
+
 public abstract class MessageComposer {
 	public static final int APPLICATION_AES_ENCRYPTED_PRIVATE_KEY_TRANSFER = 0,
-			APPLICATION_ENCRYPTED_MESSAGE_TRANSFER = 1, APPLICATION_TOTP_URI_TRANSFER = 2,
-			APPLICATION_ENCRYPTED_FILE = 3, APPLICATION_KEY_REQUEST = 4, APPLICATION_KEY_RESPONSE = 5;
+			APPLICATION_ENCRYPTED_MESSAGE_DEPRECATED = 1, APPLICATION_TOTP_URI_TRANSFER = 2,
+			APPLICATION_ENCRYPTED_FILE = 3, APPLICATION_KEY_REQUEST = 4, APPLICATION_KEY_RESPONSE = 5,
+			/**
+			 * Until now, it was possible to understand what kind of information is
+			 * contained in the message. The generic message will only allow to decrypt it,
+			 * all other information will be found inside.
+			 */
+			APPLICATION_RSA_AES_GENERIC = 6, APPLICATION_BITCOIN_ADDRESS = 7, APPLICATION_ENCRYPTED_MESSAGE = 8;
 
 	/**
 	 * Prefix of a text encoded message.
@@ -59,5 +83,74 @@ public abstract class MessageComposer {
 	 */
 	public static String encodeAsOmsText(byte[] message) {
 		return OMS_PREFIX + Base64.getEncoder().encodeToString(message);
+	}
+
+	public static byte[] createRsaAesEnvelope(RSAPublicKey rsaPublicKey, int rsaTransformationIdx, int aesKeyLength,
+			int aesTransformationIdx, byte[] payload) throws NoSuchAlgorithmException, NoSuchPaddingException,
+			IllegalBlockSizeException, BadPaddingException, InvalidKeyException, InvalidAlgorithmParameterException {
+
+		return createRsaAesEnvelope(MessageComposer.APPLICATION_RSA_AES_GENERIC, rsaPublicKey, rsaTransformationIdx,
+				aesKeyLength, aesTransformationIdx, payload);
+	}
+
+	public static byte[] createRsaAesEnvelope(int applicationId, RSAPublicKey rsaPublicKey, int rsaTransformationIdx,
+			int aesKeyLength, int aesTransformationIdx, byte[] payload)
+			throws NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException,
+			InvalidKeyException, InvalidAlgorithmParameterException {
+
+		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				OmsDataOutputStream dataOutputStream = new OmsDataOutputStream(baos)) {
+
+			var aesEncryptionParameters = prepareRsaAesEnvelope(dataOutputStream, applicationId, rsaPublicKey,
+					rsaTransformationIdx, aesKeyLength, aesTransformationIdx);
+
+// (7) AES-encrypted message
+			dataOutputStream.writeByteArray(AESUtil.process(Cipher.ENCRYPT_MODE, payload,
+					aesEncryptionParameters.secretKey(), aesEncryptionParameters.iv(),
+					AesTransformation.values()[aesTransformationIdx].transformation));
+
+			return baos.toByteArray();
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
+		}
+	}
+
+	public record AesEncryptionParameters(SecretKey secretKey, IvParameterSpec iv) {
+	}
+
+	public static AesEncryptionParameters prepareRsaAesEnvelope(OmsDataOutputStream dataOutputStream, int applicationId,
+			RSAPublicKey rsaPublicKey, int rsaTransformationIdx, int aesKeyLength, int aesTransformationIdx)
+			throws NoSuchAlgorithmException, IOException, NoSuchPaddingException, InvalidKeyException,
+			IllegalBlockSizeException, BadPaddingException {
+
+		// init AES
+		var iv = AESUtil.generateIv();
+		var secretKey = AESUtil.generateRandomSecretKey(aesKeyLength);
+
+		// encrypt AES secret key with RSA
+		var cipher = Cipher.getInstance(RsaTransformation.values()[rsaTransformationIdx].transformation);
+		cipher.init(Cipher.ENCRYPT_MODE, rsaPublicKey);
+
+		var encryptedSecretKey = cipher.doFinal(secretKey.getEncoded());
+
+		// (1) application-ID
+		dataOutputStream.writeUnsignedShort(applicationId);
+
+		// (2) RSA transformation index
+		dataOutputStream.writeUnsignedShort(rsaTransformationIdx);
+
+		// (3) fingerprint
+		dataOutputStream.writeByteArray(RSAUtils.getFingerprint(rsaPublicKey));
+
+		// (4) AES transformation index
+		dataOutputStream.writeUnsignedShort(aesTransformationIdx);
+
+		// (5) IV
+		dataOutputStream.writeByteArray(iv.getIV());
+
+		// (6) RSA-encrypted AES secret key
+		dataOutputStream.writeByteArray(encryptedSecretKey);
+
+		return new AesEncryptionParameters(secretKey, iv);
 	}
 }

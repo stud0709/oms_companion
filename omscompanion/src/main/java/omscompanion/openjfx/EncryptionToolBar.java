@@ -19,7 +19,7 @@ import javafx.scene.layout.GridPane;
 import omscompanion.FxMain;
 import omscompanion.Main;
 import omscompanion.crypto.AESUtil;
-import omscompanion.crypto.EncryptedMessageTransfer;
+import omscompanion.crypto.EncryptedMessage;
 import omscompanion.crypto.RSAUtils;
 
 public class EncryptionToolBar extends GridPane implements ChangeListener<RSAPublicKeyItem> {
@@ -118,7 +118,7 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<RSAPub
 	public void changed(ObservableValue<? extends RSAPublicKeyItem> observable, RSAPublicKeyItem oldValue,
 			RSAPublicKeyItem newValue) {
 		try {
-			message = new EncryptedMessageTransfer(unprotected, newValue.publicKey, RSAUtils.getRsaTransformationIdx(),
+			message = new EncryptedMessage(unprotected, newValue.publicKey, RSAUtils.getRsaTransformationIdx(),
 					AESUtil.getKeyLength(), AESUtil.getTransformationIdx()).getMessage();
 
 		} catch (Exception ex) {
