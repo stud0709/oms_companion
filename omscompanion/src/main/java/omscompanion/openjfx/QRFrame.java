@@ -15,7 +15,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
-import javafx.scene.control.TextField;
+import javafx.scene.control.PasswordField;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.KeyCode;
@@ -42,6 +42,9 @@ public class QRFrame {
 	private Label lblQrCode;
 
 	@FXML
+	private Label lblOmsReply;
+
+	@FXML
 	private MenuItem mItmAsBase64;
 
 	@FXML
@@ -54,7 +57,7 @@ public class QRFrame {
 	private ImageView imgQR;
 
 	@FXML
-	private TextField txtInput;
+	private PasswordField txtInput;
 
 	@FXML
 	private VBox vbox;
@@ -80,6 +83,7 @@ public class QRFrame {
 			txtInput.requestFocus();
 		} else {
 			vbox.getChildren().remove(txtInput);
+			vbox.getChildren().remove(lblOmsReply);
 		}
 
 		var qrHelper = new AnimatedQrHelper(MessageComposer.encodeAsOmsText(message).toCharArray(),
@@ -103,7 +107,7 @@ public class QRFrame {
 		}
 	}
 
-	public static void showForMessage(byte[] message, boolean autoClose, boolean allowTextInput,
+	public static void showForMessage(byte[] message, boolean autoClose, boolean allowTextInput, String title,
 			Consumer<String> andThen) {
 		if (instance != null) {
 			Platform.runLater(() -> instance.close());
@@ -117,7 +121,7 @@ public class QRFrame {
 				var frameController = (QRFrame) fxmlLoader.getController();
 				var stage = new Stage();
 				frameController.init(message, stage, allowTextInput);
-				stage.setTitle("omsCompanion");
+				stage.setTitle(Main.APP_NAME + (title == null ? "" : ": " + title));
 				stage.setScene(scene);
 				stage.setResizable(false);
 				stage.getIcons().add(FxMain.getImage("qr-code"));

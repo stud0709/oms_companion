@@ -18,7 +18,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Base64;
@@ -49,7 +48,7 @@ import omscompanion.FxMain;
 import omscompanion.Main;
 import omscompanion.MessageComposer;
 import omscompanion.crypto.AESUtil;
-import omscompanion.crypto.AesEncryptedPrivateKeyTransfer;
+import omscompanion.crypto.AesEncryptedPrivateKey;
 import omscompanion.crypto.RSAUtils;
 import omscompanion.qr.QRUtil;
 
@@ -249,10 +248,9 @@ public class NewPrivateKey {
 
 		new Thread(() -> {
 			try {
-				var keyPairGenerator = KeyPairGenerator.getInstance("RSA");
 				var rsaKeyLength = chk4096bit.isSelected() ? 4096 : 2048;
-				keyPairGenerator.initialize(rsaKeyLength);
-				var keyPair = keyPairGenerator.generateKeyPair();
+				var keyPair = RSAUtils.newKeyPair(rsaKeyLength);
+
 				var rsaPublicKey = (RSAPublicKey) keyPair.getPublic();
 
 				Platform.runLater(() -> txtAreaInfo.appendText(String.format("Key pair generated (%s, %s, %s)\n",
@@ -280,7 +278,7 @@ public class NewPrivateKey {
 
 				var alias = txtKeyAlias.getText().trim();
 
-				var message = new AesEncryptedPrivateKeyTransfer(alias, keyPair, secretKey, iv, salt,
+				var message = new AesEncryptedPrivateKey(alias, keyPair, secretKey, iv, salt,
 						AESUtil.getTransformationIdx(), AESUtil.getAesKeyAlgorithmIdx(), aesKeyLength,
 						aesKeyspecIterations).getMessage();
 
@@ -306,7 +304,7 @@ public class NewPrivateKey {
 
 				Platform.runLater(() -> txtAreaInfo.appendText("Displaying QR sequence\n"));
 
-				QRFrame.showForMessage(message, false, false, s -> {
+				QRFrame.showForMessage(message, false, false, null, s -> {
 					Platform.runLater(() -> txtAreaInfo.appendText("Showing backup file\n"));
 					try {
 						Desktop.getDesktop().open(backupFile);

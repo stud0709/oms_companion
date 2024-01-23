@@ -139,7 +139,7 @@ public class ClipboardUtil {
 
 				suspendClipboardCheck();
 
-				QRFrame.showForMessage(message, true, false, _s -> Platform.runLater(() -> {
+				QRFrame.showForMessage(message, true, false, null, _s -> Platform.runLater(() -> {
 					set(""); // clear the clipboard
 					resumeClipboardCheck();
 				}));
@@ -497,7 +497,7 @@ public class ClipboardUtil {
 
 		var keyRequest = new KeyRequest(encryptedFile);
 
-		QRFrame.showForMessage(keyRequest.getMessage(), false, true, s -> {
+		QRFrame.showForMessage(keyRequest.getMessage(), false, true, null, s -> {
 			set("");
 
 			if (s.isEmpty()) {

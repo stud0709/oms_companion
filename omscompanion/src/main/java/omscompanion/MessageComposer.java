@@ -31,7 +31,8 @@ public abstract class MessageComposer {
 			 * contained in the message. The generic message will only allow to decrypt it,
 			 * all other information will be found inside.
 			 */
-			APPLICATION_RSA_AES_GENERIC = 6, APPLICATION_BITCOIN_ADDRESS = 7, APPLICATION_ENCRYPTED_MESSAGE = 8;
+			APPLICATION_RSA_AES_GENERIC = 6, APPLICATION_BITCOIN_ADDRESS = 7, APPLICATION_ENCRYPTED_MESSAGE = 8,
+			APPLICATION_PAIRING_INFO = 9;
 
 	/**
 	 * Prefix of a text encoded message.

@@ -19,10 +19,10 @@ import javax.crypto.spec.IvParameterSpec;
 import omscompanion.MessageComposer;
 import omscompanion.OmsDataOutputStream;
 
-public class AesEncryptedPrivateKeyTransfer {
+public class AesEncryptedPrivateKey {
 	private final byte[] message;
 
-	public AesEncryptedPrivateKeyTransfer(String alias, KeyPair rsaKeyPair, SecretKey aesKey, IvParameterSpec iv,
+	public AesEncryptedPrivateKey(String alias, KeyPair rsaKeyPair, SecretKey aesKey, IvParameterSpec iv,
 			byte[] salt, int aesTransformationIdx, int aesKeyAlgorithmIdx, int aesKeyLength, int aesKeyspecIterations)
 			throws NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException,
 			InvalidAlgorithmParameterException, BadPaddingException, IllegalBlockSizeException {

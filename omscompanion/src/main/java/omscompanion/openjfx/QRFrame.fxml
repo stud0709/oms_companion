@@ -3,11 +3,12 @@
 <?import javafx.scene.control.ContextMenu?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.MenuItem?>
+<?import javafx.scene.control.PasswordField?>
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.VBox?>
 
-<VBox fx:id="vbox" xmlns="http://javafx.com/javafx/19" xmlns:fx="http://javafx.com/fxml/1" fx:controller="omscompanion.openjfx.QRFrame">
+<VBox fx:id="vbox" xmlns="http://javafx.com/javafx/20.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="omscompanion.openjfx.QRFrame">
    <children>
       <Label fx:id="lblQrCode" alignment="CENTER" minHeight="100.0" minWidth="100.0">
          <contextMenu>
@@ -23,6 +24,7 @@
             <ImageView fx:id="imgQR" fitHeight="150.0" fitWidth="200.0" pickOnBounds="true" preserveRatio="true" />
          </graphic>
       </Label>
-      <TextField fx:id="txtInput" onKeyPressed="#onKeyPressed" promptText="Enter File Key" />
+      <Label fx:id="lblOmsReply" text="OneMoreSecret Reply:" />
+      <PasswordField fx:id="txtInput" onKeyPressed="#onKeyPressed" />
    </children>
 </VBox>

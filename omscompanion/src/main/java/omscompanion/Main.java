@@ -26,6 +26,7 @@ import javax.imageio.ImageIO;
 import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 
+import omscompanion.crypto.PairingInfo;
 import omscompanion.openjfx.FileSync;
 import omscompanion.openjfx.NewPrivateKey;
 import omscompanion.openjfx.PasswordGenerator;
@@ -37,7 +38,7 @@ public class Main {
 	private static final String PROP_DEFAULT_KEY = "default_key", PROPERTY_FILE = "omscompanion.properties";
 	public static final String APP_NAME = "omsCompanion";
 	private static MenuItem filesyncMenuItem = null, passwordGeneratorMenuItem = null, importPublicKeyMenuItem = null,
-			newPrivateKeyMenuItem = null;
+			newPrivateKeyMenuItem = null, wiFiConnectMenuItem = null;
 
 	public static void main(String[] args) throws Exception {
 		Files.createDirectories(PUBLIC_KEY_STORAGE);
@@ -173,6 +174,26 @@ public class Main {
 		}
 
 		{
+			var wifi = new Menu("WiFi...");
+
+			{
+				wiFiConnectMenuItem = new MenuItem("Connect");
+				wiFiConnectMenuItem.setActionCommand("wiFiConnect");
+				wiFiConnectMenuItem.addActionListener(MENU_ACTION_LISTENER);
+				wifi.add(wiFiConnectMenuItem);
+			}
+
+			{
+				var wiFiDisconnect = new MenuItem("Disconnect");
+				wiFiDisconnect.setActionCommand("wiFiDisconnect");
+				wiFiDisconnect.addActionListener(MENU_ACTION_LISTENER);
+				wifi.add(wiFiDisconnect);
+			}
+
+			menu.add(wifi);
+		}
+
+		{
 			var menuItem = new MenuItem("Project Home Page");
 			menuItem.setActionCommand("home");
 			menuItem.addActionListener(MENU_ACTION_LISTENER);
@@ -237,6 +258,18 @@ public class Main {
 				} catch (Exception ex) {
 					ex.printStackTrace();
 				}
+				break;
+			case "wiFiConnect":
+				try {
+					wiFiConnectMenuItem.setEnabled(false);
+					new PairingInfo().displayPrompt(
+							() -> SwingUtilities.invokeLater(() -> wiFiConnectMenuItem.setEnabled(true)));
+				} catch (Exception ex) {
+					ex.printStackTrace();
+				}
+				break;
+			case "wiFiDisconnect":
+				PairingInfo.disconnect();
 				break;
 			}
 		}
