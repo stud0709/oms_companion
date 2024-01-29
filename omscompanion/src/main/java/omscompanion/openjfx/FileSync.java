@@ -318,7 +318,7 @@ public class FileSync {
 			currentProfileProperty.get().settings.publicKeyName = newValue.toString();
 		});
 
-		EncryptionToolBar.initChoiceBox(choice_public_key);
+		FxMain.initChoiceBox(choice_public_key);
 
 		btn_del_exclude.setDisable(true);
 		btn_del_include.setDisable(true);

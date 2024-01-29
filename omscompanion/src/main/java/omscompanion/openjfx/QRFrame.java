@@ -32,6 +32,7 @@ public class QRFrame {
 	private byte[] message;
 	private static final Timer timer = new Timer();
 	private static Stage instance;
+	private static Consumer<String> endOfAction;
 
 	private static final String PROP_QR_FRAME_AUTOCLOSE = "qr_frame_autoclose";
 
@@ -109,8 +110,14 @@ public class QRFrame {
 
 	public static void showForMessage(byte[] message, boolean autoClose, boolean allowTextInput, String title,
 			Consumer<String> andThen) {
-		if (instance != null) {
-			Platform.runLater(() -> instance.close());
+
+		synchronized (QRFrame.class) {
+			if (instance != null) {
+				Platform.runLater(() -> {
+					instance.getScene().getWindow().setOnHidden(null);
+					instance.close();
+				});
+			}
 		}
 
 		Platform.runLater(() -> {
@@ -120,22 +127,28 @@ public class QRFrame {
 				var scene = new Scene(fxmlLoader.load());
 				var frameController = (QRFrame) fxmlLoader.getController();
 				var stage = new Stage();
+				endOfAction = s -> {
+					synchronized (QRFrame.class) {
+						if (instance == stage) {
+							instance = null;
+
+							if (andThen != null)
+								new Thread(() -> andThen.accept(s)).start();
+						}
+					}
+				};
 				frameController.init(message, stage, allowTextInput);
 				stage.setTitle(Main.APP_NAME + (title == null ? "" : ": " + title));
 				stage.setScene(scene);
 				stage.setResizable(false);
 				stage.getIcons().add(FxMain.getImage("qr-code"));
+				synchronized (QRFrame.class) {
+					instance = stage;
+				}
 				stage.show();
 				scene.getWindow().setOnHidden(e -> {
 					String s = frameController.txtInput.getText();
-
-					synchronized (QRFrame.class) {
-						if (instance == stage)
-							instance = null;
-					}
-
-					if (andThen != null)
-						new Thread(() -> andThen.accept(s)).start();
+					endOfAction.accept(s);
 				});
 				if (autoClose) {
 					// schedule automatic close
@@ -149,8 +162,8 @@ public class QRFrame {
 				}
 			} catch (Exception ex) {
 				ex.printStackTrace();
-				if (andThen != null)
-					andThen.accept(null);
+				if (endOfAction != null)
+					endOfAction.accept(null);
 			}
 		});
 	}

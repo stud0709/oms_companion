@@ -48,7 +48,6 @@ import omscompanion.crypto.AESUtil;
 import omscompanion.crypto.EncryptedFile;
 import omscompanion.crypto.KeyRequest;
 import omscompanion.crypto.RSAUtils;
-import omscompanion.openjfx.EncryptionToolBar;
 import omscompanion.openjfx.NewItem;
 import omscompanion.openjfx.QRFrame;
 import omscompanion.openjfx.RSAPublicKeyItem;
@@ -265,7 +264,7 @@ public class ClipboardUtil {
 	private static void encrypt(List<File> listOfFile) throws Exception {
 		try {
 			var choiceBox = new ChoiceBox<RSAPublicKeyItem>();
-			EncryptionToolBar.initChoiceBox(choiceBox);
+			FxMain.initChoiceBox(choiceBox);
 			choiceBox.setPrefWidth(Double.MAX_VALUE);
 			var pkFuture = new CompletableFuture<RSAPublicKey>();
 

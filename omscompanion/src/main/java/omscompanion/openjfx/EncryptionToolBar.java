@@ -1,13 +1,10 @@
 package omscompanion.openjfx;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.util.stream.Collectors;
 
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
-import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -63,32 +60,8 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<RSAPub
 		FxMain.createTextLink(message);
 	}
 
-	public static void initChoiceBox(ChoiceBox<RSAPublicKeyItem> choiceBox) throws Exception {
-		var publicKeys = Files.list(Main.PUBLIC_KEY_STORAGE)
-				.filter(fn -> fn.getFileName().toString().toLowerCase().endsWith(FILE_TYPE_PUCLIC_KEY))
-				.map(p -> new RSAPublicKeyItem(p))
-				.filter(p -> p.publicKey != null /* this happens if the key could not be restored */)
-				.collect(Collectors.toList());
-
-		if (publicKeys.isEmpty()) {
-			throw new Exception(
-					String.format("Cannot encrypt: no keys found in %s", Main.PUBLIC_KEY_STORAGE.toAbsolutePath()));
-		}
-
-		var os = FXCollections.observableArrayList(publicKeys);
-		choiceBox.setItems(os);
-
-		var defaultKey = os.stream().filter(i -> i.toString().equals(Main.getDefaultKey())).findAny();
-
-		if (publicKeys.size() == 1 || !defaultKey.isPresent()) {
-			choiceBox.getSelectionModel().selectFirst();
-		} else {
-			choiceBox.getSelectionModel().select(defaultKey.get());
-		}
-	}
-
 	public void init() throws Exception {
-		initChoiceBox(choiceKey);
+		FxMain.initChoiceBox(choiceKey);
 		choiceKey.getSelectionModel().selectedItemProperty().addListener(this);
 	}
 
