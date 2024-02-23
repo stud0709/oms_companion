@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
@@ -59,15 +60,15 @@ public final class AESUtil {
 		return salt;
 	}
 
-	public static byte[] process(int cipherMode, byte[] input, SecretKey key, IvParameterSpec iv,
-			String aesTransformation) throws NoSuchPaddingException, NoSuchAlgorithmException,
-			InvalidAlgorithmParameterException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+	public static byte[] process(int cipherMode, byte[] input, Key key, IvParameterSpec iv, String aesTransformation)
+			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
+			InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
 		var cipher = Cipher.getInstance(aesTransformation);
 		cipher.init(cipherMode, key, iv);
 		return cipher.doFinal(input);
 	}
 
-	public static void process(int cipherMode, InputStream is, OutputStream os, SecretKey key, IvParameterSpec iv,
+	public static void process(int cipherMode, InputStream is, OutputStream os, Key key, IvParameterSpec iv,
 			String aesTransformation, Supplier<Boolean> cancelled)
 			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
 			InvalidKeyException, BadPaddingException, IllegalBlockSizeException, IOException {

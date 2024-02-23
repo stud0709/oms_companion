@@ -3,8 +3,6 @@ package omscompanion.crypto;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -14,14 +12,17 @@ import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPublicKey;
-import java.util.Base64;
 import java.util.function.Consumer;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
+import omscompanion.Base58;
+import omscompanion.FxMain;
 import omscompanion.Main;
 import omscompanion.MessageComposer;
 import omscompanion.OmsDataInputStream;
@@ -37,29 +38,25 @@ public class PairingInfo {
 	public static final String PROP_SO_TIMEOUT = "so_timeout", PROP_REQUEST_TIMEOUT_S = "request_timeout_s";
 
 	public record ConnectionSettings(RSAPublicKey publicKeySend, RSAPublicKey initialKey, InetAddress inetAddress,
-			int port, boolean isAutoTypeWiFi) {
+			int port) {
 		public ConnectionSettings withPublicKeySend(RSAPublicKey pKey) {
-			return new ConnectionSettings(pKey, initialKey, inetAddress, port, isAutoTypeWiFi);
+			return new ConnectionSettings(pKey, initialKey, inetAddress, port);
 		}
 
 		public ConnectionSettings withInetAddress(InetAddress adr) {
-			return new ConnectionSettings(publicKeySend, initialKey, adr, port, isAutoTypeWiFi);
+			return new ConnectionSettings(publicKeySend, initialKey, adr, port);
 		}
 
 		public ConnectionSettings withPort(int p) {
-			return new ConnectionSettings(publicKeySend, initialKey, inetAddress, p, isAutoTypeWiFi);
-		}
-
-		public ConnectionSettings withAutoTypeWiFi(boolean b) {
-			return new ConnectionSettings(publicKeySend, initialKey, inetAddress, port, b);
+			return new ConnectionSettings(publicKeySend, initialKey, inetAddress, p);
 		}
 
 		public ConnectionSettings withInitialKey(RSAPublicKey iKey) {
-			return new ConnectionSettings(publicKeySend, iKey, inetAddress, port, isAutoTypeWiFi);
+			return new ConnectionSettings(publicKeySend, iKey, inetAddress, port);
 		}
 
 		public ConnectionSettings() {
-			this(null, null, null, 0, false);
+			this(null, null, null, 0);
 		}
 	}
 
@@ -103,7 +100,7 @@ public class PairingInfo {
 		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
 				OmsDataOutputStream dataOutputStream = new OmsDataOutputStream(baos)) {
 			// (1) application identifier
-			dataOutputStream.writeUnsignedShort(MessageComposer.APPLICATION_PAIRING_INFO);
+			dataOutputStream.writeUnsignedShort(MessageComposer.APPLICATION_WIFI_PAIRING);
 
 			// (2) Pairing Request ID
 			dataOutputStream.writeString(id);
@@ -114,12 +111,8 @@ public class PairingInfo {
 			// (4) private key for the other party to answer
 			dataOutputStream.writeByteArray(privateKeyMaterialSend);
 
-			// (5) AutoTypeWiFi
-			dataOutputStream.writeBoolean(connectionSettings.isAutoTypeWiFi);
-
-			return MessageComposer.createRsaAesEnvelope(connectionSettings.initialKey,
-					RSAUtils.getRsaTransformationIdx(), AESUtil.getKeyLength(), AESUtil.getTransformationIdx(),
-					baos.toByteArray());
+			return MessageComposer.createRsaAesEnvelope(connectionSettings.initialKey, RSAUtils.getTransformationIdx(),
+					AESUtil.getKeyLength(), AESUtil.getTransformationIdx(), baos.toByteArray());
 		}
 	}
 
@@ -145,18 +138,23 @@ public class PairingInfo {
 		if (reply == null || reply.isEmpty()) { // not successful
 			synchronized (PairingInfo.class) {
 				instance = null;
+				if (andThen != null)
+					andThen.run();
 			}
 			return;
 		}
 
-		try (ByteArrayInputStream bais = new ByteArrayInputStream(Base64.getDecoder().decode(reply));
-				OmsDataInputStream dataInputStream = new OmsDataInputStream(bais)) {
+		try (ByteArrayInputStream bais = new ByteArrayInputStream(Base58.decode(reply))) {
 			// (1) IP address
-			var address = ByteBuffer.allocate(4).putInt(dataInputStream.readInt()).array();
-			var iAddress = InetAddress.getByAddress(address);
+			var bArr = new byte[4];
+			bais.read(bArr);
+			var iAddress = InetAddress.getByAddress(bArr);
+			System.out.println("IP: " + iAddress);
 
 			// (2) port
-			var port = dataInputStream.readShort();
+			bais.read(bArr);
+			var port = ByteBuffer.wrap(bArr).getInt();
+			System.out.println("Port: " + port);
 
 			// pairing successful
 			this.connectionSettings = connectionSettings.withInetAddress(iAddress).withPort(port);
@@ -165,10 +163,10 @@ public class PairingInfo {
 				instance = this;
 			}
 		} catch (Exception ex) {
-			ex.printStackTrace();
 			synchronized (PairingInfo.class) {
 				instance = null;
 			}
+			FxMain.handleException(ex);
 		} finally {
 			if (andThen != null)
 				andThen.run();
@@ -178,21 +176,6 @@ public class PairingInfo {
 	public void sendMessage(byte[] message, Consumer<byte[]> onReply)
 			throws InvalidKeyException, NoSuchPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException,
 			BadPaddingException, IOException {
-
-		// encrypt message with public key of the current connection
-		byte[] dataToSend;
-		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-				OmsDataOutputStream dataOutputStream = new OmsDataOutputStream(baos)) {
-			// (1) RSA transformation index
-			dataOutputStream.writeUnsignedShort(RSAUtils.getRsaTransformationIdx());
-
-			// (2) write encrypted message
-			var encryptedMessage = RSAUtils.process(Cipher.ENCRYPT_MODE, connectionSettings.publicKeySend,
-					RSAUtils.getRsaTransformation().transformation, message);
-			dataOutputStream.writeByteArray(encryptedMessage);
-
-			dataToSend = baos.toByteArray();
-		}
 
 		var ts = System.currentTimeMillis();
 		var timeout = getRequestTimeoutS() * 1000;
@@ -208,33 +191,44 @@ public class PairingInfo {
 					// try to connect
 					try (var s = new Socket()) {
 						s.connect(new InetSocketAddress(connectionSettings.inetAddress, connectionSettings.port),
-								Integer.parseInt(Main.properties.getProperty(PROP_SO_TIMEOUT, "" + 2_000)));
+								Integer.parseInt(Main.properties.getProperty(PROP_SO_TIMEOUT, "" + 1_000)));
+
+						s.setSoTimeout(timeout);
 
 						socket = s;
 
-						try (OutputStream os = s.getOutputStream();
-								InputStream is = s.getInputStream();
-								ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+						var os = s.getOutputStream();
+
+						try (var dataInputStream = new OmsDataInputStream(s.getInputStream())) {
+
+							var dataToSend = MessageComposer.createRsaAesEnvelope(connectionSettings.publicKeySend,
+									RSAUtils.getTransformationIdx(), AESUtil.getKeyLength(),
+									AESUtil.getTransformationIdx(), message);
+
 							os.write(dataToSend);
 							os.flush();
+							s.shutdownOutput();
 
 							// now wait for the reply
 							s.setSoTimeout(0);
 
-							byte[] buf = new byte[1024];
-							int cnt;
-							while ((cnt = is.read(buf)) != -1) {
-								baos.write(buf, 0, cnt);
-							}
+							var envelope = MessageComposer.readRsaAesEnvelope(dataInputStream);
+							var encryptedMessage = dataInputStream.readByteArray();
 
-							// TODO: allow multiple replies within one session (e.g. more than one AutoType
-							// message)
+							// decrypt AES key
+							var aesSecretKeyData = RSAUtils.process(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate(),
+									envelope.rsaTransormation(), envelope.encryptedAesSecretKey());
+							var aesSecretKey = new SecretKeySpec(aesSecretKeyData, "AES");
+
+							// (7) AES-encrypted message
+							var decryptedMessage = AESUtil.process(Cipher.DECRYPT_MODE, encryptedMessage, aesSecretKey,
+									new IvParameterSpec(envelope.iv()), envelope.aesTransformation());
 
 							synchronized (PairingInfo.class) {
 								if (instance != PairingInfo.this || sender != Thread.currentThread() || socket != s)
 									return;
 
-								onReply.accept(decrypt(baos.toByteArray()));
+								onReply.accept(decryptedMessage);
 
 								if (sender == Thread.currentThread())
 									sender = null;
@@ -243,26 +237,16 @@ public class PairingInfo {
 						}
 					} catch (Exception e) {
 						e.printStackTrace();
+						try {
+							Thread.sleep(1000);
+						} catch (InterruptedException e1) {
+							break;
+						}
 					}
 				}
 
 			});
 			sender.start();
-		}
-	}
-
-	private byte[] decrypt(byte[] reply) throws InvalidKeyException, NoSuchPaddingException, NoSuchAlgorithmException,
-			IllegalBlockSizeException, BadPaddingException, IOException {
-		try (ByteArrayInputStream bais = new ByteArrayInputStream(reply);
-				OmsDataInputStream dataInputStream = new OmsDataInputStream(bais)) {
-
-			// (1) RSA transformation
-			var rsaTransformationIdx = dataInputStream.readUnsignedShort();
-			var rsaTransformation = RsaTransformation.values()[rsaTransformationIdx].transformation;
-
-			// (2) Payload
-			return RSAUtils.process(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate(), rsaTransformation,
-					dataInputStream.readByteArray());
 		}
 	}
 

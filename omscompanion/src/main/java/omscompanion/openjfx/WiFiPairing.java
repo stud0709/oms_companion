@@ -5,7 +5,6 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
-import javafx.scene.control.CheckBox;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.Spinner;
@@ -25,9 +24,6 @@ public class WiFiPairing {
 
 	@FXML
 	private PasswordField pwd_requestId;
-
-	@FXML
-	private CheckBox chk_autoTypeWiFi;
 
 	@FXML
 	private Spinner<Integer> spin_to_connect;
@@ -77,10 +73,8 @@ public class WiFiPairing {
 			});
 
 			try {
-				new PairingInfo().displayPrompt(pwd_requestId.getText(),
-						new PairingInfo.ConnectionSettings().withAutoTypeWiFi(chk_autoTypeWiFi.isSelected())
-								.withInitialKey(choice_initialKey.getSelectionModel().getSelectedItem().publicKey),
-						andThen);
+				new PairingInfo().displayPrompt(pwd_requestId.getText(), new PairingInfo.ConnectionSettings()
+						.withInitialKey(choice_initialKey.getSelectionModel().getSelectedItem().publicKey), andThen);
 			} catch (Exception ex) {
 				FxMain.handleException(ex);
 			}

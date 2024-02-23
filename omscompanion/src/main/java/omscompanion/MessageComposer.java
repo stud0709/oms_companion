@@ -32,7 +32,7 @@ public abstract class MessageComposer {
 			 * all other information will be found inside.
 			 */
 			APPLICATION_RSA_AES_GENERIC = 6, APPLICATION_BITCOIN_ADDRESS = 7, APPLICATION_ENCRYPTED_MESSAGE = 8,
-			APPLICATION_PAIRING_INFO = 9;
+			APPLICATION_TOTP_URI = 9, APPLICATION_WIFI_PAIRING = 10;
 
 	/**
 	 * Prefix of a text encoded message.
@@ -46,6 +46,10 @@ public abstract class MessageComposer {
 	 * version.
 	 */
 	public static final Pattern OMS_PATTERN = Pattern.compile("oms([0-9a-f]{2})_");
+
+	public record RsaAesEnvelope(int applicationId, String rsaTransormation, byte[] fingerprint,
+			String aesTransformation, byte[] iv, byte[] encryptedAesSecretKey) {
+	}
 
 	public static byte[] decode(String omsText) {
 		var m = OMS_PATTERN.matcher(omsText);
@@ -153,5 +157,30 @@ public abstract class MessageComposer {
 		dataOutputStream.writeByteArray(encryptedSecretKey);
 
 		return new AesEncryptionParameters(secretKey, iv);
+	}
+
+	public static RsaAesEnvelope readRsaAesEnvelope(OmsDataInputStream dataInputStream) throws IOException {
+		// (1) Application ID
+		var applicationId = dataInputStream.readUnsignedShort();
+
+		// (2) RSA transformation index
+		var rsaTransformation = RsaTransformation.values()[dataInputStream.readUnsignedShort()].transformation;
+
+		// (3) RSA fingerprint
+		var fingerprint = dataInputStream.readByteArray();
+
+		// (4) AES transformation index
+		var aesTransformation = AesTransformation.values()[dataInputStream.readUnsignedShort()].transformation;
+
+		// (5) IV
+		var iv = dataInputStream.readByteArray();
+
+		// (6) RSA-encrypted AES secret key
+		var encryptedAesSecretKey = dataInputStream.readByteArray();
+
+		// (7) AES-encrypted message <= leave here
+
+		return new RsaAesEnvelope(applicationId, rsaTransformation, fingerprint, aesTransformation, iv,
+				encryptedAesSecretKey);
 	}
 }

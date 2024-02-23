@@ -263,7 +263,7 @@ public class Main {
 			case "wiFiConnect":
 				try {
 					wiFiConnectMenuItem.setEnabled(false);
-					WiFiPairing.show(() -> wiFiConnectMenuItem.setEnabled(true));
+					WiFiPairing.show(() -> SwingUtilities.invokeLater(() -> wiFiConnectMenuItem.setEnabled(true)));
 				} catch (Exception ex) {
 					ex.printStackTrace();
 				}

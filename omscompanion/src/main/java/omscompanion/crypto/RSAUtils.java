@@ -27,12 +27,12 @@ public final class RSAUtils {
 
 	}
 
-	public static int getRsaTransformationIdx() {
+	public static int getTransformationIdx() {
 		return Integer.parseInt(Main.properties.getProperty(PROP_RSA_TRANSFORMATION_IDX, "" + DEF_RSA_TRANSFORMATION));
 	}
 
 	public static RsaTransformation getRsaTransformation() {
-		return RsaTransformation.values()[getRsaTransformationIdx()];
+		return RsaTransformation.values()[getTransformationIdx()];
 	}
 
 	public static int getKeyLength() {
@@ -50,12 +50,12 @@ public final class RSAUtils {
 		return sha256.digest(publicExp);
 	}
 
-	public static byte[] process(int cipherMode, Key rsaPublicKey, String transformation, byte[] data)
+	public static byte[] process(int cipherMode, Key rsaKey, String transformation, byte[] data)
 			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, IllegalBlockSizeException,
 			BadPaddingException {
 
 		var cipher = Cipher.getInstance(transformation);
-		cipher.init(cipherMode, rsaPublicKey);
+		cipher.init(cipherMode, rsaKey);
 
 		return cipher.doFinal(data);
 	}

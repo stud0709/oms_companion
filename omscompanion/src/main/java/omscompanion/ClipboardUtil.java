@@ -47,6 +47,7 @@ import javafx.stage.FileChooser.ExtensionFilter;
 import omscompanion.crypto.AESUtil;
 import omscompanion.crypto.EncryptedFile;
 import omscompanion.crypto.KeyRequest;
+import omscompanion.crypto.PairingInfo;
 import omscompanion.crypto.RSAUtils;
 import omscompanion.openjfx.NewItem;
 import omscompanion.openjfx.QRFrame;
@@ -122,7 +123,6 @@ public class ClipboardUtil {
 				var s = Clipboard.getSystemClipboard().getString();
 
 				if (s == null) {
-					result.complete(false);
 					return;
 				}
 
@@ -132,23 +132,40 @@ public class ClipboardUtil {
 
 				if (message == null) {
 					// not a valid OMS message
-					result.complete(false);
 					return;
 				}
 
 				suspendClipboardCheck();
 
-				QRFrame.showForMessage(message, true, false, null, _s -> Platform.runLater(() -> {
-					set(""); // clear the clipboard
-					resumeClipboardCheck();
-				}));
+				if (PairingInfo.getInstance() == null) {
+					QRFrame.showForMessage(message, true, false, null, _s -> Platform.runLater(() -> {
+						set(""); // clear the clipboard
+						resumeClipboardCheck();
+					}));
+				} else {
+					// send via network instead of QR code
+					PairingInfo.getInstance().sendMessage(message, bArr -> {
+						try {
+							if (bArr.length > 0)
+								return;
+
+							// TODO: process reply
+						} finally {
+							Platform.runLater(() -> {
+								set(""); // clear the clipboard
+								resumeClipboardCheck();
+							});
+						}
+					});
+				}
 
 				result.complete(true);
 			} catch (Exception e) {
 				e.printStackTrace();
+			} finally {
+				if (!result.isDone())
+					result.complete(false);
 			}
-
-			result.complete(false);
 		});
 	}
 
@@ -416,7 +433,7 @@ public class ClipboardUtil {
 				File oFile = Main.TMP.resolve(oFileName).toFile();
 
 				try (var fis = new FileInputStream(listOfFile.get(0))) {
-					EncryptedFile.create(fis, oFile, pk, RSAUtils.getRsaTransformationIdx(), AESUtil.getKeyLength(),
+					EncryptedFile.create(fis, oFile, pk, RSAUtils.getTransformationIdx(), AESUtil.getKeyLength(),
 							AESUtil.getTransformationIdx(), null);
 				}
 
@@ -461,7 +478,7 @@ public class ClipboardUtil {
 				} else {
 					executorService.submit(() -> {
 						try (var fis = new FileInputStream(f)) {
-							EncryptedFile.create(fis, mirrorPath.toFile(), pk, RSAUtils.getRsaTransformationIdx(),
+							EncryptedFile.create(fis, mirrorPath.toFile(), pk, RSAUtils.getTransformationIdx(),
 									AESUtil.getKeyLength(), AESUtil.getTransformationIdx(), cancelled);
 							onFile.accept(f, mirrorPath);
 						} catch (Exception ex) {

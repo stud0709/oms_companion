@@ -1045,7 +1045,7 @@ public class FileSync {
 		try (FileInputStream fis = new FileInputStream(syncEntry.sourcePathProperty.get().toFile())) {
 			EncryptedFile.create(fis, targetPath.toFile(),
 					choice_public_key.getSelectionModel().getSelectedItem().publicKey,
-					RSAUtils.getRsaTransformationIdx(), AESUtil.getKeyLength(), AESUtil.getTransformationIdx(),
+					RSAUtils.getTransformationIdx(), AESUtil.getKeyLength(), AESUtil.getTransformationIdx(),
 					() -> stateProperty.get() != State.SYNCING);
 			syncEntry.compareProperty.set(new CompareResult(Result.MIRRORED));
 		} catch (Exception e) {
