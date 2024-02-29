@@ -3,14 +3,11 @@ package omscompanion;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Base64;
-import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.geometry.Dimension2D;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
@@ -35,23 +32,24 @@ public class FxMain extends Application {
 		FxMain.primaryState = primaryStage;
 	}
 
-	public static void initChoiceBox(ChoiceBox<RSAPublicKeyItem> choiceBox) throws Exception {
+	public static void initChoiceBox(ChoiceBox<RSAPublicKeyItem> choiceBox, String defaultKeyAlias) throws Exception {
 		var publicKeys = Files.list(Main.PUBLIC_KEY_STORAGE)
-				.filter(fn -> fn.getFileName().toString().toLowerCase().endsWith(EncryptionToolBar.FILE_TYPE_PUCLIC_KEY))
+				.filter(fn -> fn.getFileName().toString().toLowerCase()
+						.endsWith(EncryptionToolBar.FILE_TYPE_PUCLIC_KEY))
 				.map(p -> new RSAPublicKeyItem(p))
 				.filter(p -> p.publicKey != null /* this happens if the key could not be restored */)
 				.collect(Collectors.toList());
-	
+
 		if (publicKeys.isEmpty()) {
 			throw new Exception(
 					String.format("Cannot encrypt: no keys found in %s", Main.PUBLIC_KEY_STORAGE.toAbsolutePath()));
 		}
-	
+
 		var os = FXCollections.observableArrayList(publicKeys);
 		choiceBox.setItems(os);
-	
-		var defaultKey = os.stream().filter(i -> i.toString().equals(Main.getDefaultKey())).findAny();
-	
+
+		var defaultKey = os.stream().filter(i -> i.toString().equals(defaultKeyAlias)).findAny();
+
 		if (publicKeys.size() == 1 || !defaultKey.isPresent()) {
 			choiceBox.getSelectionModel().selectFirst();
 		} else {

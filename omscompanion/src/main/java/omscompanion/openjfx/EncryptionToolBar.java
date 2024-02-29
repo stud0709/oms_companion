@@ -61,7 +61,7 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<RSAPub
 	}
 
 	public void init() throws Exception {
-		FxMain.initChoiceBox(choiceKey);
+		FxMain.initChoiceBox(choiceKey, Main.getDefaultKeyAlias());
 		choiceKey.getSelectionModel().selectedItemProperty().addListener(this);
 	}
 

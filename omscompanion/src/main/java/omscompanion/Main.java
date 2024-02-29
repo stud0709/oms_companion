@@ -81,7 +81,7 @@ public class Main {
 		}
 	}
 
-	public static String getDefaultKey() {
+	public static String getDefaultKeyAlias() {
 		return properties.getProperty(PROP_DEFAULT_KEY);
 	}
 
@@ -175,7 +175,7 @@ public class Main {
 		}
 
 		{
-			var wifi = new Menu("WiFi...");
+			var wifi = new Menu("WiFi Pairing...");
 
 			{
 				wiFiConnectMenuItem = new MenuItem("Connect");

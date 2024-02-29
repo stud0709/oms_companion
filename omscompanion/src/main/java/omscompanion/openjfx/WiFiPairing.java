@@ -64,9 +64,14 @@ public class WiFiPairing {
 
 		btnStart.setDisable(true);
 
-		FxMain.initChoiceBox(choice_initialKey);
+		FxMain.initChoiceBox(choice_initialKey, PairingInfo.getDefaultInitialKeyAlias());
 
 		btnStart.setOnAction(e -> {
+			Main.properties.setProperty(PairingInfo.PROP_REQUEST_TIMEOUT_S,
+					Integer.toString(spin_to_connect.getValue()));
+			Main.properties.setProperty(PairingInfo.PROP_PAIRING_DEF_INIT_KEY,
+					choice_initialKey.getSelectionModel().getSelectedItem().toString());
+
 			Platform.runLater(() -> {
 				ownStage.getScene().getWindow().setOnHidden(null);
 				ownStage.close();
@@ -79,6 +84,8 @@ public class WiFiPairing {
 				FxMain.handleException(ex);
 			}
 		});
+
+		pwd_requestId.requestFocus();
 	}
 
 	private void updateUI() {

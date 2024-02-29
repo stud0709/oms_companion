@@ -35,7 +35,8 @@ public class PairingInfo {
 	private static Thread sender = null;
 	private static Socket socket = null;
 	private static PairingInfo instance = null;
-	public static final String PROP_SO_TIMEOUT = "so_timeout", PROP_REQUEST_TIMEOUT_S = "request_timeout_s";
+	public static final String PROP_SO_TIMEOUT = "so_timeout", PROP_REQUEST_TIMEOUT_S = "request_timeout_s",
+			PROP_PAIRING_DEF_INIT_KEY = "pairing_def_init_key";
 
 	public record ConnectionSettings(RSAPublicKey publicKeySend, RSAPublicKey initialKey, InetAddress inetAddress,
 			int port) {
@@ -149,12 +150,10 @@ public class PairingInfo {
 			var bArr = new byte[4];
 			bais.read(bArr);
 			var iAddress = InetAddress.getByAddress(bArr);
-			System.out.println("IP: " + iAddress);
 
 			// (2) port
 			bais.read(bArr);
 			var port = ByteBuffer.wrap(bArr).getInt();
-			System.out.println("Port: " + port);
 
 			// pairing successful
 			this.connectionSettings = connectionSettings.withInetAddress(iAddress).withPort(port);
@@ -190,10 +189,10 @@ public class PairingInfo {
 
 					// try to connect
 					try (var s = new Socket()) {
+						s.setSoTimeout(timeout);
+
 						s.connect(new InetSocketAddress(connectionSettings.inetAddress, connectionSettings.port),
 								Integer.parseInt(Main.properties.getProperty(PROP_SO_TIMEOUT, "" + 1_000)));
-
-						s.setSoTimeout(timeout);
 
 						socket = s;
 
@@ -210,8 +209,6 @@ public class PairingInfo {
 							s.shutdownOutput();
 
 							// now wait for the reply
-							s.setSoTimeout(0);
-
 							var envelope = MessageComposer.readRsaAesEnvelope(dataInputStream);
 							var encryptedMessage = dataInputStream.readByteArray();
 
@@ -252,5 +249,9 @@ public class PairingInfo {
 
 	public static int getRequestTimeoutS() {
 		return Integer.parseInt(Main.properties.getProperty(PROP_REQUEST_TIMEOUT_S, "" + 30));
+	}
+
+	public static String getDefaultInitialKeyAlias() {
+		return Main.properties.getProperty(PROP_PAIRING_DEF_INIT_KEY, Main.getDefaultKeyAlias());
 	}
 }

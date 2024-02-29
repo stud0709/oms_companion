@@ -281,7 +281,7 @@ public class ClipboardUtil {
 	private static void encrypt(List<File> listOfFile) throws Exception {
 		try {
 			var choiceBox = new ChoiceBox<RSAPublicKeyItem>();
-			FxMain.initChoiceBox(choiceBox);
+			FxMain.initChoiceBox(choiceBox, Main.getDefaultKeyAlias());
 			choiceBox.setPrefWidth(Double.MAX_VALUE);
 			var pkFuture = new CompletableFuture<RSAPublicKey>();
 
