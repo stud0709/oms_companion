@@ -146,7 +146,10 @@ public class ClipboardUtil {
 					// send via network instead of QR code
 					PairingInfo.getInstance().sendMessage(message, bArr -> {
 						try {
-							if (bArr.length > 0)
+							if (bArr == null)
+								return; // no reply available
+
+							if (bArr.length == 0)
 								return;
 
 							// TODO: process reply

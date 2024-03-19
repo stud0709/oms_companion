@@ -13,6 +13,7 @@ import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPublicKey;
 import java.util.function.Consumer;
+import java.util.logging.Logger;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -37,6 +38,7 @@ public class PairingInfo {
 	private static PairingInfo instance = null;
 	public static final String PROP_SO_TIMEOUT = "so_timeout", PROP_REQUEST_TIMEOUT_S = "request_timeout_s",
 			PROP_PAIRING_DEF_INIT_KEY = "pairing_def_init_key";
+	private static final Logger logger = Logger.getLogger(PairingInfo.class.getName());
 
 	public record ConnectionSettings(RSAPublicKey publicKeySend, RSAPublicKey initialKey, InetAddress inetAddress,
 			int port) {
@@ -62,17 +64,21 @@ public class PairingInfo {
 	}
 
 	public PairingInfo() throws NoSuchAlgorithmException {
+
 		rsaKeyPair = RSAUtils.newKeyPair(RSAUtils.getKeyLength());
 
 		synchronized (PairingInfo.class) {
 			instance = this;
 			sender = null;
-			if (socket != null)
+			if (socket != null) {
+				logger.info("Cleanup on new PairingInfo");
 				try {
 					socket.close();
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
+				socket = null;
+			}
 		}
 	}
 
@@ -86,12 +92,15 @@ public class PairingInfo {
 		synchronized (PairingInfo.class) {
 			instance = null;
 			sender = null;
-			if (socket != null)
+			if (socket != null) {
+				logger.info("Cleanup on disconnect");
 				try {
 					socket.close();
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
+				socket = null;
+			}
 		}
 	}
 
@@ -181,67 +190,91 @@ public class PairingInfo {
 
 		synchronized (this) {
 			sender = new Thread(() -> {
-				while (!Thread.interrupted() && System.currentTimeMillis() - ts < timeout) {
-					synchronized (PairingInfo.class) {
-						if (instance != PairingInfo.this || sender != Thread.currentThread())
-							return;
-					}
+				try {
+					logger.info("Thread started");
+					while (!Thread.interrupted() && System.currentTimeMillis() - ts < timeout) {
+						synchronized (PairingInfo.class) {
+							if (instance != PairingInfo.this || sender != Thread.currentThread())
+								return;
+						}
 
-					// try to connect
-					try (var s = new Socket()) {
-						s.setSoTimeout(timeout);
+						// try to connect
+						try (var s = new Socket()) {
+							s.setSoTimeout(timeout);
 
-						s.connect(new InetSocketAddress(connectionSettings.inetAddress, connectionSettings.port),
-								Integer.parseInt(Main.properties.getProperty(PROP_SO_TIMEOUT, "" + 1_000)));
+							logger.info("Connecting...");
 
-						socket = s;
+							s.connect(new InetSocketAddress(connectionSettings.inetAddress, connectionSettings.port),
+									Integer.parseInt(Main.properties.getProperty(PROP_SO_TIMEOUT, "" + 1_000)));
 
-						var os = s.getOutputStream();
+							socket = s;
 
-						try (var dataInputStream = new OmsDataInputStream(s.getInputStream())) {
+							logger.info("connected");
 
-							var dataToSend = MessageComposer.createRsaAesEnvelope(connectionSettings.publicKeySend,
-									RSAUtils.getTransformationIdx(), AESUtil.getKeyLength(),
-									AESUtil.getTransformationIdx(), message);
+							var os = s.getOutputStream();
 
-							os.write(dataToSend);
-							os.flush();
-							s.shutdownOutput();
+							try (var dataInputStream = new OmsDataInputStream(s.getInputStream())) {
 
-							// now wait for the reply
-							var envelope = MessageComposer.readRsaAesEnvelope(dataInputStream);
-							var encryptedMessage = dataInputStream.readByteArray();
+								var dataToSend = MessageComposer.createRsaAesEnvelope(connectionSettings.publicKeySend,
+										RSAUtils.getTransformationIdx(), AESUtil.getKeyLength(),
+										AESUtil.getTransformationIdx(), message);
 
-							// decrypt AES key
-							var aesSecretKeyData = RSAUtils.process(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate(),
-									envelope.rsaTransormation(), envelope.encryptedAesSecretKey());
-							var aesSecretKey = new SecretKeySpec(aesSecretKeyData, "AES");
+								os.write(dataToSend);
+								os.flush();
 
-							// (7) AES-encrypted message
-							var decryptedMessage = AESUtil.process(Cipher.DECRYPT_MODE, encryptedMessage, aesSecretKey,
-									new IvParameterSpec(envelope.iv()), envelope.aesTransformation());
+								logger.info("Data has been sent, waiting for reply");
 
-							synchronized (PairingInfo.class) {
-								if (instance != PairingInfo.this || sender != Thread.currentThread() || socket != s)
-									return;
+								s.shutdownOutput();
 
-								onReply.accept(decryptedMessage);
+								// now wait for the reply
+								var envelope = MessageComposer.readRsaAesEnvelope(dataInputStream);
+								var encryptedMessage = dataInputStream.readByteArray();
 
-								if (sender == Thread.currentThread())
-									sender = null;
+								logger.info(
+										String.format("Reply has been received, %d bytes", encryptedMessage.length));
+
+								// decrypt AES key
+								var aesSecretKeyData = RSAUtils.process(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate(),
+										envelope.rsaTransormation(), envelope.encryptedAesSecretKey());
+								var aesSecretKey = new SecretKeySpec(aesSecretKeyData, "AES");
+
+								// (7) AES-encrypted message
+								var decryptedMessage = AESUtil.process(Cipher.DECRYPT_MODE, encryptedMessage,
+										aesSecretKey, new IvParameterSpec(envelope.iv()), envelope.aesTransformation());
+
+								synchronized (PairingInfo.class) {
+									if (instance != PairingInfo.this || sender != Thread.currentThread()
+											|| socket != s) {
+										logger.info("Instance, thread or socket mismatch");
+										return;
+									}
+
+									logger.info("forwarding reply to the consumer");
+									onReply.accept(decryptedMessage);
+
+									if (sender == Thread.currentThread())
+										sender = null;
+								}
+
+								return;
 							}
-							return;
-						}
-					} catch (Exception e) {
-						e.printStackTrace();
-						try {
-							Thread.sleep(1000);
-						} catch (InterruptedException e1) {
-							break;
+						} catch (Exception e) {
+							e.printStackTrace();
+							try {
+								Thread.sleep(1000);
+							} catch (InterruptedException e1) {
+								break;
+							}
+						} finally {
+							logger.info("Socket closed");
 						}
 					}
-				}
 
+					logger.info("Request timed out");
+					onReply.accept(null); // pass empty reply
+				} finally {
+					logger.info("Thread stopped");
+				}
 			});
 			sender.start();
 		}
