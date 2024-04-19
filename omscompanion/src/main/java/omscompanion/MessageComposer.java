@@ -32,7 +32,7 @@ public abstract class MessageComposer {
 			 * all other information will be found inside.
 			 */
 			APPLICATION_RSA_AES_GENERIC = 6, APPLICATION_BITCOIN_ADDRESS = 7, APPLICATION_ENCRYPTED_MESSAGE = 8,
-			APPLICATION_TOTP_URI = 9, APPLICATION_WIFI_PAIRING = 10;
+			APPLICATION_TOTP_URI = 9, APPLICATION_WIFI_PAIRING = 10, APPLICATION_KEY_REQUEST_PAIRING = 11;
 
 	/**
 	 * Prefix of a text encoded message.
@@ -47,8 +47,13 @@ public abstract class MessageComposer {
 	 */
 	public static final Pattern OMS_PATTERN = Pattern.compile("oms([0-9a-f]{2})_");
 
-	public record RsaAesEnvelope(int applicationId, String rsaTransormation, byte[] fingerprint,
-			String aesTransformation, byte[] iv, byte[] encryptedAesSecretKey) {
+	public record RsaAesEnvelope(int applicationId, int rsaTransformationIdx, String rsaTransormation,
+			byte[] fingerprint, int aesTransformationIdx, String aesTransformation, byte[] iv,
+			byte[] encryptedAesSecretKey) {
+
+		public IvParameterSpec ivParameterSpec() {
+			return new IvParameterSpec(this.iv());
+		}
 	}
 
 	public static byte[] decode(String omsText) {
@@ -90,6 +95,24 @@ public abstract class MessageComposer {
 		return OMS_PREFIX + Base64.getEncoder().encodeToString(message);
 	}
 
+	/**
+	 * Wrap a byte array into RSA x AES Envelope.
+	 * 
+	 * @see MessageComposer#createRsaAesEnvelope(int, RSAPublicKey, int, int, int,
+	 *      byte[])
+	 * @param rsaPublicKey
+	 * @param rsaTransformationIdx
+	 * @param aesKeyLength
+	 * @param aesTransformationIdx
+	 * @param payload
+	 * @return
+	 * @throws NoSuchAlgorithmException
+	 * @throws NoSuchPaddingException
+	 * @throws IllegalBlockSizeException
+	 * @throws BadPaddingException
+	 * @throws InvalidKeyException
+	 * @throws InvalidAlgorithmParameterException
+	 */
 	public static byte[] createRsaAesEnvelope(RSAPublicKey rsaPublicKey, int rsaTransformationIdx, int aesKeyLength,
 			int aesTransformationIdx, byte[] payload) throws NoSuchAlgorithmException, NoSuchPaddingException,
 			IllegalBlockSizeException, BadPaddingException, InvalidKeyException, InvalidAlgorithmParameterException {
@@ -98,6 +121,26 @@ public abstract class MessageComposer {
 				aesKeyLength, aesTransformationIdx, payload);
 	}
 
+	/**
+	 * Wrap a byte array into RSA x AES Envelope. This is a foundation format for
+	 * OneMoreSecret messages.
+	 * 
+	 * @see MessageComposer#prepareRsaAesEnvelope(OmsDataOutputStream, int,
+	 *      RSAPublicKey, int, int, int)
+	 * @param applicationId
+	 * @param rsaPublicKey
+	 * @param rsaTransformationIdx
+	 * @param aesKeyLength
+	 * @param aesTransformationIdx
+	 * @param payload
+	 * @return
+	 * @throws NoSuchAlgorithmException
+	 * @throws NoSuchPaddingException
+	 * @throws IllegalBlockSizeException
+	 * @throws BadPaddingException
+	 * @throws InvalidKeyException
+	 * @throws InvalidAlgorithmParameterException
+	 */
 	public static byte[] createRsaAesEnvelope(int applicationId, RSAPublicKey rsaPublicKey, int rsaTransformationIdx,
 			int aesKeyLength, int aesTransformationIdx, byte[] payload)
 			throws NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException,
@@ -123,6 +166,30 @@ public abstract class MessageComposer {
 	public record AesEncryptionParameters(SecretKey secretKey, IvParameterSpec iv) {
 	}
 
+	/**
+	 * RSA x AES envelope is a foundation of OneMoreSecret messages. Every message
+	 * is encrypted by a unique AES key, the key itself is then encrypted by public
+	 * RSA key. You must be the holder of the corresponding RSA private key to
+	 * decrypt the message.
+	 * 
+	 * Encryption parameters as well as the message type (aka application ID) are
+	 * embedded into the message header to allow for decryption. See source code for
+	 * more details.
+	 * 
+	 * @param dataOutputStream
+	 * @param applicationId
+	 * @param rsaPublicKey
+	 * @param rsaTransformationIdx
+	 * @param aesKeyLength
+	 * @param aesTransformationIdx
+	 * @return
+	 * @throws NoSuchAlgorithmException
+	 * @throws IOException
+	 * @throws NoSuchPaddingException
+	 * @throws InvalidKeyException
+	 * @throws IllegalBlockSizeException
+	 * @throws BadPaddingException
+	 */
 	public static AesEncryptionParameters prepareRsaAesEnvelope(OmsDataOutputStream dataOutputStream, int applicationId,
 			RSAPublicKey rsaPublicKey, int rsaTransformationIdx, int aesKeyLength, int aesTransformationIdx)
 			throws NoSuchAlgorithmException, IOException, NoSuchPaddingException, InvalidKeyException,
@@ -159,18 +226,30 @@ public abstract class MessageComposer {
 		return new AesEncryptionParameters(secretKey, iv);
 	}
 
+	/**
+	 * Reads {@link RsaAesEnvelope } from a {@link OmsDataInputStream }. The stream
+	 * should be positioned at the beginning. After the parameters have been read,
+	 * the stream is left open pointing to the start of the encrypted part of the
+	 * message. Now the decryption can take place.
+	 * 
+	 * @param dataInputStream
+	 * @return
+	 * @throws IOException
+	 */
 	public static RsaAesEnvelope readRsaAesEnvelope(OmsDataInputStream dataInputStream) throws IOException {
 		// (1) Application ID
 		var applicationId = dataInputStream.readUnsignedShort();
 
 		// (2) RSA transformation index
-		var rsaTransformation = RsaTransformation.values()[dataInputStream.readUnsignedShort()].transformation;
+		var rsaTransformationIdx = dataInputStream.readUnsignedShort();
+		var rsaTransformation = RsaTransformation.values()[rsaTransformationIdx].transformation;
 
 		// (3) RSA fingerprint
 		var fingerprint = dataInputStream.readByteArray();
 
 		// (4) AES transformation index
-		var aesTransformation = AesTransformation.values()[dataInputStream.readUnsignedShort()].transformation;
+		var aesTransformationIdx = dataInputStream.readUnsignedShort();
+		var aesTransformation = AesTransformation.values()[aesTransformationIdx].transformation;
 
 		// (5) IV
 		var iv = dataInputStream.readByteArray();
@@ -180,7 +259,7 @@ public abstract class MessageComposer {
 
 		// (7) AES-encrypted message <= leave here
 
-		return new RsaAesEnvelope(applicationId, rsaTransformation, fingerprint, aesTransformation, iv,
-				encryptedAesSecretKey);
+		return new RsaAesEnvelope(applicationId, rsaTransformationIdx, rsaTransformation, fingerprint,
+				aesTransformationIdx, aesTransformation, iv, encryptedAesSecretKey);
 	}
 }

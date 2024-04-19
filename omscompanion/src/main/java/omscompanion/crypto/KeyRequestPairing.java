@@ -9,10 +9,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
-import java.security.interfaces.RSAPublicKey;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -33,20 +30,12 @@ import omscompanion.OmsDataOutputStream;
  * 
  * @see EncryptedFile
  */
-public class KeyRequest {
-	private final KeyPair rsaKeyPair;
+public class KeyRequestPairing {
 	private final byte[] message;
 	private final File encryptedFile;
 
-	public KeyRequest(File encryptedFile) throws NoSuchAlgorithmException, IOException {
+	public KeyRequestPairing(File encryptedFile) throws NoSuchAlgorithmException, IOException {
 		this.encryptedFile = encryptedFile;
-
-		// create temporary RSA key pair
-		var keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-		var rsaKeyLength = RSAUtils.getKeyLength();
-		keyPairGenerator.initialize(rsaKeyLength);
-		rsaKeyPair = keyPairGenerator.generateKeyPair();
-		var rsaPublicKey = (RSAPublicKey) rsaKeyPair.getPublic();
 
 		try (FileInputStream fis = new FileInputStream(encryptedFile);
 				OmsDataInputStream dataInputStream = new OmsDataInputStream(fis);
@@ -56,15 +45,12 @@ public class KeyRequest {
 			var envelope = MessageComposer.readRsaAesEnvelope(dataInputStream);
 
 			// (1) application-ID
-			dataOutputStream.writeUnsignedShort(MessageComposer.APPLICATION_KEY_REQUEST);
+			dataOutputStream.writeUnsignedShort(MessageComposer.APPLICATION_KEY_REQUEST_PAIRING);
 
 			// (2) reference (file name)
 			dataOutputStream.writeString(encryptedFile.getName());
 
-			// (3) RSA public key
-			dataOutputStream.writeByteArray(rsaPublicKey.getEncoded());
-
-			// (4) fingerprint of the requested RSA key (from the file header)
+			// (3) fingerprint of the requested RSA key (from the file header)
 			dataOutputStream.writeByteArray(envelope.fingerprint());
 
 			// (5) RSA transformation index for decryption
@@ -100,21 +86,8 @@ public class KeyRequest {
 
 			// ***** Read reply data *****
 
-			// (1) Application Identifier
-			var applicationId = replyInputStream.readUnsignedShort();
-			assert applicationId == MessageComposer.APPLICATION_KEY_RESPONSE;
-
-			// (2) RSA transformation
-			var rsaTransformation = RsaTransformation.values()[replyInputStream.readUnsignedShort()].transformation;
-
-			// (3) RSA encrypted AES key
-			var rsaEncryptedAesKey = replyInputStream.readByteArray();
-
-			// ***** Decrypt file *****
-			var cipher = Cipher.getInstance(rsaTransformation);
-			cipher.init(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate());
-
-			var aesSecretKeyData = cipher.doFinal(rsaEncryptedAesKey);
+			// (1) AES key
+			var aesSecretKeyData = replyInputStream.readByteArray();
 			var aesSecretKey = new SecretKeySpec(aesSecretKeyData, "AES");
 
 			AESUtil.process(Cipher.DECRYPT_MODE, dataInputStream, osDecryptedFile, aesSecretKey,

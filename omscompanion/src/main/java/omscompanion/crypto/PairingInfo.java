@@ -19,7 +19,6 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import omscompanion.Base58;
@@ -194,8 +193,9 @@ public class PairingInfo {
 					logger.info("Thread started");
 					while (!Thread.interrupted() && System.currentTimeMillis() - ts < timeout) {
 						synchronized (PairingInfo.class) {
-							if (instance != PairingInfo.this || sender != Thread.currentThread())
-								return;
+							if (instance != PairingInfo.this || sender != Thread.currentThread()) {
+								break;
+							}
 						}
 
 						// try to connect
@@ -240,7 +240,7 @@ public class PairingInfo {
 
 								// (7) AES-encrypted message
 								var decryptedMessage = AESUtil.process(Cipher.DECRYPT_MODE, encryptedMessage,
-										aesSecretKey, new IvParameterSpec(envelope.iv()), envelope.aesTransformation());
+										aesSecretKey, envelope.ivParameterSpec(), envelope.aesTransformation());
 
 								synchronized (PairingInfo.class) {
 									if (instance != PairingInfo.this || sender != Thread.currentThread()
