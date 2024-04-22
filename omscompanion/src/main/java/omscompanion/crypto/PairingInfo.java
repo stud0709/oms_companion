@@ -21,6 +21,8 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.SecretKeySpec;
 
+import org.bouncycastle.util.Arrays;
+
 import omscompanion.Base58;
 import omscompanion.FxMain;
 import omscompanion.Main;
@@ -160,7 +162,12 @@ public class PairingInfo {
 			var iAddress = InetAddress.getByAddress(bArr);
 
 			// (2) port
-			bais.read(bArr);
+			var sArr = new byte[2]; // two lower bytes of int
+			bais.read(sArr);
+
+			Arrays.fill(bArr, (byte) 0);
+			System.arraycopy(sArr, 0, bArr, 2, sArr.length); // make int out of short
+
 			var port = ByteBuffer.wrap(bArr).getInt();
 
 			// pairing successful
