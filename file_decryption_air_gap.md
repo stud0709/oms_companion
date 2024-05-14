@@ -8,7 +8,10 @@ The QR code sequence can only transport a very limited amount of data, the same 
 - Send the *public* Transport Key along with the (encrypted) AES key to *OneMoreSecret* using the QR code sequence. 
 - Decryption process in *OneMoreSecret* is the same, the unprotected AES key of the file is now available on the smartphone.
 - Encrypt AES key with the provided *public* RSA Transport Key generating *Key Response*.
-- Type the (Base64 encoded) Key Response back to *omsCompanion* 
+- Type the (Base64 encoded) Key Response back to *omsCompanion* - there is a text field below the QR code for this purpose. (*OneMoreSecret* will auto-type it for you, and still there is a whole lot to type, so it will take 15 seconds or so. If you use [WiFi pairing](wifi_pairing.md), the key is sent over the network instead)
+
+![](./readme_images/QR_pop_up_text_entry.png)
+
 - Apply the *private* Transport Key obtaining the AES key of the file.
 - Decrypt the file
 

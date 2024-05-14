@@ -567,10 +567,9 @@ public class ClipboardUtil {
 		var decryptedFileName = encryptedFile.getName().substring(0,
 				encryptedFile.getName().length() - (MessageComposer.OMS_FILE_TYPE.length() + 1 /* the dot */));
 
-		var fileType = getFileType(decryptedFileName);
 		var dialogResult = new CompletableFuture<File>();
 
-		selectOutFile(dialogResult, fileType);
+		selectOutFile(dialogResult, decryptedFileName);
 
 		try {
 			File outfile = dialogResult.get();
@@ -624,14 +623,16 @@ public class ClipboardUtil {
 		}
 	}
 
-	private static void selectOutFile(CompletableFuture<File> dialogResult, String fileType) {
+	private static void selectOutFile(CompletableFuture<File> dialogResult, String decryptedFileName) {
 		Platform.runLater(() -> {
+			var fileType = getFileType(decryptedFileName);
 			var fileChooser = new FileChooser();
 			fileChooser.setTitle("Decrypt And Save As...");
 			fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));
 			if (fileType != null)
 				fileChooser.getExtensionFilters()
 						.add(new ExtensionFilter(fileType.toUpperCase() + " files", "*." + fileType.toLowerCase()));
+			fileChooser.setInitialFileName(decryptedFileName);
 			var selectedFile = fileChooser.showSaveDialog(FxMain.getPrimaryStage());
 			dialogResult.complete(selectedFile);
 		});
