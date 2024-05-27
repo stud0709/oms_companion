@@ -21,8 +21,6 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.SecretKeySpec;
 
-import org.bouncycastle.util.Arrays;
-
 import omscompanion.Base58;
 import omscompanion.FxMain;
 import omscompanion.Main;
@@ -165,13 +163,12 @@ public class PairingInfo {
 			var sArr = new byte[2]; // two lower bytes of int
 			bais.read(sArr);
 
-			Arrays.fill(bArr, (byte) 0);
-			System.arraycopy(sArr, 0, bArr, 2, sArr.length); // make int out of short
-
-			var port = ByteBuffer.wrap(bArr).getInt();
+			var port = uShortToInt(sArr);
 
 			// pairing successful
-			this.connectionSettings = connectionSettings.withInetAddress(iAddress).withPort(port);
+			synchronized (this) {
+				this.connectionSettings = connectionSettings.withInetAddress(iAddress).withPort(port);
+			}
 
 			synchronized (PairingInfo.class) {
 				instance = this;
@@ -185,6 +182,16 @@ public class PairingInfo {
 			if (andThen != null)
 				andThen.run();
 		}
+	}
+
+	private static int uShortToInt(byte[] sArr) {
+		if (sArr.length != 2)
+			throw new IllegalArgumentException();
+
+		var bArr = new byte[4];
+		System.arraycopy(sArr, 0, bArr, 2, sArr.length); // make int out of short
+
+		return ByteBuffer.wrap(bArr).getInt();
 	}
 
 	public void sendMessage(byte[] message, Consumer<byte[]> onReply)
@@ -211,7 +218,12 @@ public class PairingInfo {
 
 							logger.info("Connecting...");
 
-							s.connect(new InetSocketAddress(connectionSettings.inetAddress, connectionSettings.port),
+							ConnectionSettings _connectionSettings;
+							synchronized (PairingInfo.this) {
+								_connectionSettings = this.connectionSettings;
+							}
+
+							s.connect(new InetSocketAddress(_connectionSettings.inetAddress, _connectionSettings.port),
 									Integer.parseInt(Main.properties.getProperty(PROP_SO_TIMEOUT, "" + 1_000)));
 
 							socket = s;
@@ -222,7 +234,7 @@ public class PairingInfo {
 
 							try (var dataInputStream = new OmsDataInputStream(s.getInputStream())) {
 
-								var dataToSend = MessageComposer.createRsaAesEnvelope(connectionSettings.publicKeySend,
+								var dataToSend = MessageComposer.createRsaAesEnvelope(_connectionSettings.publicKeySend,
 										RSAUtils.getTransformationIdx(), AESUtil.getKeyLength(),
 										AESUtil.getTransformationIdx(), message);
 
@@ -284,6 +296,12 @@ public class PairingInfo {
 				}
 			});
 			sender.start();
+		}
+	}
+
+	public void updatePort(byte[] uShortPort) {
+		synchronized (this) {
+			this.connectionSettings = this.connectionSettings.withPort(uShortToInt(uShortPort));
 		}
 	}
 

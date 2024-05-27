@@ -20,12 +20,14 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.Properties;
 
 import javax.imageio.ImageIO;
 import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 
+import javafx.scene.control.TextInputDialog;
 import omscompanion.crypto.PairingInfo;
 import omscompanion.openjfx.FileSync;
 import omscompanion.openjfx.NewPrivateKey;
@@ -185,6 +187,13 @@ public class Main {
 			}
 
 			{
+				var wiFiPortUpd = new MenuItem("Update Port");
+				wiFiPortUpd.setActionCommand("wiFiPortUpd");
+				wiFiPortUpd.addActionListener(MENU_ACTION_LISTENER);
+				wifi.add(wiFiPortUpd);
+			}
+
+			{
 				var wiFiDisconnect = new MenuItem("Disconnect");
 				wiFiDisconnect.setActionCommand("wiFiDisconnect");
 				wiFiDisconnect.addActionListener(MENU_ACTION_LISTENER);
@@ -270,6 +279,25 @@ public class Main {
 				break;
 			case "wiFiDisconnect":
 				PairingInfo.disconnect();
+				break;
+			case "wiFiPortUpd":
+				var pairingInfo = PairingInfo.getInstance();
+
+				if (pairingInfo == null) {
+					FxMain.handleException(new IllegalAccessException("WiFi Pairing not configured"));
+				} else {
+					var dlg = new TextInputDialog();
+					dlg.setTitle("WiFi Pairing Port Update");
+					dlg.setHeaderText("Enter port update code displayed by OneMoreSecret");
+					Optional<String> opt = dlg.showAndWait();
+					opt.ifPresent(code -> {
+						try {
+							pairingInfo.updatePort(Base58.decode(code));
+						} catch (Exception ex) {
+							FxMain.handleException(ex);
+						}
+					});
+				}
 				break;
 			}
 		}
