@@ -27,6 +27,7 @@ import javax.imageio.ImageIO;
 import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 
+import javafx.application.Platform;
 import javafx.scene.control.TextInputDialog;
 import omscompanion.crypto.PairingInfo;
 import omscompanion.openjfx.FileSync;
@@ -286,16 +287,18 @@ public class Main {
 				if (pairingInfo == null) {
 					FxMain.handleException(new IllegalAccessException("WiFi Pairing not configured"));
 				} else {
-					var dlg = new TextInputDialog();
-					dlg.setTitle("WiFi Pairing Port Update");
-					dlg.setHeaderText("Enter port update code displayed by OneMoreSecret");
-					Optional<String> opt = dlg.showAndWait();
-					opt.ifPresent(code -> {
-						try {
-							pairingInfo.updatePort(Base58.decode(code));
-						} catch (Exception ex) {
-							FxMain.handleException(ex);
-						}
+					Platform.runLater(() -> {
+						var dlg = new TextInputDialog();
+						dlg.setTitle("WiFi Pairing Port Update");
+						dlg.setHeaderText("Enter port update code displayed by OneMoreSecret");
+						Optional<String> opt = dlg.showAndWait();
+						opt.ifPresent(code -> {
+							try {
+								pairingInfo.updatePort(Base58.decode(code));
+							} catch (Exception ex) {
+								FxMain.handleException(ex);
+							}
+						});
 					});
 				}
 				break;
