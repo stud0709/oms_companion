@@ -103,7 +103,7 @@ public class PairingInfo {
 		}
 	}
 
-	private byte[] getPrompt(String id, ConnectionSettings connectionSettings, byte[] privateKeyMaterialSend)
+	private byte[] getPrompt(String id, ConnectionSettings template, byte[] privateKeyMaterialSend)
 			throws IOException, NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException,
 			IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
 		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -120,12 +120,12 @@ public class PairingInfo {
 			// (4) private key for the other party to answer
 			dataOutputStream.writeByteArray(privateKeyMaterialSend);
 
-			return MessageComposer.createRsaAesEnvelope(connectionSettings.initialKey, RSAUtils.getTransformationIdx(),
+			return MessageComposer.createRsaAesEnvelope(template.initialKey, RSAUtils.getTransformationIdx(),
 					AESUtil.getKeyLength(), AESUtil.getTransformationIdx(), baos.toByteArray());
 		}
 	}
 
-	public void displayPrompt(String id, ConnectionSettings connectionSettings, Runnable andThen)
+	public void displayPrompt(String id, ConnectionSettings template, Runnable andThen)
 			throws IOException, NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException,
 			IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
 		var keyPairSend = RSAUtils.newKeyPair(RSAUtils.getKeyLength());
@@ -138,12 +138,12 @@ public class PairingInfo {
 //   Otherwise, OneMoreSecret will have to type the private key - it takes time, 
 //   and you will need a bluetooth connection for that (or it gets ugly)		
 
-		QRFrame.showForMessage(getPrompt(id, connectionSettings, keyPairSend.getPrivate().getEncoded()), false, true,
-				null, reply -> onHandshake(reply,
-						connectionSettings.withPublicKeySend((RSAPublicKey) keyPairSend.getPublic()), andThen));
+		QRFrame.showForMessage(getPrompt(id, template, keyPairSend.getPrivate().getEncoded()), false, true, null,
+				reply -> onHandshake(reply, template.withPublicKeySend((RSAPublicKey) keyPairSend.getPublic()),
+						andThen));
 	}
 
-	private void onHandshake(String reply, ConnectionSettings connectionSettings, Runnable andThen) {
+	private void onHandshake(String reply, ConnectionSettings template, Runnable andThen) {
 		if (reply == null || reply.isEmpty()) { // not successful
 			synchronized (PairingInfo.class) {
 				instance = null;
@@ -153,21 +153,10 @@ public class PairingInfo {
 			return;
 		}
 
-		try (ByteArrayInputStream bais = new ByteArrayInputStream(Base58.decode(reply))) {
-			// (1) IP address
-			var bArr = new byte[4];
-			bais.read(bArr);
-			var iAddress = InetAddress.getByAddress(bArr);
-
-			// (2) port
-			var sArr = new byte[2]; // two lower bytes of int
-			bais.read(sArr);
-
-			var port = uShortToInt(sArr);
-
+		try {
 			// pairing successful
 			synchronized (this) {
-				this.connectionSettings = connectionSettings.withInetAddress(iAddress).withPort(port);
+				this.connectionSettings = setIpAndPort(reply, template);
 			}
 
 			synchronized (PairingInfo.class) {
@@ -181,6 +170,23 @@ public class PairingInfo {
 		} finally {
 			if (andThen != null)
 				andThen.run();
+		}
+	}
+
+	private ConnectionSettings setIpAndPort(String responseCode, ConnectionSettings template) throws IOException {
+		try (ByteArrayInputStream bais = new ByteArrayInputStream(Base58.decode(responseCode))) {
+			// (1) IP address
+			var bArr = new byte[4];
+			bais.read(bArr);
+			var iAddress = InetAddress.getByAddress(bArr);
+
+			// (2) port
+			var sArr = new byte[2]; // two lower bytes of int
+			bais.read(sArr);
+
+			var port = uShortToInt(sArr);
+
+			return template.withInetAddress(iAddress).withPort(port);
 		}
 	}
 
@@ -299,9 +305,9 @@ public class PairingInfo {
 		}
 	}
 
-	public void updatePort(byte[] uShortPort) {
+	public void updateIpAndPort(String responseCode) throws IOException {
 		synchronized (this) {
-			this.connectionSettings = this.connectionSettings.withPort(uShortToInt(uShortPort));
+			this.connectionSettings = setIpAndPort(responseCode, connectionSettings);
 		}
 	}
 

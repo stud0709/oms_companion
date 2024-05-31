@@ -188,8 +188,8 @@ public class Main {
 			}
 
 			{
-				var wiFiPortUpd = new MenuItem("Update Port");
-				wiFiPortUpd.setActionCommand("wiFiPortUpd");
+				var wiFiPortUpd = new MenuItem("Update");
+				wiFiPortUpd.setActionCommand("wiFiUpd");
 				wiFiPortUpd.addActionListener(MENU_ACTION_LISTENER);
 				wifi.add(wiFiPortUpd);
 			}
@@ -281,7 +281,7 @@ public class Main {
 			case "wiFiDisconnect":
 				PairingInfo.disconnect();
 				break;
-			case "wiFiPortUpd":
+			case "wiFiUpd":
 				var pairingInfo = PairingInfo.getInstance();
 
 				if (pairingInfo == null) {
@@ -289,12 +289,12 @@ public class Main {
 				} else {
 					Platform.runLater(() -> {
 						var dlg = new TextInputDialog();
-						dlg.setTitle("WiFi Pairing Port Update");
-						dlg.setHeaderText("Enter port update code displayed by OneMoreSecret");
+						dlg.setTitle("WiFi Pairing Connection Update");
+						dlg.setHeaderText("Enter the response code displayed in OneMoreSecret");
 						Optional<String> opt = dlg.showAndWait();
-						opt.ifPresent(code -> {
+						opt.ifPresent(responseCode -> {
 							try {
-								pairingInfo.updatePort(Base58.decode(code));
+								pairingInfo.updateIpAndPort(responseCode);
 							} catch (Exception ex) {
 								FxMain.handleException(ex);
 							}
