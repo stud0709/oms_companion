@@ -20,15 +20,12 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
 import java.util.Properties;
 
 import javax.imageio.ImageIO;
 import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 
-import javafx.application.Platform;
-import javafx.scene.control.TextInputDialog;
 import omscompanion.crypto.PairingInfo;
 import omscompanion.openjfx.FileSync;
 import omscompanion.openjfx.NewPrivateKey;
@@ -188,13 +185,6 @@ public class Main {
 			}
 
 			{
-				var wiFiPortUpd = new MenuItem("Update");
-				wiFiPortUpd.setActionCommand("wiFiUpd");
-				wiFiPortUpd.addActionListener(MENU_ACTION_LISTENER);
-				wifi.add(wiFiPortUpd);
-			}
-
-			{
 				var wiFiDisconnect = new MenuItem("Disconnect");
 				wiFiDisconnect.setActionCommand("wiFiDisconnect");
 				wiFiDisconnect.addActionListener(MENU_ACTION_LISTENER);
@@ -228,80 +218,65 @@ public class Main {
 		@Override
 		public void actionPerformed(ActionEvent e) {
 			switch (e.getActionCommand()) {
-			case "exit":
-				System.exit(0);
-				break;
-			case "processClipboard":
-				ClipboardUtil.processClipboard();
-				break;
-			case "newPrivateKey":
+
+			case "exit" -> System.exit(0);
+
+			case "processClipboard" -> ClipboardUtil.processClipboard();
+
+			case "newPrivateKey" -> {
 				newPrivateKeyMenuItem.setEnabled(false);
 				NewPrivateKey.show(() -> SwingUtilities.invokeLater(() -> newPrivateKeyMenuItem.setEnabled(true)));
-				break;
-			case "autoClipboardCheck":
+			}
+
+			case "autoClipboardCheck" -> {
 				// revert value
 				var b = ClipboardUtil.getAutomaticModeProperty().get();
 				ClipboardUtil.getAutomaticModeProperty().set(!b);
-				break;
-			case "importPublicKey":
+			}
+
+			case "importPublicKey" -> {
 				importPublicKeyMenuItem.setEnabled(false);
 				PublicKeyImport.show(() -> SwingUtilities.invokeLater(() -> importPublicKeyMenuItem.setEnabled(true)));
-				break;
-			case "pwdGen":
+			}
+
+			case "pwdGen" -> {
 				passwordGeneratorMenuItem.setEnabled(false);
 				PasswordGenerator
 						.show(() -> SwingUtilities.invokeLater(() -> passwordGeneratorMenuItem.setEnabled(true)));
-				break;
-			case "filesync":
+			}
+
+			case "filesync" -> {
 				filesyncMenuItem.setEnabled(false);
 				FileSync.show(() -> SwingUtilities.invokeLater(() -> filesyncMenuItem.setEnabled(true)));
-				break;
-			case "publicKeyFolder":
+			}
+
+			case "publicKeyFolder" -> {
 				try {
 					Desktop.getDesktop().open(PUBLIC_KEY_STORAGE.toFile());
 				} catch (IOException ex) {
 					ex.printStackTrace();
 				}
-				break;
-			case "home":
+			}
+
+			case "home" -> {
 				try {
 					Desktop.getDesktop().browse(new URI("https://github.com/stud0709/oms_companion"));
 				} catch (Exception ex) {
 					ex.printStackTrace();
 				}
-				break;
-			case "wiFiConnect":
+			}
+
+			case "wiFiConnect" -> {
 				try {
 					wiFiConnectMenuItem.setEnabled(false);
 					WiFiPairing.show(() -> SwingUtilities.invokeLater(() -> wiFiConnectMenuItem.setEnabled(true)));
 				} catch (Exception ex) {
 					ex.printStackTrace();
 				}
-				break;
-			case "wiFiDisconnect":
-				PairingInfo.disconnect();
-				break;
-			case "wiFiUpd":
-				var pairingInfo = PairingInfo.getInstance();
+			}
 
-				if (pairingInfo == null) {
-					FxMain.handleException(new IllegalAccessException("WiFi Pairing not configured"));
-				} else {
-					Platform.runLater(() -> {
-						var dlg = new TextInputDialog();
-						dlg.setTitle("WiFi Pairing Connection Update");
-						dlg.setHeaderText("Enter the response code displayed in OneMoreSecret");
-						Optional<String> opt = dlg.showAndWait();
-						opt.ifPresent(responseCode -> {
-							try {
-								pairingInfo.updateIpAndPort(responseCode);
-							} catch (Exception ex) {
-								FxMain.handleException(ex);
-							}
-						});
-					});
-				}
-				break;
+			case "wiFiDisconnect" -> PairingInfo.disconnect();
+
 			}
 		}
 	};
