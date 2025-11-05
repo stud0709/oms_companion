@@ -94,4 +94,5 @@ For feature requests and bug report, please open a [GitHub Issue](https://github
 
 ## Credits
 Icons by [Steve Schoger](https://www.iconfinder.com/search?q=&iconset=heroicons-solid)
+
 Application tray icon: https://www.flaticon.com/free-icon/qr-code_630939?related_id=631000
