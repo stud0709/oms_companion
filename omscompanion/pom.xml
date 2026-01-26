@@ -7,11 +7,27 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<name>OMS Companion</name>
 	<properties>
-		<maven.compiler.target>14</maven.compiler.target>
-		<maven.compiler.source>14</maven.compiler.source>
-		<javafx.version>14</javafx.version>
+		<maven.compiler.target>17</maven.compiler.target>
+		<maven.compiler.source>17</maven.compiler.source>
+		<javafx.version>17</javafx.version>
 		<javafx.maven.plugin.version>0.0.6</javafx.maven.plugin.version>
 	</properties>
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.openjfx</groupId>
+				<artifactId>javafx-maven-plugin</artifactId>
+				<version>${javafx.maven.plugin.version}</version>
+				<configuration>
+					<mainClass>omscompanion.Main</mainClass>
+					<options>
+						<option>
+							-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:8000</option>
+					</options>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
 	<dependencies>
 		<dependency>
 			<groupId>com.google.zxing</groupId>

@@ -21,6 +21,8 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.SecretKeySpec;
 
+import org.bouncycastle.util.Arrays;
+
 import omscompanion.Base58;
 import omscompanion.FxMain;
 import omscompanion.Main;
@@ -120,8 +122,8 @@ public class PairingInfo {
 			// (4) private key for the other party to answer
 			dataOutputStream.writeByteArray(privateKeyMaterialSend);
 
-			return MessageComposer.createRsaAesEnvelope(template.initialKey, RSAUtils.getTransformationIdx(),
-					AESUtil.getKeyLength(), AESUtil.getTransformationIdx(), baos.toByteArray());
+			return MessageComposer.createRsaAesEnvelope(template.initialKey, RSAUtils.getTransformation(),
+					AESUtil.getKeyLength(), AESUtil.getTransformation(), baos.toByteArray());
 		}
 	}
 
@@ -241,8 +243,8 @@ public class PairingInfo {
 							try (var dataInputStream = new OmsDataInputStream(s.getInputStream())) {
 
 								var dataToSend = MessageComposer.createRsaAesEnvelope(_connectionSettings.publicKeySend,
-										RSAUtils.getTransformationIdx(), AESUtil.getKeyLength(),
-										AESUtil.getTransformationIdx(), message);
+										RSAUtils.getTransformation(), AESUtil.getKeyLength(),
+										AESUtil.getTransformation(), message);
 
 								os.write(dataToSend);
 								os.flush();
@@ -259,13 +261,14 @@ public class PairingInfo {
 										String.format("Reply has been received, %d bytes", encryptedMessage.length));
 
 								// decrypt AES key
-								var aesSecretKeyData = RSAUtils.process(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate(),
+								var aesKeyMaterial = RSAUtils.process(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate(),
 										envelope.rsaTransormation(), envelope.encryptedAesSecretKey());
-								var aesSecretKey = new SecretKeySpec(aesSecretKeyData, "AES");
 
 								// (7) AES-encrypted message
 								var decryptedMessage = AESUtil.process(Cipher.DECRYPT_MODE, encryptedMessage,
-										aesSecretKey, envelope.ivParameterSpec(), envelope.aesTransformation());
+										aesKeyMaterial, envelope.iv(), envelope.aesTransformation());
+
+								Arrays.fill(aesKeyMaterial, (byte) 0); //wipe
 
 								synchronized (PairingInfo.class) {
 									if (instance != PairingInfo.this || sender != Thread.currentThread()

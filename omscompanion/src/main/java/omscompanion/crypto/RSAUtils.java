@@ -1,5 +1,6 @@
 package omscompanion.crypto;
 
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.KeyFactory;
@@ -21,18 +22,17 @@ import omscompanion.Main;
 public final class RSAUtils {
 	private static final String PROP_RSA_KEY_LENGTH = "rsa_key_length",
 			PROP_RSA_TRANSFORMATION_IDX = "rsa_transformation_idx";
-	private static final int DEF_RSA_KEY_LENGTH = 2048, DEF_RSA_TRANSFORMATION = 0;
+	private static final int DEF_RSA_KEY_LENGTH = 2048,
+			DEF_RSA_TRANSFORMATION = RsaTransformation.RSA_ECB_PKCS1Padding.ordinal();
 
 	private RSAUtils() {
 
 	}
 
-	public static int getTransformationIdx() {
-		return Integer.parseInt(Main.properties.getProperty(PROP_RSA_TRANSFORMATION_IDX, "" + DEF_RSA_TRANSFORMATION));
-	}
-
-	public static RsaTransformation getRsaTransformation() {
-		return RsaTransformation.values()[getTransformationIdx()];
+	public static RsaTransformation getTransformation() {
+		var idx = Integer
+				.parseInt(Main.properties.getProperty(PROP_RSA_TRANSFORMATION_IDX, "" + DEF_RSA_TRANSFORMATION));
+		return RsaTransformation.values()[idx];
 	}
 
 	public static int getKeyLength() {
@@ -50,12 +50,17 @@ public final class RSAUtils {
 		return sha256.digest(publicExp);
 	}
 
-	public static byte[] process(int cipherMode, Key rsaKey, String transformation, byte[] data)
+	public static byte[] process(int cipherMode, Key rsaKey, RsaTransformation rsaTransformation, byte[] data)
 			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, IllegalBlockSizeException,
-			BadPaddingException {
+			BadPaddingException, InvalidAlgorithmParameterException {
 
-		var cipher = Cipher.getInstance(transformation);
-		cipher.init(cipherMode, rsaKey);
+		var cipher = Cipher.getInstance(rsaTransformation.transformation);
+		
+		if (rsaTransformation.spec == null) {
+			cipher.init(cipherMode, rsaKey);
+		} else {
+			cipher.init(cipherMode, rsaKey, rsaTransformation.spec);
+		}
 
 		return cipher.doFinal(data);
 	}

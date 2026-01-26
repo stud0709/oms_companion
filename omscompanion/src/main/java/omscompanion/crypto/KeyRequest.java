@@ -18,8 +18,10 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.crypto.spec.SecretKeySpec;
 
+import org.bouncycastle.util.Arrays;
+
+import omscompanion.Main;
 import omscompanion.MessageComposer;
 import omscompanion.OmsDataInputStream;
 import omscompanion.OmsDataOutputStream;
@@ -54,24 +56,32 @@ public class KeyRequest {
 				OmsDataOutputStream dataOutputStream = new OmsDataOutputStream(baos)) {
 
 			var envelope = MessageComposer.readRsaAesEnvelope(dataInputStream);
+			
+			System.out.println("Creating key request");
 
 			// (1) application-ID
 			dataOutputStream.writeUnsignedShort(MessageComposer.APPLICATION_KEY_REQUEST);
+			System.out.println("Application-ID: %s".formatted(MessageComposer.APPLICATION_KEY_REQUEST));
 
 			// (2) reference (file name)
 			dataOutputStream.writeString(encryptedFile.getName());
+			System.out.println("Reference: %s".formatted(encryptedFile.getName()));
 
 			// (3) RSA public key
 			dataOutputStream.writeByteArray(rsaPublicKey.getEncoded());
+			System.out.println("RSA public key: %s".formatted(Main.byteArrayToHex(rsaPublicKey.getEncoded())));
 
 			// (4) fingerprint of the requested RSA key (from the file header)
 			dataOutputStream.writeByteArray(envelope.fingerprint());
+			System.out.println("fingerprint (file header): %s".formatted(Main.byteArrayToHex(envelope.fingerprint())));
 
 			// (5) RSA transformation index for decryption
-			dataOutputStream.writeUnsignedShort(envelope.rsaTransformationIdx());
+			dataOutputStream.writeUnsignedShort(envelope.rsaTransormation().ordinal());
+			System.out.println("RSA transformation (file header): %s".formatted(envelope.rsaTransormation().transformation));
 
 			// (6) encrypted AES key from the file header
 			dataOutputStream.writeByteArray(envelope.encryptedAesSecretKey());
+			System.out.println("encrypted AES key (file header): %s".formatted(Main.byteArrayToHex(envelope.encryptedAesSecretKey())));
 
 			this.message = baos.toByteArray();
 		} catch (IOException ex) {
@@ -93,32 +103,34 @@ public class KeyRequest {
 				var dataInputStream = new OmsDataInputStream(fis);
 				// prepare omsReply for reading
 				var bais = new ByteArrayInputStream(keyResponse);
-				var replyInputStream = new OmsDataInputStream(bais)) {
+				var keyResponseInputStream = new OmsDataInputStream(bais)) {
+
+			System.out.println("Processing key response");
+
+			// (1) Application Identifier
+			var applicationId = keyResponseInputStream.readUnsignedShort();
+			assert applicationId == MessageComposer.APPLICATION_KEY_RESPONSE;
+			System.out.println("Application-ID: %d".formatted(applicationId));
+
+			// (2) RSA transformation
+			var rsaTransformation = RsaTransformation.values()[keyResponseInputStream.readUnsignedShort()];
+			System.out.println("RSA transformation: %d = %s".formatted(rsaTransformation.ordinal(), rsaTransformation.transformation));
+
+			// (3) RSA encrypted AES key
+			var rsaEncryptedAesKey = keyResponseInputStream.readByteArray();
+			System.out.println("encrypted AES key: %s".formatted(Main.byteArrayToHex(rsaEncryptedAesKey)));
+
+			// Decrypt AES key
+			var aesKeyMaterial = RSAUtils.process(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate(), rsaTransformation,
+					rsaEncryptedAesKey);
 
 			// Read file header once again, position at start of (encrypted) payload
 			var envelope = MessageComposer.readRsaAesEnvelope(dataInputStream);
 
-			// ***** Read reply data *****
+			AESUtil.process(Cipher.DECRYPT_MODE, dataInputStream, osDecryptedFile, aesKeyMaterial,
+					envelope.iv(), envelope.aesTransformation(), null);
 
-			// (1) Application Identifier
-			var applicationId = replyInputStream.readUnsignedShort();
-			assert applicationId == MessageComposer.APPLICATION_KEY_RESPONSE;
-
-			// (2) RSA transformation
-			var rsaTransformation = RsaTransformation.values()[replyInputStream.readUnsignedShort()].transformation;
-
-			// (3) RSA encrypted AES key
-			var rsaEncryptedAesKey = replyInputStream.readByteArray();
-
-			// ***** Decrypt file *****
-			var cipher = Cipher.getInstance(rsaTransformation);
-			cipher.init(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate());
-
-			var aesSecretKeyData = cipher.doFinal(rsaEncryptedAesKey);
-			var aesSecretKey = new SecretKeySpec(aesSecretKeyData, "AES");
-
-			AESUtil.process(Cipher.DECRYPT_MODE, dataInputStream, osDecryptedFile, aesSecretKey,
-					envelope.ivParameterSpec(), envelope.aesTransformation(), null);
+			Arrays.fill(aesKeyMaterial, (byte) 0); // wipe AES key data
 		}
 	}
 }

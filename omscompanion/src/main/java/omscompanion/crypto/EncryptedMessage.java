@@ -17,12 +17,12 @@ import omscompanion.OmsDataOutputStream;
 public class EncryptedMessage {
 	private final byte[] message;
 
-	public EncryptedMessage(byte[] message, RSAPublicKey rsaPublicKey, int rsaTransformationIdx, int aesKeyLength,
-			int aesTransformationIdx) throws NoSuchAlgorithmException, NoSuchPaddingException,
+	public EncryptedMessage(byte[] message, RSAPublicKey rsaPublicKey, RsaTransformation rsaTransformation, int aesKeyLength,
+			AesTransformation aesTransformation) throws NoSuchAlgorithmException, NoSuchPaddingException,
 			IllegalBlockSizeException, BadPaddingException, InvalidKeyException, InvalidAlgorithmParameterException {
 
-		this.message = MessageComposer.createRsaAesEnvelope(rsaPublicKey, rsaTransformationIdx, aesKeyLength,
-				aesTransformationIdx, createPayload(MessageComposer.APPLICATION_ENCRYPTED_MESSAGE, message));
+		this.message = MessageComposer.createRsaAesEnvelope(rsaPublicKey, rsaTransformation, aesKeyLength,
+				aesTransformation, createPayload(MessageComposer.APPLICATION_ENCRYPTED_MESSAGE, message));
 	}
 
 	private byte[] createPayload(int ai, byte[] message) {

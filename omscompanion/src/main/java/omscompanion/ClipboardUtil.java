@@ -445,8 +445,8 @@ public class ClipboardUtil {
 				File oFile = Main.TMP.resolve(oFileName).toFile();
 
 				try (var fis = new FileInputStream(listOfFile.get(0))) {
-					EncryptedFile.create(fis, oFile, pk, RSAUtils.getTransformationIdx(), AESUtil.getKeyLength(),
-							AESUtil.getTransformationIdx(), null);
+					EncryptedFile.create(fis, oFile, pk, RSAUtils.getTransformation(), AESUtil.getKeyLength(),
+							AESUtil.getTransformation(), null);
 				}
 
 				oFile.deleteOnExit();
@@ -490,8 +490,8 @@ public class ClipboardUtil {
 				} else {
 					executorService.submit(() -> {
 						try (var fis = new FileInputStream(f)) {
-							EncryptedFile.create(fis, mirrorPath.toFile(), pk, RSAUtils.getTransformationIdx(),
-									AESUtil.getKeyLength(), AESUtil.getTransformationIdx(), cancelled);
+							EncryptedFile.create(fis, mirrorPath.toFile(), pk, RSAUtils.getTransformation(),
+									AESUtil.getKeyLength(), AESUtil.getTransformation(), cancelled);
 							onFile.accept(f, mirrorPath);
 						} catch (Exception ex) {
 							onError.accept(ex);

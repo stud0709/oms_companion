@@ -5,7 +5,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
-import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
@@ -15,7 +14,6 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
@@ -27,31 +25,31 @@ public final class AESUtil {
 	private static final String PROP_AES_TRANSFORMATION_IDX = "aes_transformation_idx",
 			PROP_AES_KEY_ALG_IDX = "aes_key_alg_idx", PROP_AES_SALT_LENGTH = "aes_salt_length",
 			PROP_AES_KEYSPEC_ITER = "aes_keyspec_iterations", PROP_AES_KEY_LENGTH = "aes_key_length";
-	private static final int DEF_AES_TRANSFORMATION_IDX = 0, DEF_AES_KEY_ALG_IDX = 0, DEF_AES_SALT_LENGTH = 16,
+	private static final int DEF_AES_TRANSFORMATION_IDX = AesTransformation.AES_CBC_PKCS5Padding.ordinal(), 
+			DEF_AES_KEY_ALG_IDX = AesKeyAlgorithm.PBKDF2WithHmacSHA256.ordinal(), DEF_AES_SALT_LENGTH = 16,
 			DEF_AES_KEYSPEC_ITER = 1024, DEF_AES_KEY_LENGTH = 256;
 
 	private AESUtil() {
 	}
 
-	public static SecretKey getSecretKeyFromPassword(char[] password, byte[] salt, String keyAlgorithm, int keyLength,
+	public static byte[] getSecretKeyFromPassword(char[] password, byte[] salt, String keyAlgorithm, int keyLength,
 			int keySpecIterations) throws NoSuchAlgorithmException, InvalidKeySpecException {
 
 		var factory = SecretKeyFactory.getInstance(keyAlgorithm);
 		var spec = new PBEKeySpec(password, salt, keySpecIterations, keyLength);
-		var secret = new SecretKeySpec(factory.generateSecret(spec).getEncoded(), "AES");
-		return secret;
+		return factory.generateSecret(spec).getEncoded();
 	}
 
-	public static SecretKey generateRandomSecretKey(int keyLength) {
+	public static byte[] generateRandomSecretKey(int keyLength) {
 		var bArr = new byte[keyLength / 8];
 		new SecureRandom().nextBytes(bArr);
-		return new SecretKeySpec(bArr, "AES");
+		return bArr;
 	}
 
-	public static IvParameterSpec generateIv() {
-		var iv = new byte[16];
+	public static byte[] generateIv(AesTransformation aesTransformation) {
+		var iv = new byte[aesTransformation.ivLength];
 		new SecureRandom().nextBytes(iv);
-		return new IvParameterSpec(iv);
+		return iv;
 	}
 
 	public static byte[] generateSalt(int saltLength) {
@@ -60,50 +58,57 @@ public final class AESUtil {
 		return salt;
 	}
 
-	public static byte[] process(int cipherMode, byte[] input, Key key, IvParameterSpec iv, String aesTransformation)
+	public static byte[] process(int cipherMode, byte[] input, byte[] keyMaterial, byte[] iv, AesTransformation aesTransformation)
 			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
 			InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
-		var cipher = Cipher.getInstance(aesTransformation);
-		cipher.init(cipherMode, key, iv);
-		return cipher.doFinal(input);
+		var cipher = Cipher.getInstance(aesTransformation.transformation);
+		cipher.init(cipherMode, new SecretKeySpec(keyMaterial, "AES"), new IvParameterSpec(iv));
+		var output = cipher.doFinal(input);
+		System.out.println("%scrypted %d bytes => %d".formatted(cipherMode == Cipher.DECRYPT_MODE ? "En" : "De", input.length, output.length));
+		return output;
 	}
 
-	public static void process(int cipherMode, InputStream is, OutputStream os, Key key, IvParameterSpec iv,
-			String aesTransformation, Supplier<Boolean> cancelled)
+	public static void process(int cipherMode, InputStream is, OutputStream os, byte[] aesKeyMaterial, byte[] iv,
+			AesTransformation aesTransformation, Supplier<Boolean> cancelled)
 			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
 			InvalidKeyException, BadPaddingException, IllegalBlockSizeException, IOException {
 
-		var cipher = Cipher.getInstance(aesTransformation);
-		cipher.init(cipherMode, key, iv);
+		var cipher = Cipher.getInstance(aesTransformation.transformation);
+		cipher.init(cipherMode, new SecretKeySpec(aesKeyMaterial, "AES"), new IvParameterSpec(iv));
 
 		var iArr = new byte[1024];
 		int length;
+		byte[] output;
+		int inputLength = 0, outputLength = 0;
 
 		while ((length = is.read(iArr)) > 0) {
-			os.write(cipher.update(iArr, 0, length));
+			inputLength += length;
+			output = cipher.update(iArr, 0, length);
+			outputLength += output.length;
+			os.write(output);
 
 			if (cancelled != null && cancelled.get())
 				return;
 		}
-
-		os.write(cipher.doFinal());
+		
+		System.out.println("%scrypting - before doFinal: %d bytes => %d bytes".formatted(cipherMode == Cipher.DECRYPT_MODE ? "En" : "De", inputLength, outputLength));
+		
+		output = cipher.doFinal();
+		os.write(output);
+		outputLength += output.length;
+		
+		System.out.println("%scrypted - total %d bytes => %d bytes".formatted(cipherMode == Cipher.DECRYPT_MODE ? "En" : "De", inputLength, outputLength));
 	}
 
-	public static int getTransformationIdx() {
-		return Integer
+	public static AesTransformation getTransformation() {
+		var idx = Integer
 				.parseInt(Main.properties.getProperty(PROP_AES_TRANSFORMATION_IDX, "" + DEF_AES_TRANSFORMATION_IDX));
-	}
-
-	public static AesTransformation getAesTransformation() {
-		return AesTransformation.values()[getTransformationIdx()];
-	}
-
-	public static int getAesKeyAlgorithmIdx() {
-		return Integer.parseInt(Main.properties.getProperty(PROP_AES_KEY_ALG_IDX, "" + DEF_AES_KEY_ALG_IDX));
+		return AesTransformation.values()[idx];
 	}
 
 	public static AesKeyAlgorithm getAesKeyAlgorithm() {
-		return AesKeyAlgorithm.values()[getAesKeyAlgorithmIdx()];
+		var idx = Integer.parseInt(Main.properties.getProperty(PROP_AES_KEY_ALG_IDX, "" + DEF_AES_KEY_ALG_IDX));
+		return AesKeyAlgorithm.values()[idx];
 	}
 
 	public static int getSaltLength() {

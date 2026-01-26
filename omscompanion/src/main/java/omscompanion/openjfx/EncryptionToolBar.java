@@ -92,8 +92,8 @@ public class EncryptionToolBar extends GridPane implements ChangeListener<RSAPub
 	public void changed(ObservableValue<? extends RSAPublicKeyItem> observable, RSAPublicKeyItem oldValue,
 			RSAPublicKeyItem newValue) {
 		try {
-			message = new EncryptedMessage(unprotected, newValue.publicKey, RSAUtils.getTransformationIdx(),
-					AESUtil.getKeyLength(), AESUtil.getTransformationIdx()).getMessage();
+			message = new EncryptedMessage(unprotected, newValue.publicKey, RSAUtils.getTransformation(),
+					AESUtil.getKeyLength(), AESUtil.getTransformation()).getMessage();
 
 		} catch (Exception ex) {
 			FxMain.handleException(ex);

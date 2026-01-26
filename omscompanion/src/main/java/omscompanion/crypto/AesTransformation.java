@@ -8,11 +8,15 @@ package omscompanion.crypto;
  * 
  */
 public enum AesTransformation {
-	AES_CBC_PKCS5Padding("AES/CBC/PKCS5Padding");
+	AES_CBC_PKCS5Padding("AES/CBC/PKCS5Padding", 16),
+	AES_CBC_PKCS7Padding("AES/CBC/PKCS7Padding", 16),
+    AES_GCM_NO_PADDING("AES/GCM/NoPadding", 12);
 
 	public final String transformation;
+	public final int ivLength;
 
-	AesTransformation(String transformation) {
+	AesTransformation(String transformation, int ivLength) {
 		this.transformation = transformation;
+		this.ivLength = ivLength;
 	}
 }

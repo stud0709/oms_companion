@@ -21,12 +21,8 @@ import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Base64;
-
-import javax.crypto.spec.IvParameterSpec;
-
 import com.google.zxing.WriterException;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
-
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -255,9 +251,11 @@ public class NewPrivateKey {
 
 				Platform.runLater(() -> txtAreaInfo.appendText(String.format("Key pair generated (%s, %s, %s)\n",
 						rsaPublicKey.getAlgorithm(), rsaKeyLength, rsaPublicKey.getFormat())));
+				
+				var aesTransformation = AESUtil.getTransformation();
 
-				IvParameterSpec iv = AESUtil.generateIv();
-				System.out.println("iv: " + Main.byteArrayToHex(iv.getIV()));
+				byte[] iv = AESUtil.generateIv(aesTransformation);
+				System.out.println("iv: " + Main.byteArrayToHex(iv));
 
 				var salt = AESUtil.generateSalt(AESUtil.getSaltLength());
 				System.out.println("salt: " + Main.byteArrayToHex(salt));
@@ -279,7 +277,7 @@ public class NewPrivateKey {
 				var alias = txtKeyAlias.getText().trim();
 
 				var message = new AesEncryptedPrivateKey(alias, keyPair, secretKey, iv, salt,
-						AESUtil.getTransformationIdx(), AESUtil.getAesKeyAlgorithmIdx(), aesKeyLength,
+						aesTransformation, AESUtil.getAesKeyAlgorithm(), aesKeyLength,
 						aesKeyspecIterations).getMessage();
 
 				var backupFile = new File(txtBackupFile.getText());

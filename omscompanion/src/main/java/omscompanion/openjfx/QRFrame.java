@@ -16,6 +16,7 @@ import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.PasswordField;
+import javafx.scene.control.TextField;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.KeyCode;
@@ -58,7 +59,7 @@ public class QRFrame {
 	private ImageView imgQR;
 
 	@FXML
-	private PasswordField txtInput;
+	private TextField txtInput;
 
 	@FXML
 	private VBox vbox;

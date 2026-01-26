@@ -1044,8 +1044,8 @@ public class FileSync {
 	private BiConsumer<SyncEntry, Path> mirrorFile = (syncEntry, targetPath) -> {
 		try (FileInputStream fis = new FileInputStream(syncEntry.sourcePathProperty.get().toFile())) {
 			EncryptedFile.create(fis, targetPath.toFile(),
-					choice_public_key.getSelectionModel().getSelectedItem().publicKey, RSAUtils.getTransformationIdx(),
-					AESUtil.getKeyLength(), AESUtil.getTransformationIdx(), () -> stateProperty.get() != State.SYNCING);
+					choice_public_key.getSelectionModel().getSelectedItem().publicKey, RSAUtils.getTransformation(),
+					AESUtil.getKeyLength(), AESUtil.getTransformation(), () -> stateProperty.get() != State.SYNCING);
 			syncEntry.compareProperty.set(new CompareResult(Result.MIRRORED));
 		} catch (Exception e) {
 			e.printStackTrace();

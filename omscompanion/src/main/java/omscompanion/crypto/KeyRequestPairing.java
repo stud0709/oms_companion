@@ -17,6 +17,8 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.SecretKeySpec;
 
+import org.bouncycastle.util.Arrays;
+
 import omscompanion.MessageComposer;
 import omscompanion.OmsDataInputStream;
 import omscompanion.OmsDataOutputStream;
@@ -54,7 +56,7 @@ public class KeyRequestPairing {
 			dataOutputStream.writeByteArray(envelope.fingerprint());
 
 			// (5) RSA transformation index for decryption
-			dataOutputStream.writeUnsignedShort(envelope.rsaTransformationIdx());
+			dataOutputStream.writeUnsignedShort(envelope.rsaTransormation().ordinal());
 
 			// (6) encrypted AES key from the file header
 			dataOutputStream.writeByteArray(envelope.encryptedAesSecretKey());
@@ -87,11 +89,12 @@ public class KeyRequestPairing {
 			// ***** Read reply data *****
 
 			// (1) AES key
-			var aesSecretKeyData = replyInputStream.readByteArray();
-			var aesSecretKey = new SecretKeySpec(aesSecretKeyData, "AES");
+			var aesKeyMaterial = replyInputStream.readByteArray();
 
-			AESUtil.process(Cipher.DECRYPT_MODE, dataInputStream, osDecryptedFile, aesSecretKey,
-					envelope.ivParameterSpec(), envelope.aesTransformation(), null);
+			AESUtil.process(Cipher.DECRYPT_MODE, dataInputStream, osDecryptedFile, aesKeyMaterial,
+					envelope.iv(), envelope.aesTransformation(), null);
+			
+			Arrays.fill(aesKeyMaterial, (byte)0);
 		}
 	}
 }

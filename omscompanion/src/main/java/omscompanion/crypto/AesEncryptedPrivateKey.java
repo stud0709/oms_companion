@@ -13,8 +13,6 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.IvParameterSpec;
 
 import omscompanion.MessageComposer;
 import omscompanion.OmsDataOutputStream;
@@ -22,9 +20,9 @@ import omscompanion.OmsDataOutputStream;
 public class AesEncryptedPrivateKey {
 	private final byte[] message;
 
-	public AesEncryptedPrivateKey(String alias, KeyPair rsaKeyPair, SecretKey aesKey, IvParameterSpec iv,
-			byte[] salt, int aesTransformationIdx, int aesKeyAlgorithmIdx, int aesKeyLength, int aesKeyspecIterations)
-			throws NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException,
+	public AesEncryptedPrivateKey(String alias, KeyPair rsaKeyPair, byte[] aesKeyMaterial, byte[] iv, byte[] salt,
+			AesTransformation aesTransformation, AesKeyAlgorithm aesKeyAlgorithm, int aesKeyLength,
+			int aesKeyspecIterations) throws NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException,
 			InvalidAlgorithmParameterException, BadPaddingException, IllegalBlockSizeException {
 		super();
 
@@ -43,13 +41,13 @@ public class AesEncryptedPrivateKey {
 			dataOutputStream.writeByteArray(salt);
 
 			// (4) iv
-			dataOutputStream.writeByteArray(iv.getIV());
+			dataOutputStream.writeByteArray(iv);
 
 			// (5) AES transformation index
-			dataOutputStream.writeUnsignedShort(aesTransformationIdx);
+			dataOutputStream.writeUnsignedShort(aesTransformation.ordinal());
 
 			// (6) key algorithm index
-			dataOutputStream.writeUnsignedShort(aesKeyAlgorithmIdx);
+			dataOutputStream.writeUnsignedShort(aesKeyAlgorithm.ordinal());
 
 			// (7) keyspec length
 			dataOutputStream.writeUnsignedShort(aesKeyLength);
@@ -60,7 +58,7 @@ public class AesEncryptedPrivateKey {
 			// --- encrypted data ---
 
 			// (9) cipher text
-			dataOutputStream.writeByteArray(getCipherText(rsaKeyPair, aesKey, iv, aesTransformationIdx));
+			dataOutputStream.writeByteArray(getCipherText(rsaKeyPair, aesKeyMaterial, iv, aesTransformation));
 
 			this.message = baos.toByteArray();
 		} catch (IOException e) {
@@ -68,9 +66,9 @@ public class AesEncryptedPrivateKey {
 		}
 	}
 
-	private byte[] getCipherText(KeyPair rsaKeyPair, SecretKey aesKey, IvParameterSpec iv, int aesTransformationIdx)
-			throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException,
-			NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
+	private byte[] getCipherText(KeyPair rsaKeyPair, byte[] aesKeyMaterial, byte[] iv,
+			AesTransformation aesTransformation) throws InvalidAlgorithmParameterException, NoSuchPaddingException,
+			IllegalBlockSizeException, NoSuchAlgorithmException, BadPaddingException, InvalidKeyException {
 
 		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
 				OmsDataOutputStream dataOutputStreamCipher = new OmsDataOutputStream(baos)) {
@@ -83,8 +81,7 @@ public class AesEncryptedPrivateKey {
 			// (9.2) - public key material
 			dataOutputStreamCipher.writeByteArray(publicKey.getEncoded());
 
-			return AESUtil.process(Cipher.ENCRYPT_MODE, baos.toByteArray(), aesKey, iv,
-					AesTransformation.values()[aesTransformationIdx].transformation);
+			return AESUtil.process(Cipher.ENCRYPT_MODE, baos.toByteArray(), aesKeyMaterial, iv, aesTransformation);
 		} catch (IOException ex) {
 			throw new RuntimeException(ex);
 		}
