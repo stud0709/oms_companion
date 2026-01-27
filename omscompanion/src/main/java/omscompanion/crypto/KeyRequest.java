@@ -56,7 +56,7 @@ public class KeyRequest {
 				OmsDataOutputStream dataOutputStream = new OmsDataOutputStream(baos)) {
 
 			var envelope = MessageComposer.readRsaAesEnvelope(dataInputStream);
-			
+
 			System.out.println("Creating key request");
 
 			// (1) application-ID
@@ -77,11 +77,18 @@ public class KeyRequest {
 
 			// (5) RSA transformation index for decryption
 			dataOutputStream.writeUnsignedShort(envelope.rsaTransormation().ordinal());
-			System.out.println("RSA transformation (file header): %s".formatted(envelope.rsaTransormation().transformation));
+			System.out.println(
+					"RSA transformation (file header): %s".formatted(envelope.rsaTransormation().transformation));
 
-			// (6) encrypted AES key from the file header
+			// (5) RSA transformation index for key request (compatible with this device)
+			dataOutputStream.writeUnsignedShort(RSAUtils.getTransformation().ordinal());
+			System.out.println(
+					"RSA transformation (key request): %s".formatted(RSAUtils.getTransformation().transformation));
+
+			// (7) encrypted AES key from the file header
 			dataOutputStream.writeByteArray(envelope.encryptedAesSecretKey());
-			System.out.println("encrypted AES key (file header): %s".formatted(Main.byteArrayToHex(envelope.encryptedAesSecretKey())));
+			System.out.println("encrypted AES key (file header): %s"
+					.formatted(Main.byteArrayToHex(envelope.encryptedAesSecretKey())));
 
 			this.message = baos.toByteArray();
 		} catch (IOException ex) {
@@ -112,23 +119,19 @@ public class KeyRequest {
 			assert applicationId == MessageComposer.APPLICATION_KEY_RESPONSE;
 			System.out.println("Application-ID: %d".formatted(applicationId));
 
-			// (2) RSA transformation
-			var rsaTransformation = RsaTransformation.values()[keyResponseInputStream.readUnsignedShort()];
-			System.out.println("RSA transformation: %d = %s".formatted(rsaTransformation.ordinal(), rsaTransformation.transformation));
-
 			// (3) RSA encrypted AES key
 			var rsaEncryptedAesKey = keyResponseInputStream.readByteArray();
 			System.out.println("encrypted AES key: %s".formatted(Main.byteArrayToHex(rsaEncryptedAesKey)));
 
 			// Decrypt AES key
-			var aesKeyMaterial = RSAUtils.process(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate(), rsaTransformation,
+			var aesKeyMaterial = RSAUtils.process(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate(), RSAUtils.getTransformation(),
 					rsaEncryptedAesKey);
 
 			// Read file header once again, position at start of (encrypted) payload
 			var envelope = MessageComposer.readRsaAesEnvelope(dataInputStream);
 
-			AESUtil.process(Cipher.DECRYPT_MODE, dataInputStream, osDecryptedFile, aesKeyMaterial,
-					envelope.iv(), envelope.aesTransformation(), null);
+			AESUtil.process(Cipher.DECRYPT_MODE, dataInputStream, osDecryptedFile, aesKeyMaterial, envelope.iv(),
+					envelope.aesTransformation(), null);
 
 			Arrays.fill(aesKeyMaterial, (byte) 0); // wipe AES key data
 		}

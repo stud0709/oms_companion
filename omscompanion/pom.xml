@@ -20,10 +20,10 @@
 				<version>${javafx.maven.plugin.version}</version>
 				<configuration>
 					<mainClass>omscompanion.Main</mainClass>
-					<options>
+					<!--options>
 						<option>
 							-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:8000</option>
-					</options>
+					</options-->
 				</configuration>
 			</plugin>
 		</plugins>
