@@ -14,8 +14,6 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.IvParameterSpec;
 
 import omscompanion.crypto.AESUtil;
 import omscompanion.crypto.AesTransformation;
@@ -26,13 +24,13 @@ public abstract class MessageComposer {
 	public static final int APPLICATION_AES_ENCRYPTED_PRIVATE_KEY_TRANSFER = 0,
 			APPLICATION_ENCRYPTED_MESSAGE_DEPRECATED = 1, APPLICATION_TOTP_URI_TRANSFER = 2,
 			APPLICATION_ENCRYPTED_FILE = 3, APPLICATION_KEY_REQUEST = 4, APPLICATION_KEY_RESPONSE = 5,
-			/**
+			/*
 			 * Until now, it was possible to understand what kind of information is
 			 * contained in the message. The generic message will only allow to decrypt it,
 			 * all other information will be found inside.
 			 */
 			APPLICATION_RSA_AES_GENERIC = 6, APPLICATION_BITCOIN_ADDRESS = 7, APPLICATION_ENCRYPTED_MESSAGE = 8,
-			APPLICATION_TOTP_URI = 9, APPLICATION_WIFI_PAIRING = 10, APPLICATION_KEY_REQUEST_PAIRING = 11;
+			APPLICATION_TOTP_URI = 9, APPLICATION_WIFI_PAIRING = 10, APPLICATION_KEY_REQUEST_PAIRING = 11, APPLICATION_ENCRYPTED_OTP = 12;
 
 	/**
 	 * Prefix of a text encoded message.
