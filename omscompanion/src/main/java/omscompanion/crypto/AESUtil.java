@@ -27,7 +27,7 @@ public final class AESUtil {
 			PROP_AES_KEYSPEC_ITER = "aes_keyspec_iterations", PROP_AES_KEY_LENGTH = "aes_key_length";
 	private static final int DEF_AES_TRANSFORMATION_IDX = AesTransformation.AES_CBC_PKCS5Padding.ordinal(), 
 			DEF_AES_KEY_ALG_IDX = AesKeyAlgorithm.PBKDF2WithHmacSHA256.ordinal(), DEF_AES_SALT_LENGTH = 16,
-			DEF_AES_KEYSPEC_ITER = 1024, DEF_AES_KEY_LENGTH = 256;
+			DEF_AES_KEYSPEC_ITER = 600000, DEF_AES_KEY_LENGTH = 256;
 
 	private AESUtil() {
 	}
