@@ -7,7 +7,7 @@
 <?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.VBox?>
 
-<VBox fx:id="vbox" xmlns="http://javafx.com/javafx/20.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="omscompanion.openjfx.QRFrame">
+<VBox fx:id="vbox" alignment="CENTER" xmlns="http://javafx.com/javafx/20.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="omscompanion.openjfx.QRFrame">
    <children>
       <Label fx:id="lblQrCode" alignment="CENTER" minHeight="100.0" minWidth="100.0">
          <contextMenu>
@@ -23,6 +23,7 @@
             <ImageView fx:id="imgQR" fitHeight="150.0" fitWidth="200.0" pickOnBounds="true" preserveRatio="true" />
          </graphic>
       </Label>
+      <Label fx:id="lblInfo" alignment="CENTER" maxWidth="1.7976931348623157E308" style="-fx-font-weight: bold; -fx-padding: 6 8 6 8; -fx-font-size: 13px;" />
       <Label fx:id="lblOmsReply" text="OneMoreSecret Reply:" />
       <TextField fx:id="txtInput" onKeyPressed="#onKeyPressed" />
    </children>

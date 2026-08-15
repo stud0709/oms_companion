@@ -167,8 +167,11 @@ public class PairingInfo {
 
 		lastActivityTimestamp = System.currentTimeMillis();
 
+		String prefix = topicHex.length() >= 8 ? topicHex.substring(0, 8) + "..." : topicHex;
+		String infoText = "Topic Prefix: " + prefix;
+
 		// Show QR code dialog
-		QRFrame.showForMessage(promptBytes, false, false, "Nostr Pairing", s -> {
+		QRFrame.showForMessage(promptBytes, false, false, "Nostr Pairing", infoText, s -> {
 			// If QR dialog was dismissed without successful pairing
 			if (!paired.get()) {
 				terminate();

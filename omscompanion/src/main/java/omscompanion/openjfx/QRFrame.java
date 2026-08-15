@@ -15,7 +15,6 @@ import javafx.scene.Scene;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
-import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.WritableImage;
@@ -44,6 +43,9 @@ public class QRFrame {
 	private Label lblQrCode;
 
 	@FXML
+	private Label lblInfo;
+
+	@FXML
 	private Label lblOmsReply;
 
 	@FXML
@@ -68,7 +70,7 @@ public class QRFrame {
 		return Long.parseLong(Main.properties.getProperty(PROP_QR_FRAME_AUTOCLOSE, "30000"));
 	}
 
-	public void init(byte[] message, Stage stage, boolean allowTextInput) throws WriterException {
+	public void init(byte[] message, Stage stage, boolean allowTextInput, String infoText) throws WriterException {
 		this.message = message;
 
 		synchronized (QRFrame.class) {
@@ -81,6 +83,12 @@ public class QRFrame {
 		imgQR.setFitHeight(img.getHeight());
 		imgQR.setImage(img);
 
+		if (infoText != null && !infoText.trim().isEmpty()) {
+			lblInfo.setText(infoText.trim());
+		} else {
+			vbox.getChildren().remove(lblInfo);
+		}
+
 		if (allowTextInput) {
 			txtInput.requestFocus();
 		} else {
@@ -92,6 +100,10 @@ public class QRFrame {
 				() -> instance == stage, bi -> Platform.runLater(() -> SwingFXUtils.toFXImage(bi, img)));
 
 		qrHelper.start();
+	}
+
+	public void init(byte[] message, Stage stage, boolean allowTextInput) throws WriterException {
+		init(message, stage, allowTextInput, null);
 	}
 
 	@FXML
@@ -111,6 +123,11 @@ public class QRFrame {
 
 	public static void showForMessage(byte[] message, boolean autoClose, boolean allowTextInput, String title,
 			Consumer<String> andThen) {
+		showForMessage(message, autoClose, allowTextInput, title, null, andThen);
+	}
+
+	public static void showForMessage(byte[] message, boolean autoClose, boolean allowTextInput, String title,
+			String infoText, Consumer<String> andThen) {
 
 		synchronized (QRFrame.class) {
 			if (instance != null) {
@@ -138,7 +155,7 @@ public class QRFrame {
 						}
 					}
 				};
-				frameController.init(message, stage, allowTextInput);
+				frameController.init(message, stage, allowTextInput, infoText);
 				stage.setTitle(Main.APP_NAME + (title == null ? "" : ": " + title));
 				stage.setScene(scene);
 				stage.setResizable(false);
@@ -148,7 +165,8 @@ public class QRFrame {
 				}
 				stage.show();
 				scene.getWindow().setOnHidden(e -> {
-					String s = frameController.txtInput.getText();
+					String s = frameController.txtInput != null && frameController.vbox.getChildren().contains(frameController.txtInput)
+							? frameController.txtInput.getText() : "";
 					endOfAction.accept(s);
 				});
 				if (autoClose) {
