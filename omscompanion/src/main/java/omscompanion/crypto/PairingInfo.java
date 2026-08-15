@@ -232,10 +232,7 @@ public class PairingInfo {
 			logger.info("Nostr Pairing established successfully!");
 
 			// Close QR dialog if open
-			Platform.runLater(() -> {
-				QRFrame.showForMessage(new byte[0], false, false, null, null);
-				// The showForMessage above closes any previous active stage in QRFrame
-			});
+			QRFrame.close();
 
 			startHeartbeat();
 		}

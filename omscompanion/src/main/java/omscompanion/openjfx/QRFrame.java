@@ -187,10 +187,29 @@ public class QRFrame {
 		});
 	}
 
+	public static void close() {
+		Platform.runLater(() -> {
+			synchronized (QRFrame.class) {
+				if (instance != null) {
+					try {
+						instance.getScene().getWindow().setOnHidden(null);
+						instance.close();
+					} catch (Exception ex) {
+						// ignore
+					} finally {
+						instance = null;
+					}
+				}
+			}
+		});
+	}
+
 	@FXML
 	void onKeyPressed(KeyEvent event) {
 		if (event.getCode() == KeyCode.ENTER) {
-			instance.close();
+			if (instance != null) {
+				instance.close();
+			}
 		}
 	}
 }
