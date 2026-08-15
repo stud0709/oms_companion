@@ -116,11 +116,11 @@ public class NostrConnectionPool {
 	}
 
 	private void onRelayConnected(String url) {
-		logger.info("Relay connected: " + url + " (total connected: " + getConnectedCount() + ")");
+		logger.info("Connected to " + url);
 	}
 
 	private void onRelayDisconnected(String url) {
-		logger.info("Relay disconnected: " + url + " (total connected: " + getConnectedCount() + ")");
+		logger.info("Disconnected from " + url);
 	}
 
 	public synchronized void close() {

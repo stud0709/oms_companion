@@ -93,7 +93,7 @@ public class NostrRelayClient implements WebSocket.Listener {
 			);
 			String reqJson = MAPPER.writeValueAsString(req);
 			sendText(reqJson);
-			logger.info("Subscribed to " + topic + " on " + relayUrl + " (subId=" + subId + ")");
+			logger.fine("Subscribed on " + relayUrl);
 		} catch (Exception e) {
 			logger.log(Level.WARNING, "Error sending subscription to " + relayUrl, e);
 		}
@@ -117,7 +117,7 @@ public class NostrRelayClient implements WebSocket.Listener {
 				List<Object> msg = List.of("EVENT", event);
 				String json = MAPPER.writeValueAsString(msg);
 				sendText(json);
-				logger.info("Published event " + event.id + " to " + relayUrl);
+				logger.fine("Published event to " + relayUrl);
 			} catch (Exception e) {
 				logger.log(Level.WARNING, "Error publishing event to " + relayUrl, e);
 			}
@@ -144,7 +144,7 @@ public class NostrRelayClient implements WebSocket.Listener {
 
 	@Override
 	public void onOpen(WebSocket webSocket) {
-		logger.info("Connected to Nostr relay: " + relayUrl);
+		logger.info("Connected to " + relayUrl);
 		this.webSocket = webSocket;
 		this.connected.set(true);
 		if (onConnectCallback != null) {

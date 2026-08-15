@@ -20,7 +20,6 @@ import java.util.logging.Logger;
 
 import javafx.application.Platform;
 import javafx.stage.Stage;
-import omscompanion.FxMain;
 import omscompanion.Main;
 import omscompanion.MessageComposer;
 import omscompanion.OmsDataOutputStream;
@@ -212,7 +211,7 @@ public class PairingInfo {
 	}
 
 	private void handlePing(NostrEvent event) {
-		logger.info("Received ping from peer on topic " + topicHex);
+		logger.info("Received ping from peer");
 
 		// Send pong response immediately
 		List<List<String>> tags = List.of(
@@ -242,7 +241,7 @@ public class PairingInfo {
 	}
 
 	private void handlePong(NostrEvent event) {
-		logger.fine("Received pong from peer on topic " + topicHex);
+		logger.fine("Received pong from peer");
 		lastActivityTimestamp = System.currentTimeMillis();
 	}
 
@@ -335,7 +334,7 @@ public class PairingInfo {
 			);
 			NostrEvent requestEvent = NostrEvent.create(nostrPrivateKey, 25000, tags, base64Payload);
 			connectionPool.broadcast(requestEvent);
-			logger.info("Sent request " + reqId + " to Nostr relays");
+			logger.info("Sent request to Nostr relays");
 
 			// Set timeout for request response
 			future.orTimeout(ttlSeconds, TimeUnit.SECONDS).whenComplete((reply, err) -> {

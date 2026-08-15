@@ -31,7 +31,7 @@ import omscompanion.openjfx.FileSync;
 import omscompanion.openjfx.NewPrivateKey;
 import omscompanion.openjfx.PasswordGenerator;
 import omscompanion.openjfx.PublicKeyImport;
-import omscompanion.openjfx.WiFiPairing;
+import omscompanion.openjfx.NostrPairing;
 
 public class Main {
 	public static Path PUBLIC_KEY_STORAGE = new File("public").toPath(), TMP = new File("tmp").toPath();
@@ -269,7 +269,7 @@ public class Main {
 			case "wiFiConnect" -> {
 				try {
 					wiFiConnectMenuItem.setEnabled(false);
-					WiFiPairing.show(() -> SwingUtilities.invokeLater(() -> wiFiConnectMenuItem.setEnabled(true)));
+					NostrPairing.show(() -> SwingUtilities.invokeLater(() -> wiFiConnectMenuItem.setEnabled(true)));
 				} catch (Exception ex) {
 					ex.printStackTrace();
 				}

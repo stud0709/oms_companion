@@ -11,7 +11,7 @@
 <?import javafx.scene.layout.RowConstraints?>
 <?import javafx.scene.layout.VBox?>
 
-<VBox prefWidth="480.0" spacing="10.0" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="omscompanion.openjfx.WiFiPairing">
+<VBox prefWidth="480.0" spacing="10.0" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="omscompanion.openjfx.NostrPairing">
    <children>
       <GridPane hgap="8.0" vgap="8.0">
          <columnConstraints>
