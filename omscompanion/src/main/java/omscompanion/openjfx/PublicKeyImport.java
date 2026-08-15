@@ -49,7 +49,7 @@ public class PublicKeyImport {
 				var p = PublicKeyImport.savePublicKey(alias, publicKey, backupPath -> {
 					var alert = new Alert(AlertType.CONFIRMATION);
 					alert.setTitle(Main.APP_NAME);
-					alert.setTitle("Create backup and overwrite?");
+					alert.setHeaderText("Create backup and overwrite?");
 					alert.setContentText("Key '" + alias + "' already exists.");
 					var opt = alert.showAndWait();
 					return opt.filter(t -> t == ButtonType.OK).isPresent();

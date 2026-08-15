@@ -92,7 +92,7 @@ public class NewPrivateKey {
 	private final Paint errorPaint = Color.RED;
 	private Paint colorDef = null;
 	private String transportPwd = "";
-	private boolean enableRepeatPwdListener = true, enableTransportPwdListener = true;;
+	private boolean enableRepeatPwdListener = true, enableTransportPwdListener = true;
 
 	@FXML
 	void onBrowse(ActionEvent event) {
@@ -310,7 +310,7 @@ public class NewPrivateKey {
 						FxMain.handleException(e);
 					}
 					Platform.runLater(() -> {
-						txtAreaInfo.appendText("Operation suffessfully completed\n");
+						txtAreaInfo.appendText("Operation successfully completed\n");
 						btnCreate.setDisable(false);
 					});
 				});
@@ -323,8 +323,8 @@ public class NewPrivateKey {
 	}
 
 	public static String getKeyBackupHtml(String alias, byte[] fingerprint, byte[] message)
-			throws NoSuchAlgorithmException, IOException, WriterException {
-		var qrCodes = p();
+			throws NoSuchAlgorithmException, WriterException, IOException {
+		var qrCodes = table();
 
 		var list = QRUtil.getQrSequence(MessageComposer.encodeAsOmsText(message).toCharArray(), QRUtil.getChunkSize(),
 				QRUtil.getBarcodeSize());
@@ -332,14 +332,10 @@ public class NewPrivateKey {
 		for (int i = 0; i < list.size(); i++) {
 			try (var baos = new ByteArrayOutputStream()) {
 				MatrixToImageWriter.writeToStream(list.get(i), "PNG", baos);
-				baos.flush();
 				qrCodes.with(table(tr(td(Integer.toString(i + 1)), td(
 						img().withSrc("data:image/png;base64," + Base64.getEncoder().encodeToString(baos.toByteArray()))
-								.withStyle("width:" + (QRUtil.getBarcodeSize() / 2) + "px;height:"
-										+ (QRUtil.getBarcodeSize() / 2) + "px;")))
-						.withStyle("vertical-align: bottom;")).withStyle("display: inline-block;"));
-			} catch (Exception ex) {
-				ex.printStackTrace();
+								.withStyle(String.format("width:%dpx;height:%dpx;", QRUtil.getBarcodeSize(),
+										QRUtil.getBarcodeSize()))))));
 			}
 		}
 
@@ -355,8 +351,8 @@ public class NewPrivateKey {
 
 		return html(body(h1("OneMoreSecret Private Key Backup"), p(b("Keep this file / printout in a secure location")),
 				p("This is a hard copy of your Private Key for OneMoreSecret. "
-						+ "It can be used to import your Private Key into a new device "
-						+ "or after a reset of OneMoreSecret App. This document is encrypted with AES, "
+						+ "It can be used to restore the key on your mobile device. Because the key data is "
+						+ "encrypted with AES, "
 						+ "you will need your TRANSPORT PASSWORD to complete the import procedure."),
 				h2("WARNING:"),
 				p(join("DO NOT share this document with other persons.", br(),
@@ -368,7 +364,7 @@ public class NewPrivateKey {
 				p("Scan this with your OneMoreSecret App:"), qrCodes, h2("Long-Term Backup and Technical Details"),
 				p("Base64 Encoded Message: "), messageChunks,
 				p("Message format: " + MessageComposer.OMS_PREFIX + "[base64 encoded data]"),
-				p("Data format: see https://github.com/stud0709/oms_companion/blob/master/omscompanion/src/main/java/omscompanion/crypto/AesEncryptedPrivateKeyTransfer.java")))
+				p("Data format: see https://github.com/stud0709/oms_companion/blob/master/omscompanion/src/main/java/omscompanion/crypto/AesEncryptedPrivateKey.java")))
 				.render();
 	}
 

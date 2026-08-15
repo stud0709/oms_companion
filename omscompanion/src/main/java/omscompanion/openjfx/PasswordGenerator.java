@@ -286,8 +286,6 @@ public class PasswordGenerator {
 				stage.show();
 				scene.getWindow().setOnHidden(e -> {
 					r.run();
-				});
-				scene.getWindow().setOnHidden(e -> {
 					if (andThen != null)
 						andThen.run();
 				});

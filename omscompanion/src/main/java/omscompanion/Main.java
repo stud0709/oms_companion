@@ -39,7 +39,7 @@ public class Main {
 	private static final String PROP_DEFAULT_KEY = "default_key", PROPERTY_FILE = "omscompanion.properties";
 	public static final String APP_NAME = "omsCompanion";
 	private static MenuItem filesyncMenuItem = null, passwordGeneratorMenuItem = null, importPublicKeyMenuItem = null,
-			newPrivateKeyMenuItem = null, wiFiConnectMenuItem = null;
+			newPrivateKeyMenuItem = null, nostrConnectMenuItem = null;
 
 	public static void main(String[] args) throws Exception {
 		Files.createDirectories(PUBLIC_KEY_STORAGE);
@@ -175,23 +175,23 @@ public class Main {
 		}
 
 		{
-			var wifi = new Menu("Nostr Pairing...");
+			var nostrMenu = new Menu("Nostr Pairing...");
 
 			{
-				wiFiConnectMenuItem = new MenuItem("Connect");
-				wiFiConnectMenuItem.setActionCommand("wiFiConnect");
-				wiFiConnectMenuItem.addActionListener(MENU_ACTION_LISTENER);
-				wifi.add(wiFiConnectMenuItem);
+				nostrConnectMenuItem = new MenuItem("Connect");
+				nostrConnectMenuItem.setActionCommand("nostrConnect");
+				nostrConnectMenuItem.addActionListener(MENU_ACTION_LISTENER);
+				nostrMenu.add(nostrConnectMenuItem);
 			}
 
 			{
-				var wiFiDisconnect = new MenuItem("Disconnect");
-				wiFiDisconnect.setActionCommand("wiFiDisconnect");
-				wiFiDisconnect.addActionListener(MENU_ACTION_LISTENER);
-				wifi.add(wiFiDisconnect);
+				var nostrDisconnect = new MenuItem("Disconnect");
+				nostrDisconnect.setActionCommand("nostrDisconnect");
+				nostrDisconnect.addActionListener(MENU_ACTION_LISTENER);
+				nostrMenu.add(nostrDisconnect);
 			}
 
-			menu.add(wifi);
+			menu.add(nostrMenu);
 		}
 
 		{
@@ -266,16 +266,16 @@ public class Main {
 				}
 			}
 
-			case "wiFiConnect" -> {
+			case "nostrConnect" -> {
 				try {
-					wiFiConnectMenuItem.setEnabled(false);
-					NostrPairing.show(() -> SwingUtilities.invokeLater(() -> wiFiConnectMenuItem.setEnabled(true)));
+					nostrConnectMenuItem.setEnabled(false);
+					NostrPairing.show(() -> SwingUtilities.invokeLater(() -> nostrConnectMenuItem.setEnabled(true)));
 				} catch (Exception ex) {
 					ex.printStackTrace();
 				}
 			}
 
-			case "wiFiDisconnect" -> PairingInfo.disconnect();
+			case "nostrDisconnect" -> PairingInfo.disconnect();
 
 			}
 		}

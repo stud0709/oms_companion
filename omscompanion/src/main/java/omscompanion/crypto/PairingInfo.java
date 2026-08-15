@@ -33,7 +33,6 @@ public class PairingInfo {
 
 	public static final String PROP_REQUEST_TIMEOUT_S = "request_timeout_s";
 	public static final String PROP_NOSTR_RELAYS = "nostr_relays";
-	public static final String PROP_PAIRING_DEF_INIT_KEY = "pairing_def_init_key"; // kept for config compatibility
 
 	public static final List<String> DEFAULT_RELAYS = List.of(
 			"wss://relay.damus.io",
@@ -58,7 +57,6 @@ public class PairingInfo {
 	private volatile long lastActivityTimestamp = System.currentTimeMillis();
 
 	private Thread heartbeatThread;
-	private Stage qrStage;
 
 	private final Map<String, CompletableFuture<byte[]>> pendingRequests = new ConcurrentHashMap<>();
 
@@ -381,10 +379,6 @@ public class PairingInfo {
 		} else {
 			Main.properties.setProperty(PROP_NOSTR_RELAYS, String.join(",", relays));
 		}
-	}
-
-	public static String getDefaultInitialKeyAlias() {
-		return Main.properties.getProperty(PROP_PAIRING_DEF_INIT_KEY, Main.getDefaultKeyAlias());
 	}
 
 	public String getTopicHex() {

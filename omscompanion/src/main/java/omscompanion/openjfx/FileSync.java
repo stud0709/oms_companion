@@ -904,8 +904,8 @@ public class FileSync {
 
 			stateProperty.set(State.DONE_SYNCING);
 
-			info("Sync is completed." + profileFile == null ? ""
-					: String.format(" Profile %s has been saved.", profileFile.getName()));
+			info("Sync is completed." + (profileFile == null ? ""
+					: String.format(" Profile %s has been saved.", profileFile.getName())));
 		}).start();
 	}
 
