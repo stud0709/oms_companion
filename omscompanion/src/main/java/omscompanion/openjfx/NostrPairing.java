@@ -18,7 +18,7 @@ import omscompanion.FxMain;
 import omscompanion.Main;
 import omscompanion.crypto.PairingInfo;
 
-public class WiFiPairing {
+public class NostrPairing {
 
 	@FXML
 	private Button btnStart;
@@ -44,7 +44,7 @@ public class WiFiPairing {
 		ownStage = stage;
 
 		runOnEndOfAction = () -> {
-			synchronized (WiFiPairing.class) {
+			synchronized (NostrPairing.class) {
 				if (instance == ownStage) {
 					instance = null;
 
@@ -111,7 +111,7 @@ public class WiFiPairing {
 	}
 
 	public static void show(Runnable andThen) {
-		synchronized (WiFiPairing.class) {
+		synchronized (NostrPairing.class) {
 			if (instance != null) {
 				Platform.runLater(() -> {
 					instance.getScene().getWindow().setOnHidden(null);
@@ -122,17 +122,17 @@ public class WiFiPairing {
 
 		Platform.runLater(() -> {
 			try {
-				var url = Main.class.getResource("openjfx/WiFiPairing.fxml");
+				var url = Main.class.getResource("openjfx/NostrPairing.fxml");
 				var fxmlLoader = new FXMLLoader(url);
 				var scene = new Scene(fxmlLoader.load());
-				var frameController = (WiFiPairing) fxmlLoader.getController();
+				var frameController = (NostrPairing) fxmlLoader.getController();
 				var stage = new Stage();
 				stage.setTitle(Main.APP_NAME + ": Nostr Pairing");
 				stage.setScene(scene);
 				frameController.init(stage, andThen);
 				stage.setResizable(false);
 				stage.getIcons().add(FxMain.getImage("qr-code"));
-				synchronized (WiFiPairing.class) {
+				synchronized (NostrPairing.class) {
 					instance = stage;
 				}
 				stage.show();
