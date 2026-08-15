@@ -1,14 +1,18 @@
 package omscompanion.openjfx;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
-import javafx.scene.control.ChoiceBox;
-import javafx.scene.control.PasswordField;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.SpinnerValueFactory;
+import javafx.scene.control.TextArea;
 import javafx.stage.Stage;
 import omscompanion.FxMain;
 import omscompanion.Main;
@@ -20,20 +24,23 @@ public class WiFiPairing {
 	private Button btnStart;
 
 	@FXML
-	private ChoiceBox<RSAPublicKeyItem> choice_initialKey;
+	private Button btnCancel;
 
 	@FXML
-	private PasswordField pwd_requestId;
+	private Button btnResetRelays;
 
 	@FXML
 	private Spinner<Integer> spin_to_connect;
+
+	@FXML
+	private TextArea txtRelays;
 
 	private static Stage instance;
 	private Stage ownStage;
 
 	private Runnable runOnEndOfAction;
 
-	public void init(Stage stage, Runnable andThen) throws Exception {
+	public void init(Stage stage, Runnable andThen) {
 		ownStage = stage;
 
 		runOnEndOfAction = () -> {
@@ -47,30 +54,38 @@ public class WiFiPairing {
 			}
 		};
 
-		spin_to_connect.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(0, 999));
+		spin_to_connect.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(10, 999));
 		spin_to_connect.getValueFactory().setValue(PairingInfo.getRequestTimeoutS());
 		spin_to_connect.getValueFactory().valueProperty()
 				.addListener((observable, oldValue, newValue) -> Main.properties
 						.setProperty(PairingInfo.PROP_REQUEST_TIMEOUT_S, Integer.toString(newValue)));
+
+		// Populate relays
+		List<String> currentRelays = PairingInfo.getPreferredRelays();
+		txtRelays.setText(String.join("\n", currentRelays));
+
+		btnResetRelays.setOnAction(e -> {
+			txtRelays.setText(String.join("\n", PairingInfo.DEFAULT_RELAYS));
+		});
+
+		btnCancel.setOnAction(e -> {
+			ownStage.close();
+		});
 
 		// cancellation
 		stage.getScene().getWindow().setOnHidden(e -> {
 			runOnEndOfAction.run();
 		});
 
-		choice_initialKey.getSelectionModel().selectedItemProperty()
-				.addListener((observable, oldValue, newValue) -> updateUI());
-		pwd_requestId.textProperty().addListener((observable, oldValue, newValue) -> updateUI());
-
-		btnStart.setDisable(true);
-
-		FxMain.initChoiceBox(choice_initialKey, PairingInfo.getDefaultInitialKeyAlias());
-
 		btnStart.setOnAction(e -> {
-			Main.properties.setProperty(PairingInfo.PROP_REQUEST_TIMEOUT_S,
-					Integer.toString(spin_to_connect.getValue()));
-			Main.properties.setProperty(PairingInfo.PROP_PAIRING_DEF_INIT_KEY,
-					choice_initialKey.getSelectionModel().getSelectedItem().toString());
+			int timeout = spin_to_connect.getValue();
+			Main.properties.setProperty(PairingInfo.PROP_REQUEST_TIMEOUT_S, Integer.toString(timeout));
+
+			List<String> relays = parseRelays(txtRelays.getText());
+			if (relays.isEmpty()) {
+				relays = PairingInfo.DEFAULT_RELAYS;
+			}
+			PairingInfo.setPreferredRelays(relays);
 
 			Platform.runLater(() -> {
 				ownStage.getScene().getWindow().setOnHidden(null);
@@ -78,20 +93,21 @@ public class WiFiPairing {
 			});
 
 			try {
-				new PairingInfo().displayPrompt(pwd_requestId.getText(), new PairingInfo.ConnectionSettings()
-						.withInitialKey(choice_initialKey.getSelectionModel().getSelectedItem().publicKey), andThen);
+				new PairingInfo(timeout, relays).displayPrompt(andThen);
 			} catch (Exception ex) {
 				FxMain.handleException(ex);
 			}
 		});
-
-		pwd_requestId.requestFocus();
 	}
 
-	private void updateUI() {
-		boolean disabled = choice_initialKey.getSelectionModel().getSelectedItem() == null
-				|| pwd_requestId.getText().isEmpty();
-		btnStart.setDisable(disabled);
+	private static List<String> parseRelays(String text) {
+		if (text == null || text.trim().isEmpty()) {
+			return new ArrayList<>();
+		}
+		return Arrays.stream(text.split("[\r\n,;]+"))
+				.map(String::trim)
+				.filter(s -> !s.isEmpty() && (s.startsWith("ws://") || s.startsWith("wss://")))
+				.collect(Collectors.toList());
 	}
 
 	public static void show(Runnable andThen) {
@@ -111,7 +127,7 @@ public class WiFiPairing {
 				var scene = new Scene(fxmlLoader.load());
 				var frameController = (WiFiPairing) fxmlLoader.getController();
 				var stage = new Stage();
-				stage.setTitle(Main.APP_NAME + ": WiFi Pairing");
+				stage.setTitle(Main.APP_NAME + ": Nostr Pairing");
 				stage.setScene(scene);
 				frameController.init(stage, andThen);
 				stage.setResizable(false);

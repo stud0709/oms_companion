@@ -1,86 +1,83 @@
 package omscompanion.crypto;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.nio.ByteBuffer;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.KeyPair;
-import java.security.NoSuchAlgorithmException;
-import java.security.interfaces.RSAPublicKey;
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
-import javax.crypto.spec.SecretKeySpec;
-
-import org.bouncycastle.util.Arrays;
-
-import omscompanion.Base58;
+import javafx.application.Platform;
+import javafx.stage.Stage;
 import omscompanion.FxMain;
 import omscompanion.Main;
 import omscompanion.MessageComposer;
-import omscompanion.OmsDataInputStream;
 import omscompanion.OmsDataOutputStream;
+import omscompanion.nostr.Bip340;
+import omscompanion.nostr.NostrConnectionPool;
+import omscompanion.nostr.NostrEvent;
 import omscompanion.openjfx.QRFrame;
 
 public class PairingInfo {
-	private final KeyPair rsaKeyPair;
-	private ConnectionSettings connectionSettings;
-	private static Thread sender = null;
-	private static Socket socket = null;
-	private static PairingInfo instance = null;
-	public static final String PROP_SO_TIMEOUT = "so_timeout", PROP_REQUEST_TIMEOUT_S = "request_timeout_s",
-			PROP_PAIRING_DEF_INIT_KEY = "pairing_def_init_key";
 	private static final Logger logger = Logger.getLogger(PairingInfo.class.getName());
 
-	public record ConnectionSettings(RSAPublicKey publicKeySend, RSAPublicKey initialKey, InetAddress inetAddress,
-			int port) {
-		public ConnectionSettings withPublicKeySend(RSAPublicKey pKey) {
-			return new ConnectionSettings(pKey, initialKey, inetAddress, port);
-		}
+	public static final String PROP_REQUEST_TIMEOUT_S = "request_timeout_s";
+	public static final String PROP_NOSTR_RELAYS = "nostr_relays";
+	public static final String PROP_PAIRING_DEF_INIT_KEY = "pairing_def_init_key"; // kept for config compatibility
 
-		public ConnectionSettings withInetAddress(InetAddress adr) {
-			return new ConnectionSettings(publicKeySend, initialKey, adr, port);
-		}
+	public static final List<String> DEFAULT_RELAYS = List.of(
+			"wss://relay.damus.io",
+			"wss://nos.lol",
+			"wss://relay.snort.social",
+			"wss://nostr.mom"
+	);
 
-		public ConnectionSettings withPort(int p) {
-			return new ConnectionSettings(publicKeySend, initialKey, inetAddress, p);
-		}
+	private static final int DEFAULT_TTL_SECONDS = 60;
+	private static final SecureRandom RANDOM = new SecureRandom();
 
-		public ConnectionSettings withInitialKey(RSAPublicKey iKey) {
-			return new ConnectionSettings(publicKeySend, iKey, inetAddress, port);
-		}
+	private static PairingInfo instance = null;
 
-		public ConnectionSettings() {
-			this(null, null, null, 0);
-		}
+	private final byte[] nostrPrivateKey;
+	private final String topicHex;
+	private final int ttlSeconds;
+	private final List<String> relayUrls;
+	private final NostrConnectionPool connectionPool;
+
+	private final AtomicBoolean paired = new AtomicBoolean(false);
+	private final AtomicBoolean active = new AtomicBoolean(true);
+	private volatile long lastActivityTimestamp = System.currentTimeMillis();
+
+	private Thread heartbeatThread;
+	private Stage qrStage;
+
+	private final Map<String, CompletableFuture<byte[]>> pendingRequests = new ConcurrentHashMap<>();
+
+	public PairingInfo() {
+		this(getRequestTimeoutS(), getPreferredRelays());
 	}
 
-	public PairingInfo() throws NoSuchAlgorithmException {
+	public PairingInfo(int ttlSeconds, List<String> relays) {
+		this.ttlSeconds = ttlSeconds;
+		this.relayUrls = new ArrayList<>(relays);
+		this.nostrPrivateKey = Bip340.generatePrivateKey();
 
-		rsaKeyPair = RSAUtils.newKeyPair(RSAUtils.getKeyLength());
+		byte[] topicBytes = new byte[32];
+		RANDOM.nextBytes(topicBytes);
+		this.topicHex = Bip340.bytesToHex(topicBytes);
 
-		synchronized (PairingInfo.class) {
-			instance = this;
-			sender = null;
-			if (socket != null) {
-				logger.info("Cleanup on new PairingInfo");
-				try {
-					socket.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-				socket = null;
-			}
-		}
+		this.connectionPool = new NostrConnectionPool();
+		this.connectionPool.addEventListener(this::onNostrEvent);
 	}
 
 	public static PairingInfo getInstance() {
@@ -90,235 +87,309 @@ public class PairingInfo {
 	}
 
 	public static void disconnect() {
+		PairingInfo current;
 		synchronized (PairingInfo.class) {
+			current = instance;
 			instance = null;
-			sender = null;
-			if (socket != null) {
-				logger.info("Cleanup on disconnect");
-				try {
-					socket.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-				socket = null;
-			}
+		}
+		if (current != null) {
+			current.terminate();
 		}
 	}
 
-	private byte[] getPrompt(String id, ConnectionSettings template, byte[] privateKeyMaterialSend)
-			throws IOException, NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException,
-			IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
+	public void terminate() {
+		active.set(false);
+		paired.set(false);
+
+		// Send disconnect event to notify peer
+		try {
+			List<List<String>> tags = List.of(
+					List.of("t", topicHex),
+					List.of("type", "disconnect")
+			);
+			NostrEvent event = NostrEvent.create(nostrPrivateKey, 25000, tags, "{\"type\":\"disconnect\"}");
+			connectionPool.broadcast(event);
+		} catch (Exception e) {
+			logger.log(Level.FINE, "Error sending disconnect event", e);
+		}
+
+		if (heartbeatThread != null) {
+			heartbeatThread.interrupt();
+			heartbeatThread = null;
+		}
+
+		connectionPool.close();
+
+		for (CompletableFuture<byte[]> future : pendingRequests.values()) {
+			future.complete(null);
+		}
+		pendingRequests.clear();
+
+		synchronized (PairingInfo.class) {
+			if (instance == this) {
+				instance = null;
+			}
+		}
+
+		logger.info("PairingInfo terminated and disconnected");
+	}
+
+	public static byte[] createPairingPrompt(String topicHex, int ttl, List<String> relays) throws IOException {
 		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
 				OmsDataOutputStream dataOutputStream = new OmsDataOutputStream(baos)) {
-			// (1) application identifier
+
+			// (1) Application ID 10
 			dataOutputStream.writeUnsignedShort(MessageComposer.APPLICATION_WIFI_PAIRING);
 
-			// (2) Pairing Request ID
-			dataOutputStream.writeString(id);
+			// (2) Topic hex (64 hex characters)
+			dataOutputStream.writeString(topicHex);
 
-			// (3) own public key
-			dataOutputStream.writeByteArray(((RSAPublicKey) rsaKeyPair.getPublic()).getEncoded());
+			// (3) TTL in seconds
+			dataOutputStream.writeUnsignedShort(ttl);
 
-			// (4) private key for the other party to answer
-			dataOutputStream.writeByteArray(privateKeyMaterialSend);
+			// (4) Number of relays
+			dataOutputStream.writeUnsignedShort(relays.size());
 
-			return MessageComposer.createRsaAesEnvelope(template.initialKey, RSAUtils.getTransformation(),
-					AESUtil.getKeyLength(), AESUtil.getTransformation(), baos.toByteArray());
+			// (5) Relay URLs
+			for (String relay : relays) {
+				dataOutputStream.writeString(relay);
+			}
+
+			return baos.toByteArray();
 		}
 	}
 
-	public void displayPrompt(String id, ConnectionSettings template, Runnable andThen)
-			throws IOException, NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException,
-			IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
-		var keyPairSend = RSAUtils.newKeyPair(RSAUtils.getKeyLength());
+	public void displayPrompt(Runnable andThen) throws IOException {
+		byte[] promptBytes = createPairingPrompt(topicHex, ttlSeconds, relayUrls);
 
-// Why we generate the private key for the OneMoreSecret on this side:
-// - This key protects the connection
-// - We'll encrypt the key data and forget in the next line keeping only the public key
-// - With this in place, you only need IP and port of OneMoreSecret to establish the 
-//   connection - something you can enter manually, no Bluetooth connection needed.			       
-//   Otherwise, OneMoreSecret will have to type the private key - it takes time, 
-//   and you will need a bluetooth connection for that (or it gets ugly)		
+		// Connect to Nostr relays and subscribe
+		connectionPool.connect(relayUrls);
+		connectionPool.subscribe(topicHex);
 
-		QRFrame.showForMessage(getPrompt(id, template, keyPairSend.getPrivate().getEncoded()), false, true, null,
-				reply -> onHandshake(reply, template.withPublicKeySend((RSAPublicKey) keyPairSend.getPublic()),
-						andThen));
-	}
+		lastActivityTimestamp = System.currentTimeMillis();
 
-	private void onHandshake(String reply, ConnectionSettings template, Runnable andThen) {
-		if (reply == null || reply.isEmpty()) { // not successful
-			synchronized (PairingInfo.class) {
-				instance = null;
-				if (andThen != null)
+		// Show QR code dialog
+		QRFrame.showForMessage(promptBytes, false, false, "Nostr Pairing", s -> {
+			// If QR dialog was dismissed without successful pairing
+			if (!paired.get()) {
+				terminate();
+				if (andThen != null) {
 					andThen.run();
+				}
 			}
-			return;
+		});
+	}
+
+	private void onNostrEvent(NostrEvent event) {
+		if (event == null || !active.get()) return;
+
+		String t = event.getTagValue("t");
+		if (t == null || !topicHex.equalsIgnoreCase(t)) {
+			return; // Not our topic
 		}
 
-		try {
-			// pairing successful
-			synchronized (this) {
-				this.connectionSettings = setIpAndPort(reply, template);
+		String type = event.getTagValue("type");
+		if (type == null) {
+			// Check if type is inside JSON content
+			if (event.content != null && event.content.contains("\"type\"")) {
+				if (event.content.contains("\"ping\"")) type = "ping";
+				else if (event.content.contains("\"pong\"")) type = "pong";
+				else if (event.content.contains("\"disconnect\"")) type = "disconnect";
 			}
+		}
 
+		if (type == null) return;
+
+		lastActivityTimestamp = System.currentTimeMillis();
+
+		switch (type) {
+		case "ping" -> handlePing(event);
+		case "pong" -> handlePong(event);
+		case "disconnect" -> handleRemoteDisconnect();
+		case "response" -> handleResponse(event);
+		default -> logger.info("Unhandled Nostr event type: " + type);
+		}
+	}
+
+	private void handlePing(NostrEvent event) {
+		logger.info("Received ping from peer on topic " + topicHex);
+
+		// Send pong response immediately
+		List<List<String>> tags = List.of(
+				List.of("t", topicHex),
+				List.of("type", "pong")
+		);
+		NostrEvent pongEvent = NostrEvent.create(nostrPrivateKey, 25000, tags,
+				"{\"type\":\"pong\",\"ts\":" + System.currentTimeMillis() + "}");
+		connectionPool.broadcast(pongEvent);
+
+		// Handshake complete
+		if (!paired.get()) {
+			paired.set(true);
 			synchronized (PairingInfo.class) {
 				instance = this;
 			}
-		} catch (Exception ex) {
-			synchronized (PairingInfo.class) {
-				instance = null;
+			logger.info("Nostr Pairing established successfully!");
+
+			// Close QR dialog if open
+			Platform.runLater(() -> {
+				QRFrame.showForMessage(new byte[0], false, false, null, null);
+				// The showForMessage above closes any previous active stage in QRFrame
+			});
+
+			startHeartbeat();
+		}
+	}
+
+	private void handlePong(NostrEvent event) {
+		logger.fine("Received pong from peer on topic " + topicHex);
+		lastActivityTimestamp = System.currentTimeMillis();
+	}
+
+	private void handleRemoteDisconnect() {
+		logger.info("Peer sent disconnect signal");
+		disconnect();
+	}
+
+	private void handleResponse(NostrEvent event) {
+		String reqId = event.getTagValue("reply_to");
+		if (reqId == null) {
+			reqId = event.getTagValue("req_id");
+		}
+
+		byte[] payload = null;
+		try {
+			if (event.content != null && !event.content.isEmpty()) {
+				payload = Base64.getDecoder().decode(event.content.trim());
 			}
-			FxMain.handleException(ex);
-		} finally {
-			if (andThen != null)
-				andThen.run();
+		} catch (Exception e) {
+			logger.log(Level.WARNING, "Failed to decode response base64 payload", e);
+		}
+
+		if (reqId != null && pendingRequests.containsKey(reqId)) {
+			CompletableFuture<byte[]> future = pendingRequests.remove(reqId);
+			if (future != null) {
+				future.complete(payload);
+			}
+		} else {
+			// If only one request is pending, complete it
+			for (Map.Entry<String, CompletableFuture<byte[]>> entry : pendingRequests.entrySet()) {
+				entry.getValue().complete(payload);
+				pendingRequests.remove(entry.getKey());
+				break;
+			}
 		}
 	}
 
-	private ConnectionSettings setIpAndPort(String responseCode, ConnectionSettings template) throws IOException {
-		try (ByteArrayInputStream bais = new ByteArrayInputStream(Base58.decode(responseCode))) {
-			// (1) IP address
-			var bArr = new byte[4];
-			bais.read(bArr);
-			var iAddress = InetAddress.getByAddress(bArr);
-
-			// (2) port
-			var sArr = new byte[2]; // two lower bytes of int
-			bais.read(sArr);
-
-			var port = uShortToInt(sArr);
-
-			return template.withInetAddress(iAddress).withPort(port);
+	private void startHeartbeat() {
+		if (heartbeatThread != null) {
+			heartbeatThread.interrupt();
 		}
-	}
 
-	private static int uShortToInt(byte[] sArr) {
-		if (sArr.length != 2)
-			throw new IllegalArgumentException();
-
-		var bArr = new byte[4];
-		System.arraycopy(sArr, 0, bArr, 2, sArr.length); // make int out of short
-
-		return ByteBuffer.wrap(bArr).getInt();
-	}
-
-	public void sendMessage(byte[] message, Consumer<byte[]> onReply)
-			throws InvalidKeyException, NoSuchPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException,
-			BadPaddingException, IOException {
-
-		var ts = System.currentTimeMillis();
-		var timeout = getRequestTimeoutS() * 1000;
-
-		synchronized (this) {
-			sender = new Thread(() -> {
+		heartbeatThread = new Thread(() -> {
+			long timeoutMillis = (long) ttlSeconds * 1000L;
+			while (active.get() && paired.get() && !Thread.interrupted()) {
 				try {
-					logger.info("Thread started");
-					while (!Thread.interrupted() && System.currentTimeMillis() - ts < timeout) {
-						synchronized (PairingInfo.class) {
-							if (instance != PairingInfo.this || sender != Thread.currentThread()) {
-								break;
-							}
-						}
+					Thread.sleep(10000); // 10s ping interval
 
-						// try to connect
-						try (var s = new Socket()) {
-							s.setSoTimeout(timeout);
-
-							logger.info("Connecting...");
-
-							ConnectionSettings _connectionSettings;
-							synchronized (PairingInfo.this) {
-								_connectionSettings = this.connectionSettings;
-							}
-
-							s.connect(new InetSocketAddress(_connectionSettings.inetAddress, _connectionSettings.port),
-									Integer.parseInt(Main.properties.getProperty(PROP_SO_TIMEOUT, "" + 1_000)));
-
-							socket = s;
-
-							logger.info("connected");
-
-							var os = s.getOutputStream();
-
-							try (var dataInputStream = new OmsDataInputStream(s.getInputStream())) {
-
-								var dataToSend = MessageComposer.createRsaAesEnvelope(_connectionSettings.publicKeySend,
-										RSAUtils.getTransformation(), AESUtil.getKeyLength(),
-										AESUtil.getTransformation(), message);
-
-								os.write(dataToSend);
-								os.flush();
-
-								logger.info("Data has been sent, waiting for reply");
-
-								s.shutdownOutput();
-
-								// now wait for the reply
-								var envelope = MessageComposer.readRsaAesEnvelope(dataInputStream);
-								var encryptedMessage = dataInputStream.readByteArray();
-
-								logger.info(
-										String.format("Reply has been received, %d bytes", encryptedMessage.length));
-
-								// decrypt AES key
-								var aesKeyMaterial = RSAUtils.process(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate(),
-										envelope.rsaTransormation(), envelope.encryptedAesSecretKey());
-
-								// (7) AES-encrypted message
-								var decryptedMessage = AESUtil.process(Cipher.DECRYPT_MODE, encryptedMessage,
-										aesKeyMaterial, envelope.iv(), envelope.aesTransformation());
-
-								Arrays.fill(aesKeyMaterial, (byte) 0); //wipe
-
-								synchronized (PairingInfo.class) {
-									if (instance != PairingInfo.this || sender != Thread.currentThread()
-											|| socket != s) {
-										logger.info("Instance, thread or socket mismatch");
-										return;
-									}
-
-									logger.info("forwarding reply to the consumer");
-									onReply.accept(decryptedMessage);
-
-									if (sender == Thread.currentThread())
-										sender = null;
-								}
-
-								return;
-							}
-						} catch (Exception e) {
-							e.printStackTrace();
-							try {
-								Thread.sleep(1000);
-							} catch (InterruptedException e1) {
-								break;
-							}
-						} finally {
-							logger.info("Socket closed");
-						}
+					if (System.currentTimeMillis() - lastActivityTimestamp > timeoutMillis) {
+						logger.warning("Pairing session timed out after " + ttlSeconds + "s inactivity");
+						disconnect();
+						break;
 					}
 
-					logger.info("Request timed out");
-					onReply.accept(null); // pass empty reply
-				} finally {
-					logger.info("Thread stopped");
+					// Send heartbeat ping
+					List<List<String>> tags = List.of(
+							List.of("t", topicHex),
+							List.of("type", "ping")
+					);
+					NostrEvent pingEvent = NostrEvent.create(nostrPrivateKey, 25000, tags,
+							"{\"type\":\"ping\",\"ts\":" + System.currentTimeMillis() + "}");
+					connectionPool.broadcast(pingEvent);
+
+				} catch (InterruptedException e) {
+					break;
 				}
-			});
-			sender.start();
-		}
+			}
+		}, "Nostr-Heartbeat");
+		heartbeatThread.setDaemon(true);
+		heartbeatThread.start();
 	}
 
-	public void updateIpAndPort(String responseCode) throws IOException {
-		synchronized (this) {
-			this.connectionSettings = setIpAndPort(responseCode, connectionSettings);
+	public void sendMessage(byte[] message, Consumer<byte[]> onReply) {
+		if (!paired.get() || !active.get()) {
+			if (onReply != null) onReply.accept(null);
+			return;
+		}
+
+		String reqId = UUID.randomUUID().toString();
+		CompletableFuture<byte[]> future = new CompletableFuture<>();
+		pendingRequests.put(reqId, future);
+
+		try {
+			String base64Payload = Base64.getEncoder().encodeToString(message);
+			List<List<String>> tags = List.of(
+					List.of("t", topicHex),
+					List.of("type", "request"),
+					List.of("req_id", reqId)
+			);
+			NostrEvent requestEvent = NostrEvent.create(nostrPrivateKey, 25000, tags, base64Payload);
+			connectionPool.broadcast(requestEvent);
+			logger.info("Sent request " + reqId + " to Nostr relays");
+
+			// Set timeout for request response
+			future.orTimeout(ttlSeconds, TimeUnit.SECONDS).whenComplete((reply, err) -> {
+				pendingRequests.remove(reqId);
+				if (onReply != null) {
+					onReply.accept(reply);
+				}
+			});
+
+		} catch (Exception e) {
+			logger.log(Level.WARNING, "Failed to send message over Nostr", e);
+			pendingRequests.remove(reqId);
+			if (onReply != null) {
+				onReply.accept(null);
+			}
 		}
 	}
 
 	public static int getRequestTimeoutS() {
-		return Integer.parseInt(Main.properties.getProperty(PROP_REQUEST_TIMEOUT_S, "" + 30));
+		return Integer.parseInt(Main.properties.getProperty(PROP_REQUEST_TIMEOUT_S, "" + DEFAULT_TTL_SECONDS));
+	}
+
+	public static List<String> getPreferredRelays() {
+		String prop = Main.properties.getProperty(PROP_NOSTR_RELAYS);
+		if (prop == null || prop.trim().isEmpty()) {
+			return DEFAULT_RELAYS;
+		}
+		String[] split = prop.split("[,;\\s]+");
+		List<String> list = new ArrayList<>();
+		for (String s : split) {
+			if (!s.trim().isEmpty()) {
+				list.add(s.trim());
+			}
+		}
+		return list.isEmpty() ? DEFAULT_RELAYS : list;
+	}
+
+	public static void setPreferredRelays(List<String> relays) {
+		if (relays == null || relays.isEmpty()) {
+			Main.properties.remove(PROP_NOSTR_RELAYS);
+		} else {
+			Main.properties.setProperty(PROP_NOSTR_RELAYS, String.join(",", relays));
+		}
 	}
 
 	public static String getDefaultInitialKeyAlias() {
 		return Main.properties.getProperty(PROP_PAIRING_DEF_INIT_KEY, Main.getDefaultKeyAlias());
+	}
+
+	public String getTopicHex() {
+		return topicHex;
+	}
+
+	public boolean isPaired() {
+		return paired.get();
 	}
 }

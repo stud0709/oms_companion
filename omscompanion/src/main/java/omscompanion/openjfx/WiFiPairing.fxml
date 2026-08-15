@@ -2,44 +2,55 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
-<?import javafx.scene.control.ChoiceBox?>
 <?import javafx.scene.control.Label?>
-<?import javafx.scene.control.PasswordField?>
 <?import javafx.scene.control.Spinner?>
+<?import javafx.scene.control.TextArea?>
 <?import javafx.scene.layout.ColumnConstraints?>
 <?import javafx.scene.layout.GridPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.RowConstraints?>
+<?import javafx.scene.layout.VBox?>
 
-<GridPane hgap="5.0" prefWidth="400.0" vgap="5.0" xmlns="http://javafx.com/javafx/20.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="omscompanion.openjfx.WiFiPairing">
-   <columnConstraints>
-      <ColumnConstraints />
-      <ColumnConstraints hgrow="ALWAYS" maxWidth="1.7976931348623157E308" />
-   </columnConstraints>
-   <rowConstraints>
-      <RowConstraints vgrow="SOMETIMES" />
-      <RowConstraints vgrow="SOMETIMES" />
-      <RowConstraints vgrow="SOMETIMES" />
-   </rowConstraints>
+<VBox prefWidth="480.0" spacing="10.0" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="omscompanion.openjfx.WiFiPairing">
    <children>
-      <ChoiceBox fx:id="choice_initialKey" maxWidth="1.7976931348623157E308" GridPane.columnIndex="1" GridPane.hgrow="ALWAYS" />
-      <Label text="Request ID:" GridPane.rowIndex="2" />
-      <HBox spacing="5.0" GridPane.columnIndex="1" GridPane.hgrow="ALWAYS" GridPane.rowIndex="2">
+      <GridPane hgap="8.0" vgap="8.0">
+         <columnConstraints>
+            <ColumnConstraints maxWidth="140.0" minWidth="100.0" prefWidth="120.0" />
+            <ColumnConstraints hgrow="ALWAYS" maxWidth="1.7976931348623157E308" />
+         </columnConstraints>
+         <rowConstraints>
+            <RowConstraints vgrow="SOMETIMES" />
+            <RowConstraints vgrow="SOMETIMES" />
+         </rowConstraints>
          <children>
-            <PasswordField fx:id="pwd_requestId" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
-            <Button fx:id="btnStart" defaultButton="true" mnemonicParsing="false" text="Start Pairing" />
+            <Label text="Pairing Timeout:" />
+            <HBox alignment="CENTER_LEFT" spacing="6.0" GridPane.columnIndex="1">
+               <children>
+                  <Spinner fx:id="spin_to_connect" prefWidth="90.0" />
+                  <Label text="seconds" />
+               </children>
+            </HBox>
+            <Label text="Nostr Relays:" GridPane.rowIndex="1" GridPane.valignment="TOP" />
+            <VBox spacing="5.0" GridPane.columnIndex="1" GridPane.rowIndex="1">
+               <children>
+                  <TextArea fx:id="txtRelays" prefRowCount="4" promptText="Enter WebSocket relay URLs (one per line)" wrapText="true" />
+                  <HBox alignment="CENTER_RIGHT" spacing="6.0">
+                     <children>
+                        <Button fx:id="btnResetRelays" mnemonicParsing="false" text="Reset Defaults" />
+                     </children>
+                  </HBox>
+               </children>
+            </VBox>
          </children>
-      </HBox>
-      <Label text="Initial Key:" />
-      <Label text="Timeout Connect:" GridPane.rowIndex="1" />
-      <HBox alignment="CENTER_LEFT" spacing="5.0" GridPane.columnIndex="1" GridPane.rowIndex="1">
+      </GridPane>
+      <HBox alignment="CENTER_RIGHT" spacing="8.0">
          <children>
-            <Spinner fx:id="spin_to_connect" prefWidth="80.0" />
-            <Label text="seconds" />
+            <Button fx:id="btnCancel" mnemonicParsing="false" text="Cancel" />
+            <Button fx:id="btnStart" defaultButton="true" mnemonicParsing="false" text="Start Pairing" />
          </children>
       </HBox>
    </children>
    <padding>
-      <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
+      <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
    </padding>
-</GridPane>
+</VBox>

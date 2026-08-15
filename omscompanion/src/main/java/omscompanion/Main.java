@@ -175,7 +175,7 @@ public class Main {
 		}
 
 		{
-			var wifi = new Menu("WiFi Pairing...");
+			var wifi = new Menu("Nostr Pairing...");
 
 			{
 				wiFiConnectMenuItem = new MenuItem("Connect");
