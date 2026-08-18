@@ -44,7 +44,8 @@ public class PairingInfo {
 			"wss://nostr.mom"
 	);
 
-	private static final int DEFAULT_TTL_SECONDS = 60;
+	private static final int DEFAULT_TTL_SECONDS = 120;
+	private static final long HEARTBEAT_INTERVAL_MS = 30000L; // 30s ping interval
 	private static final SecureRandom RANDOM = new SecureRandom();
 
 	private static PairingInfo instance = null;
@@ -306,13 +307,13 @@ public class PairingInfo {
 		}
 
 		heartbeatThread = new Thread(() -> {
-			long timeoutMillis = (long) ttlSeconds * 1000L;
+			long timeoutMillis = Math.max((long) ttlSeconds * 1000L, HEARTBEAT_INTERVAL_MS * 3);
 			while (active.get() && paired.get() && !Thread.interrupted()) {
 				try {
-					Thread.sleep(10000); // 10s ping interval
+					Thread.sleep(HEARTBEAT_INTERVAL_MS);
 
 					if (System.currentTimeMillis() - lastActivityTimestamp > timeoutMillis) {
-						logger.warning("Pairing session timed out after " + ttlSeconds + "s inactivity");
+						logger.warning("Pairing session timed out after " + (timeoutMillis / 1000) + "s inactivity");
 						disconnect();
 						break;
 					}

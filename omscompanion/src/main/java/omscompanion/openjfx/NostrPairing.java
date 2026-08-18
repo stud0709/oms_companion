@@ -54,7 +54,7 @@ public class NostrPairing {
 			}
 		};
 
-		spin_to_connect.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(10, 999));
+		spin_to_connect.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(30, 999));
 		spin_to_connect.getValueFactory().setValue(PairingInfo.getRequestTimeoutS());
 		spin_to_connect.getValueFactory().valueProperty()
 				.addListener((observable, oldValue, newValue) -> Main.properties
