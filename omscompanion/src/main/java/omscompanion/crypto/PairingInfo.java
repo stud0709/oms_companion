@@ -50,6 +50,7 @@ public class PairingInfo {
 	private static PairingInfo instance = null;
 
 	private final byte[] nostrPrivateKey;
+	private final String myPubKeyHex;
 	private final String topicHex;
 	private final int ttlSeconds;
 	private final List<String> relayUrls;
@@ -71,6 +72,7 @@ public class PairingInfo {
 		this.ttlSeconds = ttlSeconds;
 		this.relayUrls = new ArrayList<>(relays);
 		this.nostrPrivateKey = Bip340.generatePrivateKey();
+		this.myPubKeyHex = Bip340.bytesToHex(Bip340.getPublicKey(this.nostrPrivateKey));
 
 		byte[] topicBytes = new byte[32];
 		RANDOM.nextBytes(topicBytes);
@@ -194,6 +196,11 @@ public class PairingInfo {
 	private void onNostrEvent(NostrEvent event) {
 		if (event == null || !active.get()) return;
 
+		// Ignore events sent by ourselves (echoed back by relays)
+		if (event.pubkey != null && event.pubkey.equalsIgnoreCase(myPubKeyHex)) {
+			return;
+		}
+
 		String t = event.getTagValue("t");
 		if (t == null || !topicHex.equalsIgnoreCase(t)) {
 			return; // Not our topic
@@ -206,6 +213,7 @@ public class PairingInfo {
 				if (event.content.contains("\"ping\"")) type = "ping";
 				else if (event.content.contains("\"pong\"")) type = "pong";
 				else if (event.content.contains("\"disconnect\"")) type = "disconnect";
+				else if (event.content.contains("\"response\"")) type = "response";
 			}
 		}
 
@@ -265,6 +273,8 @@ public class PairingInfo {
 		if (reqId == null) {
 			reqId = event.getTagValue("req_id");
 		}
+
+		logger.info("Received response from peer" + (reqId != null ? " (reqId: " + reqId + ")" : ""));
 
 		byte[] payload = null;
 		try {
