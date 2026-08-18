@@ -71,13 +71,15 @@ public class NostrConnectionPool {
 		this.activeTopic = null;
 	}
 
-	public void broadcast(NostrEvent event) {
-		if (closed.get()) return;
+	public List<CompletableFuture<java.net.http.WebSocket>> broadcast(NostrEvent event) {
+		if (closed.get()) return List.of();
+		List<CompletableFuture<java.net.http.WebSocket>> futures = new ArrayList<>();
 		for (NostrRelayClient client : relayClients) {
 			if (client.isConnected()) {
-				client.publish(event);
+				futures.add(client.publish(event));
 			}
 		}
+		return futures;
 	}
 
 	public int getConnectedCount() {

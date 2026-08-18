@@ -111,23 +111,24 @@ public class NostrRelayClient implements WebSocket.Listener {
 		}
 	}
 
-	public void publish(NostrEvent event) {
+	public CompletableFuture<WebSocket> publish(NostrEvent event) {
 		if (isConnected()) {
 			try {
 				List<Object> msg = List.of("EVENT", event);
 				String json = MAPPER.writeValueAsString(msg);
-				sendText(json);
-				logger.fine("Published event to " + relayUrl);
+				return sendText(json);
 			} catch (Exception e) {
 				logger.log(Level.WARNING, "Error publishing event to " + relayUrl, e);
 			}
 		}
+		return CompletableFuture.completedFuture(null);
 	}
 
-	public void sendText(String text) {
+	public CompletableFuture<WebSocket> sendText(String text) {
 		if (webSocket != null && !webSocket.isOutputClosed()) {
-			webSocket.sendText(text, true);
+			return webSocket.sendText(text, true);
 		}
+		return CompletableFuture.completedFuture(null);
 	}
 
 	public void close() {

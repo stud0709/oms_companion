@@ -39,7 +39,8 @@ public class Main {
 	private static final String PROP_DEFAULT_KEY = "default_key", PROPERTY_FILE = "omscompanion.properties";
 	public static final String APP_NAME = "omsCompanion";
 	private static MenuItem filesyncMenuItem = null, passwordGeneratorMenuItem = null, importPublicKeyMenuItem = null,
-			newPrivateKeyMenuItem = null, nostrConnectMenuItem = null;
+			newPrivateKeyMenuItem = null, nostrConnectMenuItem = null, nostrDisconnectMenuItem = null;
+	private static Menu nostrPairingMenu = null;
 
 	public static void main(String[] args) throws Exception {
 		Files.createDirectories(PUBLIC_KEY_STORAGE);
@@ -175,23 +176,32 @@ public class Main {
 		}
 
 		{
-			var nostrMenu = new Menu("Nostr Pairing...");
+			nostrPairingMenu = new Menu("Nostr Pairing...");
 
 			{
 				nostrConnectMenuItem = new MenuItem("Connect");
 				nostrConnectMenuItem.setActionCommand("nostrConnect");
 				nostrConnectMenuItem.addActionListener(MENU_ACTION_LISTENER);
-				nostrMenu.add(nostrConnectMenuItem);
+				nostrPairingMenu.add(nostrConnectMenuItem);
 			}
 
 			{
-				var nostrDisconnect = new MenuItem("Disconnect");
-				nostrDisconnect.setActionCommand("nostrDisconnect");
-				nostrDisconnect.addActionListener(MENU_ACTION_LISTENER);
-				nostrMenu.add(nostrDisconnect);
+				nostrDisconnectMenuItem = new MenuItem("Disconnect");
+				nostrDisconnectMenuItem.setActionCommand("nostrDisconnect");
+				nostrDisconnectMenuItem.addActionListener(MENU_ACTION_LISTENER);
+				nostrDisconnectMenuItem.setEnabled(false);
+				nostrPairingMenu.add(nostrDisconnectMenuItem);
 			}
 
-			menu.add(nostrMenu);
+			PairingInfo.pairedProperty.addListener((observable, oldValue, newValue) -> {
+				SwingUtilities.invokeLater(() -> {
+					nostrConnectMenuItem.setEnabled(!newValue);
+					nostrDisconnectMenuItem.setEnabled(newValue);
+					nostrPairingMenu.setLabel("Nostr Pairing" + (newValue ? " \u2713" : "..."));
+				});
+			});
+
+			menu.add(nostrPairingMenu);
 		}
 
 		{
@@ -269,13 +279,22 @@ public class Main {
 			case "nostrConnect" -> {
 				try {
 					nostrConnectMenuItem.setEnabled(false);
-					NostrPairing.show(() -> SwingUtilities.invokeLater(() -> nostrConnectMenuItem.setEnabled(true)));
+					NostrPairing.show(() -> SwingUtilities.invokeLater(() -> {
+						if (!PairingInfo.pairedProperty.get()) {
+							nostrConnectMenuItem.setEnabled(true);
+							nostrDisconnectMenuItem.setEnabled(false);
+						}
+					}));
 				} catch (Exception ex) {
 					ex.printStackTrace();
+					nostrConnectMenuItem.setEnabled(true);
 				}
 			}
 
-			case "nostrDisconnect" -> PairingInfo.disconnect();
+			case "nostrDisconnect" -> {
+				nostrDisconnectMenuItem.setEnabled(false);
+				PairingInfo.disconnect();
+			}
 
 			}
 		}

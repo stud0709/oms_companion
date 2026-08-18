@@ -19,6 +19,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javafx.application.Platform;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.stage.Stage;
 import omscompanion.Main;
 import omscompanion.MessageComposer;
@@ -33,6 +34,8 @@ public class PairingInfo {
 
 	public static final String PROP_REQUEST_TIMEOUT_S = "request_timeout_s";
 	public static final String PROP_NOSTR_RELAYS = "nostr_relays";
+
+	public static final SimpleBooleanProperty pairedProperty = new SimpleBooleanProperty(false);
 
 	public static final List<String> DEFAULT_RELAYS = List.of(
 			"wss://relay.damus.io",
@@ -89,6 +92,7 @@ public class PairingInfo {
 			current = instance;
 			instance = null;
 		}
+		Platform.runLater(() -> pairedProperty.set(false));
 		if (current != null) {
 			current.terminate();
 		}
@@ -97,6 +101,7 @@ public class PairingInfo {
 	public void terminate() {
 		active.set(false);
 		paired.set(false);
+		Platform.runLater(() -> pairedProperty.set(false));
 
 		// Send disconnect event to notify peer
 		try {
@@ -105,7 +110,13 @@ public class PairingInfo {
 					List.of("type", "disconnect")
 			);
 			NostrEvent event = NostrEvent.create(nostrPrivateKey, 25000, tags, "{\"type\":\"disconnect\"}");
-			connectionPool.broadcast(event);
+			var futures = connectionPool.broadcast(event);
+			if (!futures.isEmpty()) {
+				CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+						.orTimeout(1000, TimeUnit.MILLISECONDS)
+						.exceptionally(ex -> null)
+						.join();
+			}
 		} catch (Exception e) {
 			logger.log(Level.FINE, "Error sending disconnect event", e);
 		}
@@ -229,6 +240,7 @@ public class PairingInfo {
 			synchronized (PairingInfo.class) {
 				instance = this;
 			}
+			Platform.runLater(() -> pairedProperty.set(true));
 			logger.info("Nostr Pairing established successfully!");
 
 			// Close QR dialog if open
