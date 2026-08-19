@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
@@ -53,16 +54,28 @@ public class NostrRelayClient implements WebSocket.Listener {
 						if (err != null) {
 							logger.log(Level.WARNING, "Failed to connect to " + relayUrl + ": " + err.getMessage());
 							connected.set(false);
+							scheduleReconnect();
 						} else {
 							this.webSocket = ws;
 						}
 					});
 		} catch (Exception e) {
 			logger.log(Level.WARNING, "Error initiating connection to " + relayUrl, e);
+			scheduleReconnect();
 			CompletableFuture<WebSocket> failed = new CompletableFuture<>();
 			failed.completeExceptionally(e);
 			return failed;
 		}
+	}
+
+	private void scheduleReconnect() {
+		if (closing.get()) return;
+		CompletableFuture.delayedExecutor(5, TimeUnit.SECONDS).execute(() -> {
+			if (!closing.get() && !isConnected()) {
+				logger.fine("Attempting automatic reconnect to " + relayUrl + "...");
+				connect();
+			}
+		});
 	}
 
 	public boolean isConnected() {
@@ -200,8 +213,11 @@ public class NostrRelayClient implements WebSocket.Listener {
 	public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
 		logger.info("Relay closed " + relayUrl + " (status " + statusCode + "): " + reason);
 		connected.set(false);
-		if (!closing.get() && onDisconnectCallback != null) {
-			onDisconnectCallback.run();
+		if (!closing.get()) {
+			if (onDisconnectCallback != null) {
+				onDisconnectCallback.run();
+			}
+			scheduleReconnect();
 		}
 		return null;
 	}
@@ -210,8 +226,11 @@ public class NostrRelayClient implements WebSocket.Listener {
 	public void onError(WebSocket webSocket, Throwable error) {
 		logger.log(Level.WARNING, "WebSocket error on " + relayUrl + ": " + error.getMessage());
 		connected.set(false);
-		if (!closing.get() && onDisconnectCallback != null) {
-			onDisconnectCallback.run();
+		if (!closing.get()) {
+			if (onDisconnectCallback != null) {
+				onDisconnectCallback.run();
+			}
+			scheduleReconnect();
 		}
 	}
 }

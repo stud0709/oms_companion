@@ -23,7 +23,7 @@
             <RowConstraints vgrow="SOMETIMES" />
          </rowConstraints>
          <children>
-            <Label text="Pairing Timeout:" />
+            <Label text="Request Timeout:" />
             <HBox alignment="CENTER_LEFT" spacing="6.0" GridPane.columnIndex="1">
                <children>
                   <Spinner fx:id="spin_to_connect" prefWidth="90.0" />

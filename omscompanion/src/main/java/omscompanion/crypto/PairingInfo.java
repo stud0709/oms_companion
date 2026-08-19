@@ -45,7 +45,6 @@ public class PairingInfo {
 	);
 
 	private static final int DEFAULT_TTL_SECONDS = 120;
-	private static final long HEARTBEAT_INTERVAL_MS = 30000L; // 30s ping interval
 	private static final SecureRandom RANDOM = new SecureRandom();
 
 	private static PairingInfo instance = null;
@@ -59,9 +58,6 @@ public class PairingInfo {
 
 	private final AtomicBoolean paired = new AtomicBoolean(false);
 	private final AtomicBoolean active = new AtomicBoolean(true);
-	private volatile long lastActivityTimestamp = System.currentTimeMillis();
-
-	private Thread heartbeatThread;
 
 	private final Map<String, CompletableFuture<byte[]>> pendingRequests = new ConcurrentHashMap<>();
 
@@ -124,11 +120,6 @@ public class PairingInfo {
 			logger.log(Level.FINE, "Error sending disconnect event", e);
 		}
 
-		if (heartbeatThread != null) {
-			heartbeatThread.interrupt();
-			heartbeatThread = null;
-		}
-
 		connectionPool.close();
 
 		for (CompletableFuture<byte[]> future : pendingRequests.values()) {
@@ -177,8 +168,6 @@ public class PairingInfo {
 		connectionPool.connect(relayUrls);
 		connectionPool.subscribe(topicHex);
 
-		lastActivityTimestamp = System.currentTimeMillis();
-
 		String prefix = topicHex.length() >= 8 ? topicHex.substring(0, 8) + "..." : topicHex;
 		String infoText = "Topic Prefix: " + prefix;
 
@@ -220,8 +209,6 @@ public class PairingInfo {
 
 		if (type == null) return;
 
-		lastActivityTimestamp = System.currentTimeMillis();
-
 		switch (type) {
 		case "ping" -> handlePing(event);
 		case "pong" -> handlePong(event);
@@ -254,14 +241,11 @@ public class PairingInfo {
 
 			// Close QR dialog if open
 			QRFrame.close();
-
-			startHeartbeat();
 		}
 	}
 
 	private void handlePong(NostrEvent event) {
 		logger.fine("Received pong from peer");
-		lastActivityTimestamp = System.currentTimeMillis();
 	}
 
 	private void handleRemoteDisconnect() {
@@ -299,41 +283,6 @@ public class PairingInfo {
 				break;
 			}
 		}
-	}
-
-	private void startHeartbeat() {
-		if (heartbeatThread != null) {
-			heartbeatThread.interrupt();
-		}
-
-		heartbeatThread = new Thread(() -> {
-			long timeoutMillis = Math.max((long) ttlSeconds * 1000L, HEARTBEAT_INTERVAL_MS * 3);
-			while (active.get() && paired.get() && !Thread.interrupted()) {
-				try {
-					Thread.sleep(HEARTBEAT_INTERVAL_MS);
-
-					if (System.currentTimeMillis() - lastActivityTimestamp > timeoutMillis) {
-						logger.warning("Pairing session timed out after " + (timeoutMillis / 1000) + "s inactivity");
-						disconnect();
-						break;
-					}
-
-					// Send heartbeat ping
-					List<List<String>> tags = List.of(
-							List.of("t", topicHex),
-							List.of("type", "ping")
-					);
-					NostrEvent pingEvent = NostrEvent.create(nostrPrivateKey, 25000, tags,
-							"{\"type\":\"ping\",\"ts\":" + System.currentTimeMillis() + "}");
-					connectionPool.broadcast(pingEvent);
-
-				} catch (InterruptedException e) {
-					break;
-				}
-			}
-		}, "Nostr-Heartbeat");
-		heartbeatThread.setDaemon(true);
-		heartbeatThread.start();
 	}
 
 	public void sendMessage(byte[] message, Consumer<byte[]> onReply) {
