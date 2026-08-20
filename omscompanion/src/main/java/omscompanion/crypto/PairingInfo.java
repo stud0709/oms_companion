@@ -18,9 +18,15 @@ import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import javafx.application.Platform;
 import javafx.beans.property.SimpleBooleanProperty;
-import javafx.stage.Stage;
 import omscompanion.Main;
 import omscompanion.MessageComposer;
 import omscompanion.OmsDataOutputStream;
@@ -31,6 +37,11 @@ import omscompanion.openjfx.QRFrame;
 
 public class PairingInfo {
 	private static final Logger logger = Logger.getLogger(PairingInfo.class.getName());
+	private static final ObjectMapper MAPPER = new ObjectMapper();
+
+	private static final String AES_GCM = "AES/GCM/NoPadding";
+	private static final int GCM_TAG_LENGTH_BITS = 128;
+	private static final int GCM_IV_LENGTH_BYTES = 12;
 
 	public static final String PROP_REQUEST_TIMEOUT_S = "request_timeout_s";
 	public static final String PROP_NOSTR_RELAYS = "nostr_relays";
@@ -52,6 +63,7 @@ public class PairingInfo {
 	private final byte[] nostrPrivateKey;
 	private final String myPubKeyHex;
 	private final String topicHex;
+	private final byte[] psk;
 	private final int ttlSeconds;
 	private final List<String> relayUrls;
 	private final NostrConnectionPool connectionPool;
@@ -66,14 +78,29 @@ public class PairingInfo {
 	}
 
 	public PairingInfo(int ttlSeconds, List<String> relays) {
+		this(ttlSeconds, relays, null, null, null);
+	}
+
+	public PairingInfo(int ttlSeconds, List<String> relays, byte[] psk, String topicHex, byte[] nostrPrivateKey) {
 		this.ttlSeconds = ttlSeconds;
 		this.relayUrls = new ArrayList<>(relays);
-		this.nostrPrivateKey = Bip340.generatePrivateKey();
+		this.nostrPrivateKey = nostrPrivateKey != null ? nostrPrivateKey : Bip340.generatePrivateKey();
 		this.myPubKeyHex = Bip340.bytesToHex(Bip340.getPublicKey(this.nostrPrivateKey));
 
-		byte[] topicBytes = new byte[32];
-		RANDOM.nextBytes(topicBytes);
-		this.topicHex = Bip340.bytesToHex(topicBytes);
+		if (topicHex != null) {
+			this.topicHex = topicHex;
+		} else {
+			byte[] topicBytes = new byte[32];
+			RANDOM.nextBytes(topicBytes);
+			this.topicHex = Bip340.bytesToHex(topicBytes);
+		}
+
+		if (psk != null) {
+			this.psk = psk;
+		} else {
+			this.psk = new byte[32];
+			RANDOM.nextBytes(this.psk);
+		}
 
 		this.connectionPool = new NostrConnectionPool();
 		this.connectionPool.addEventListener(this::onNostrEvent);
@@ -102,13 +129,15 @@ public class PairingInfo {
 		paired.set(false);
 		Platform.runLater(() -> pairedProperty.set(false));
 
-		// Send disconnect event to notify peer
+		// Send encrypted disconnect event to notify peer
 		try {
+			Map<String, Object> discObj = Map.of("type", "disconnect");
+			String jsonStr = MAPPER.writeValueAsString(discObj);
+			String encryptedContent = encryptPayload(jsonStr, psk);
 			List<List<String>> tags = List.of(
-					List.of("t", topicHex),
-					List.of("type", "disconnect")
+					List.of("t", topicHex)
 			);
-			NostrEvent event = NostrEvent.create(nostrPrivateKey, 25000, tags, "{\"type\":\"disconnect\"}");
+			NostrEvent event = NostrEvent.create(nostrPrivateKey, 25000, tags, encryptedContent);
 			var futures = connectionPool.broadcast(event);
 			if (!futures.isEmpty()) {
 				CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
@@ -136,23 +165,26 @@ public class PairingInfo {
 		logger.info("PairingInfo terminated and disconnected");
 	}
 
-	public static byte[] createPairingPrompt(String topicHex, int ttl, List<String> relays) throws IOException {
+	public static byte[] createPairingPrompt(String topicHex, byte[] psk, int ttl, List<String> relays) throws IOException {
 		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
 				OmsDataOutputStream dataOutputStream = new OmsDataOutputStream(baos)) {
 
 			// (1) Application ID 10
-			dataOutputStream.writeUnsignedShort(MessageComposer.APPLICATION_WIFI_PAIRING);
+			dataOutputStream.writeUnsignedShort(MessageComposer.APPLICATION_NOSTR_PAIRING);
 
 			// (2) Topic hex (64 hex characters)
 			dataOutputStream.writeString(topicHex);
 
-			// (3) TTL in seconds
+			// (3) Pre-Shared Key (32 bytes)
+			dataOutputStream.writeByteArray(psk);
+
+			// (4) TTL in seconds
 			dataOutputStream.writeUnsignedShort(ttl);
 
-			// (4) Number of relays
+			// (5) Number of relays
 			dataOutputStream.writeUnsignedShort(relays.size());
 
-			// (5) Relay URLs
+			// (6) Relay URLs
 			for (String relay : relays) {
 				dataOutputStream.writeString(relay);
 			}
@@ -162,7 +194,7 @@ public class PairingInfo {
 	}
 
 	public void displayPrompt(Runnable andThen) throws IOException {
-		byte[] promptBytes = createPairingPrompt(topicHex, ttlSeconds, relayUrls);
+		byte[] promptBytes = createPairingPrompt(topicHex, psk, ttlSeconds, relayUrls);
 
 		// Connect to Nostr relays and subscribe
 		connectionPool.connect(relayUrls);
@@ -183,6 +215,35 @@ public class PairingInfo {
 		});
 	}
 
+	public static String encryptPayload(String plaintext, byte[] key) throws Exception {
+		byte[] iv = new byte[GCM_IV_LENGTH_BYTES];
+		RANDOM.nextBytes(iv);
+		Cipher cipher = Cipher.getInstance(AES_GCM);
+		GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv);
+		SecretKeySpec keySpec = new SecretKeySpec(key, "AES");
+		cipher.init(Cipher.ENCRYPT_MODE, keySpec, spec);
+		byte[] cipherWithTag = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
+		byte[] combined = new byte[iv.length + cipherWithTag.length];
+		System.arraycopy(iv, 0, combined, 0, iv.length);
+		System.arraycopy(cipherWithTag, 0, combined, iv.length, cipherWithTag.length);
+		return Base64.getEncoder().encodeToString(combined);
+	}
+
+	public static String decryptPayload(String base64Combined, byte[] key) throws Exception {
+		byte[] combined = Base64.getDecoder().decode(base64Combined.trim());
+		if (combined.length < GCM_IV_LENGTH_BYTES + (GCM_TAG_LENGTH_BITS / 8)) {
+			throw new IllegalArgumentException("Payload too short for AES-GCM");
+		}
+		byte[] iv = Arrays.copyOfRange(combined, 0, GCM_IV_LENGTH_BYTES);
+		byte[] cipherWithTag = Arrays.copyOfRange(combined, GCM_IV_LENGTH_BYTES, combined.length);
+		Cipher cipher = Cipher.getInstance(AES_GCM);
+		GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv);
+		SecretKeySpec keySpec = new SecretKeySpec(key, "AES");
+		cipher.init(Cipher.DECRYPT_MODE, keySpec, spec);
+		byte[] decrypted = cipher.doFinal(cipherWithTag);
+		return new String(decrypted, StandardCharsets.UTF_8);
+	}
+
 	private void onNostrEvent(NostrEvent event) {
 		if (event == null || !active.get()) return;
 
@@ -196,41 +257,40 @@ public class PairingInfo {
 			return; // Not our topic
 		}
 
-		String type = event.getTagValue("type");
-		if (type == null) {
-			// Check if type is inside JSON content
-			if (event.content != null && event.content.contains("\"type\"")) {
-				if (event.content.contains("\"ping\"")) type = "ping";
-				else if (event.content.contains("\"pong\"")) type = "pong";
-				else if (event.content.contains("\"disconnect\"")) type = "disconnect";
-				else if (event.content.contains("\"response\"")) type = "response";
-			}
+		if (event.content == null || event.content.trim().isEmpty()) {
+			return;
+		}
+
+		String decryptedJson;
+		try {
+			decryptedJson = decryptPayload(event.content, psk);
+		} catch (Exception e) {
+			logger.log(Level.FINE, "Failed to decrypt event content with PSK", e);
+			return;
+		}
+
+		String type = null;
+		JsonNode rootNode = null;
+		try {
+			rootNode = MAPPER.readTree(decryptedJson);
+			type = rootNode.path("type").asText(null);
+		} catch (Exception e) {
+			logger.log(Level.WARNING, "Failed to parse decrypted event JSON", e);
+			return;
 		}
 
 		if (type == null) return;
 
 		switch (type) {
-		case "ping" -> handlePing(event);
-		case "pong" -> handlePong(event);
+		case "paired" -> handlePaired(rootNode);
+		case "response" -> handleResponse(rootNode);
 		case "disconnect" -> handleRemoteDisconnect();
-		case "response" -> handleResponse(event);
-		default -> logger.info("Unhandled Nostr event type: " + type);
+		default -> logger.info("Unhandled decrypted Nostr event type: " + type);
 		}
 	}
 
-	private void handlePing(NostrEvent event) {
-		logger.info("Received ping from peer");
-
-		// Send pong response immediately
-		List<List<String>> tags = List.of(
-				List.of("t", topicHex),
-				List.of("type", "pong")
-		);
-		NostrEvent pongEvent = NostrEvent.create(nostrPrivateKey, 25000, tags,
-				"{\"type\":\"pong\",\"ts\":" + System.currentTimeMillis() + "}");
-		connectionPool.broadcast(pongEvent);
-
-		// Handshake complete
+	private void handlePaired(JsonNode node) {
+		logger.info("Received paired confirmation from peer");
 		if (!paired.get()) {
 			paired.set(true);
 			synchronized (PairingInfo.class) {
@@ -244,27 +304,26 @@ public class PairingInfo {
 		}
 	}
 
-	private void handlePong(NostrEvent event) {
-		logger.fine("Received pong from peer");
-	}
-
 	private void handleRemoteDisconnect() {
 		logger.info("Peer sent disconnect signal");
 		disconnect();
 	}
 
-	private void handleResponse(NostrEvent event) {
-		String reqId = event.getTagValue("reply_to");
-		if (reqId == null) {
-			reqId = event.getTagValue("req_id");
+	private void handleResponse(JsonNode node) {
+		String reqId = node.hasNonNull("reply_to") ? node.path("reply_to").asText() : null;
+		if (reqId == null && node.hasNonNull("req_id")) {
+			reqId = node.path("req_id").asText();
 		}
 
 		logger.info("Received response from peer" + (reqId != null ? " (reqId: " + reqId + ")" : ""));
 
 		byte[] payload = null;
 		try {
-			if (event.content != null && !event.content.isEmpty()) {
-				payload = Base64.getDecoder().decode(event.content.trim());
+			if (node.hasNonNull("payload")) {
+				String b64 = node.path("payload").asText("");
+				if (!b64.isEmpty()) {
+					payload = Base64.getDecoder().decode(b64.trim());
+				}
 			}
 		} catch (Exception e) {
 			logger.log(Level.WARNING, "Failed to decode response base64 payload", e);
@@ -297,14 +356,19 @@ public class PairingInfo {
 
 		try {
 			String base64Payload = Base64.getEncoder().encodeToString(message);
-			List<List<String>> tags = List.of(
-					List.of("t", topicHex),
-					List.of("type", "request"),
-					List.of("req_id", reqId)
+			Map<String, Object> reqObj = Map.of(
+					"type", "request",
+					"req_id", reqId,
+					"payload", base64Payload
 			);
-			NostrEvent requestEvent = NostrEvent.create(nostrPrivateKey, 25000, tags, base64Payload);
+			String jsonStr = MAPPER.writeValueAsString(reqObj);
+			String encryptedContent = encryptPayload(jsonStr, psk);
+			List<List<String>> tags = List.of(
+					List.of("t", topicHex)
+			);
+			NostrEvent requestEvent = NostrEvent.create(nostrPrivateKey, 25000, tags, encryptedContent);
 			connectionPool.broadcast(requestEvent);
-			logger.info("Sent request to Nostr relays");
+			logger.info("Sent encrypted request to Nostr relays");
 
 			// Set timeout for request response
 			future.orTimeout(ttlSeconds, TimeUnit.SECONDS).whenComplete((reply, err) -> {
@@ -315,7 +379,7 @@ public class PairingInfo {
 			});
 
 		} catch (Exception e) {
-			logger.log(Level.WARNING, "Failed to send message over Nostr", e);
+			logger.log(Level.WARNING, "Failed to send encrypted message over Nostr", e);
 			pendingRequests.remove(reqId);
 			if (onReply != null) {
 				onReply.accept(null);
@@ -352,6 +416,10 @@ public class PairingInfo {
 
 	public String getTopicHex() {
 		return topicHex;
+	}
+
+	public byte[] getPsk() {
+		return psk;
 	}
 
 	public boolean isPaired() {

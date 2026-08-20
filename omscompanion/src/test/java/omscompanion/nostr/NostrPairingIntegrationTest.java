@@ -2,32 +2,44 @@ package omscompanion.nostr;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import omscompanion.MessageComposer;
 import omscompanion.OmsDataInputStream;
 import omscompanion.crypto.PairingInfo;
 
 public class NostrPairingIntegrationTest {
+	private static final ObjectMapper MAPPER = new ObjectMapper();
+	private static final SecureRandom RANDOM = new SecureRandom();
+
 	public static void main(String[] args) throws Exception {
 		testBinaryQrSerialization();
+		testAesGcmPayloadEncryption();
 		testNostrEventSignatures();
 		testMessageFlowSimulation();
 		System.out.println("\n>>> ALL NOSTR INTEGRATION TESTS PASSED! <<<");
 	}
 
 	private static void testBinaryQrSerialization() throws IOException {
-		System.out.println("--- Testing Binary QR Serialization (App ID 10) ---");
+		System.out.println("--- Testing Binary QR Serialization (App ID 10 with 256-bit PSK) ---");
 		String topicHex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-		int ttl = 60;
+		byte[] psk = new byte[32];
+		RANDOM.nextBytes(psk);
+		int ttl = 120;
 		List<String> relays = List.of(
 				"wss://relay.damus.io",
 				"wss://nos.lol",
 				"wss://relay.snort.social"
 		);
 
-		byte[] promptBytes = PairingInfo.createPairingPrompt(topicHex, ttl, relays);
+		byte[] promptBytes = PairingInfo.createPairingPrompt(topicHex, psk, ttl, relays);
 		System.out.println("Serialized Prompt Length: " + promptBytes.length + " bytes");
 
 		// Test OMS Text Encoding
@@ -50,14 +62,20 @@ public class NostrPairingIntegrationTest {
 
 			int appId = in.readUnsignedShort();
 			System.out.println("Deserialized App ID: " + appId);
-			if (appId != MessageComposer.APPLICATION_WIFI_PAIRING) {
-				throw new AssertionError("Expected App ID " + MessageComposer.APPLICATION_WIFI_PAIRING + ", got " + appId);
+			if (appId != MessageComposer.APPLICATION_NOSTR_PAIRING) {
+				throw new AssertionError("Expected App ID " + MessageComposer.APPLICATION_NOSTR_PAIRING + ", got " + appId);
 			}
 
 			String desTopic = in.readString();
 			System.out.println("Deserialized Topic: " + desTopic);
 			if (!topicHex.equals(desTopic)) {
 				throw new AssertionError("Topic mismatch");
+			}
+
+			byte[] desPsk = in.readByteArray();
+			System.out.println("Deserialized PSK Length: " + desPsk.length + " bytes");
+			if (!Arrays.equals(psk, desPsk)) {
+				throw new AssertionError("PSK mismatch");
 			}
 
 			int desTtl = in.readUnsignedShort();
@@ -83,100 +101,133 @@ public class NostrPairingIntegrationTest {
 		System.out.println("Binary QR Serialization Test Passed!");
 	}
 
+	private static void testAesGcmPayloadEncryption() throws Exception {
+		System.out.println("\n--- Testing AES-256-GCM Payload Encryption ---");
+		byte[] psk = new byte[32];
+		RANDOM.nextBytes(psk);
+
+		String plaintext = "{\"type\":\"request\",\"req_id\":\"test-123\",\"payload\":\"AQIDBA==\"}";
+		String encrypted = PairingInfo.encryptPayload(plaintext, psk);
+		System.out.println("Encrypted ciphertext length: " + encrypted.length());
+
+		String decrypted = PairingInfo.decryptPayload(encrypted, psk);
+		if (!plaintext.equals(decrypted)) {
+			throw new AssertionError("Decrypted payload mismatch");
+		}
+
+		// Verify tampering detection
+		byte[] raw = Base64.getDecoder().decode(encrypted);
+		raw[raw.length - 1] ^= 0x01; // flip last bit of authentication tag
+		String tampered = Base64.getEncoder().encodeToString(raw);
+
+		try {
+			PairingInfo.decryptPayload(tampered, psk);
+			throw new AssertionError("Decryption of tampered ciphertext should have thrown AEADBadTagException");
+		} catch (Exception expected) {
+			System.out.println("Tampered payload correctly rejected: " + expected.getClass().getSimpleName());
+		}
+
+		System.out.println("AES-256-GCM Encryption Test Passed!");
+	}
+
 	private static void testNostrEventSignatures() {
 		System.out.println("\n--- Testing Nostr Event Signatures & Kinds ---");
 		byte[] priv = Bip340.generatePrivateKey();
 		byte[] pub = Bip340.getPublicKey(priv);
 		String topic = "test-topic-abc";
 
-		// Ping event
-		NostrEvent ping = NostrEvent.create(priv, 25000, List.of(
-				List.of("t", topic),
-				List.of("type", "ping")
-		), "{\"type\":\"ping\",\"ts\":" + System.currentTimeMillis() + "}");
+		// Encrypted paired event
+		NostrEvent event = NostrEvent.create(priv, 25000, List.of(
+				List.of("t", topic)
+		), "encrypted_base64_payload_here");
 
-		if (!ping.verify()) {
-			throw new AssertionError("Ping event failed signature verification");
+		if (!event.verify()) {
+			throw new AssertionError("Event failed signature verification");
 		}
-		if (ping.kind != 25000) {
-			throw new AssertionError("Ping event kind must be 25000");
+		if (event.kind != 25000) {
+			throw new AssertionError("Event kind must be 25000");
 		}
-		if (!topic.equals(ping.getTagValue("t"))) {
+		if (!topic.equals(event.getTagValue("t"))) {
 			throw new AssertionError("Topic tag mismatch");
-		}
-		if (!"ping".equals(ping.getTagValue("type"))) {
-			throw new AssertionError("Type tag mismatch");
-		}
-
-		// Request event with encrypted payload
-		byte[] dummyPayload = "Hello OneMoreSecret Encrypted Payload".getBytes();
-		String base64Payload = Base64.getEncoder().encodeToString(dummyPayload);
-
-		NostrEvent request = NostrEvent.create(priv, 25000, List.of(
-				List.of("t", topic),
-				List.of("type", "request"),
-				List.of("req_id", "req-001")
-		), base64Payload);
-
-		if (!request.verify()) {
-			throw new AssertionError("Request event failed signature verification");
-		}
-		if (!"request".equals(request.getTagValue("type"))) {
-			throw new AssertionError("Request type tag mismatch");
-		}
-		if (!"req-001".equals(request.getTagValue("req_id"))) {
-			throw new AssertionError("Request ID tag mismatch");
 		}
 
 		System.out.println("Nostr Event Signatures Test Passed!");
 	}
 
-	private static void testMessageFlowSimulation() {
-		System.out.println("\n--- Testing Message Flow Simulation ---");
+	private static void testMessageFlowSimulation() throws Exception {
+		System.out.println("\n--- Testing Message Flow Simulation (with PSK Authenticated Encryption) ---");
 		byte[] omsPriv = Bip340.generatePrivateKey();
 		byte[] appPriv = Bip340.generatePrivateKey();
+		byte[] psk = new byte[32];
+		RANDOM.nextBytes(psk);
 		String topic = "topic-flow-test";
 
-		// 1. Android side sends ping
-		NostrEvent ping = NostrEvent.create(appPriv, 25000, List.of(
-				List.of("t", topic),
-				List.of("type", "ping")
-		), "{\"type\":\"ping\"}");
+		// 1. Android side sends encrypted {"type":"paired"}
+		String pairedPlaintext = "{\"type\":\"paired\"}";
+		String pairedEncrypted = PairingInfo.encryptPayload(pairedPlaintext, psk);
+		NostrEvent pairedEvent = NostrEvent.create(appPriv, 25000, List.of(
+				List.of("t", topic)
+		), pairedEncrypted);
 
-		// 2. omsCompanion verifies ping and creates pong
-		if (!ping.verify()) throw new AssertionError("Invalid ping");
-		NostrEvent pong = NostrEvent.create(omsPriv, 25000, List.of(
-				List.of("t", topic),
-				List.of("type", "pong")
-		), "{\"type\":\"pong\"}");
+		if (!pairedEvent.verify()) throw new AssertionError("Invalid paired event signature");
+		String decryptedPaired = PairingInfo.decryptPayload(pairedEvent.content, psk);
+		JsonNode pairedNode = MAPPER.readTree(decryptedPaired);
+		if (!"paired".equals(pairedNode.path("type").asText())) {
+			throw new AssertionError("Expected type paired");
+		}
 
-		if (!pong.verify()) throw new AssertionError("Invalid pong");
-
-		// 3. omsCompanion sends encrypted request
+		// 2. omsCompanion sends encrypted request
 		byte[] sampleEncryptedData = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
-		String b64Req = Base64.getEncoder().encodeToString(sampleEncryptedData);
-		NostrEvent req = NostrEvent.create(omsPriv, 25000, List.of(
-				List.of("t", topic),
-				List.of("type", "request"),
-				List.of("req_id", "12345")
-		), b64Req);
+		String b64ReqPayload = Base64.getEncoder().encodeToString(sampleEncryptedData);
+		String reqPlaintext = MAPPER.writeValueAsString(Map.of(
+				"type", "request",
+				"req_id", "req-12345",
+				"payload", b64ReqPayload
+		));
+		String reqEncrypted = PairingInfo.encryptPayload(reqPlaintext, psk);
+		NostrEvent reqEvent = NostrEvent.create(omsPriv, 25000, List.of(
+				List.of("t", topic)
+		), reqEncrypted);
 
-		if (!req.verify()) throw new AssertionError("Invalid req");
+		if (!reqEvent.verify()) throw new AssertionError("Invalid req signature");
+		String decryptedReq = PairingInfo.decryptPayload(reqEvent.content, psk);
+		JsonNode reqNode = MAPPER.readTree(decryptedReq);
+		if (!"request".equals(reqNode.path("type").asText())) throw new AssertionError("Expected type request");
+		if (!"req-12345".equals(reqNode.path("req_id").asText())) throw new AssertionError("Expected req_id req-12345");
 
-		// 4. Android responds with response
+		// 3. Android responds with encrypted response
 		byte[] sampleResponseData = new byte[] { 8, 7, 6, 5, 4, 3, 2, 1 };
-		String b64Resp = Base64.getEncoder().encodeToString(sampleResponseData);
-		NostrEvent resp = NostrEvent.create(appPriv, 25000, List.of(
-				List.of("t", topic),
-				List.of("type", "response"),
-				List.of("reply_to", "12345")
-		), b64Resp);
+		String b64RespPayload = Base64.getEncoder().encodeToString(sampleResponseData);
+		String respPlaintext = MAPPER.writeValueAsString(Map.of(
+				"type", "response",
+				"reply_to", "req-12345",
+				"payload", b64RespPayload
+		));
+		String respEncrypted = PairingInfo.encryptPayload(respPlaintext, psk);
+		NostrEvent respEvent = NostrEvent.create(appPriv, 25000, List.of(
+				List.of("t", topic)
+		), respEncrypted);
 
-		if (!resp.verify()) throw new AssertionError("Invalid resp");
-		byte[] decodedResp = Base64.getDecoder().decode(resp.content);
-		if (!java.util.Arrays.equals(sampleResponseData, decodedResp)) {
+		if (!respEvent.verify()) throw new AssertionError("Invalid resp signature");
+		String decryptedResp = PairingInfo.decryptPayload(respEvent.content, psk);
+		JsonNode respNode = MAPPER.readTree(decryptedResp);
+		if (!"response".equals(respNode.path("type").asText())) throw new AssertionError("Expected type response");
+		if (!"req-12345".equals(respNode.path("reply_to").asText())) throw new AssertionError("Expected reply_to req-12345");
+		byte[] decodedRespPayload = Base64.getDecoder().decode(respNode.path("payload").asText());
+		if (!Arrays.equals(sampleResponseData, decodedRespPayload)) {
 			throw new AssertionError("Response payload mismatch");
 		}
+
+		// 4. Disconnect event
+		String discPlaintext = "{\"type\":\"disconnect\"}";
+		String discEncrypted = PairingInfo.encryptPayload(discPlaintext, psk);
+		NostrEvent discEvent = NostrEvent.create(omsPriv, 25000, List.of(
+				List.of("t", topic)
+		), discEncrypted);
+		if (!discEvent.verify()) throw new AssertionError("Invalid disconnect signature");
+		String decryptedDisc = PairingInfo.decryptPayload(discEvent.content, psk);
+		JsonNode discNode = MAPPER.readTree(decryptedDisc);
+		if (!"disconnect".equals(discNode.path("type").asText())) throw new AssertionError("Expected type disconnect");
 
 		System.out.println("Message Flow Simulation Passed!");
 	}
