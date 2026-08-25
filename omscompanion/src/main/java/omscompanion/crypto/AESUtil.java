@@ -7,6 +7,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidKeySpecException;
 import java.util.function.Supplier;
 
@@ -15,6 +16,7 @@ import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -62,7 +64,10 @@ public final class AESUtil {
 			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
 			InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
 		var cipher = Cipher.getInstance(aesTransformation.transformation);
-		cipher.init(cipherMode, new SecretKeySpec(keyMaterial, "AES"), new IvParameterSpec(iv));
+		AlgorithmParameterSpec paramSpec = (aesTransformation == AesTransformation.AES_GCM_NO_PADDING)
+				? new GCMParameterSpec(128, iv)
+				: new IvParameterSpec(iv);
+		cipher.init(cipherMode, new SecretKeySpec(keyMaterial, "AES"), paramSpec);
 		var output = cipher.doFinal(input);
 		System.out.println("%scrypted %d bytes => %d".formatted(cipherMode == Cipher.DECRYPT_MODE ? "En" : "De", input.length, output.length));
 		return output;
@@ -74,7 +79,10 @@ public final class AESUtil {
 			InvalidKeyException, BadPaddingException, IllegalBlockSizeException, IOException {
 
 		var cipher = Cipher.getInstance(aesTransformation.transformation);
-		cipher.init(cipherMode, new SecretKeySpec(aesKeyMaterial, "AES"), new IvParameterSpec(iv));
+		AlgorithmParameterSpec paramSpec = (aesTransformation == AesTransformation.AES_GCM_NO_PADDING)
+				? new GCMParameterSpec(128, iv)
+				: new IvParameterSpec(iv);
+		cipher.init(cipherMode, new SecretKeySpec(aesKeyMaterial, "AES"), paramSpec);
 
 		var iArr = new byte[1024];
 		int length;

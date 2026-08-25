@@ -1,19 +1,27 @@
 package omscompanion.nostr;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
+import java.security.interfaces.RSAPublicKey;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+
+import javax.crypto.Cipher;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import omscompanion.MessageComposer;
 import omscompanion.OmsDataInputStream;
+import omscompanion.crypto.AESUtil;
+import omscompanion.crypto.AesTransformation;
 import omscompanion.crypto.PairingInfo;
+import omscompanion.crypto.RSAUtils;
+import omscompanion.crypto.RsaTransformation;
 
 public class NostrPairingIntegrationTest {
 	private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -27,8 +35,8 @@ public class NostrPairingIntegrationTest {
 		System.out.println("\n>>> ALL NOSTR INTEGRATION TESTS PASSED! <<<");
 	}
 
-	private static void testBinaryQrSerialization() throws IOException {
-		System.out.println("--- Testing Binary QR Serialization (App ID 10 with 256-bit PSK) ---");
+	private static void testBinaryQrSerialization() throws Exception {
+		System.out.println("--- Testing RSA-Encrypted Binary QR Serialization (App ID 10 wrapped in App ID 6) ---");
 		String topicHex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 		byte[] psk = new byte[32];
 		RANDOM.nextBytes(psk);
@@ -39,8 +47,15 @@ public class NostrPairingIntegrationTest {
 				"wss://relay.snort.social"
 		);
 
-		byte[] promptBytes = PairingInfo.createPairingPrompt(topicHex, psk, ttl, relays);
-		System.out.println("Serialized Prompt Length: " + promptBytes.length + " bytes");
+		// Generate test Master RSA KeyPair
+		KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
+		kpg.initialize(2048);
+		KeyPair kp = kpg.generateKeyPair();
+		RSAPublicKey rsaPublicKey = (RSAPublicKey) kp.getPublic();
+
+		byte[] promptBytes = PairingInfo.createPairingPrompt(topicHex, psk, ttl, relays, rsaPublicKey,
+				RsaTransformation.RSA_ECB_OAEPWithSHA_256AndMGF1Padding, 256, AesTransformation.AES_GCM_NO_PADDING);
+		System.out.println("Serialized Encrypted Prompt Length: " + promptBytes.length + " bytes");
 
 		// Test OMS Text Encoding
 		String omsText = MessageComposer.encodeAsOmsText(promptBytes);
@@ -56,49 +71,76 @@ public class NostrPairingIntegrationTest {
 			throw new AssertionError("Decoded bytes length mismatch");
 		}
 
-		// Deserialize with OmsDataInputStream (simulating OneMoreSecret)
+		// Decrypt envelope with RSA private key (simulating OneMoreSecret scanning QR code)
 		try (ByteArrayInputStream bais = new ByteArrayInputStream(decodedBytes);
 				OmsDataInputStream in = new OmsDataInputStream(bais)) {
 
-			int appId = in.readUnsignedShort();
-			System.out.println("Deserialized App ID: " + appId);
-			if (appId != MessageComposer.APPLICATION_NOSTR_PAIRING) {
-				throw new AssertionError("Expected App ID " + MessageComposer.APPLICATION_NOSTR_PAIRING + ", got " + appId);
+			var envelope = MessageComposer.readRsaAesEnvelope(in);
+			System.out.println("Envelope Outer App ID: " + envelope.applicationId());
+			if (envelope.applicationId() != MessageComposer.APPLICATION_RSA_AES_GENERIC) {
+				throw new AssertionError("Expected Outer App ID " + MessageComposer.APPLICATION_RSA_AES_GENERIC + ", got " + envelope.applicationId());
 			}
 
-			String desTopic = in.readString();
-			System.out.println("Deserialized Topic: " + desTopic);
-			if (!topicHex.equals(desTopic)) {
-				throw new AssertionError("Topic mismatch");
-			}
+			// Decrypt AES key with RSA private key
+			byte[] aesKeyMaterial = RSAUtils.process(Cipher.DECRYPT_MODE, kp.getPrivate(), envelope.rsaTransormation(),
+					envelope.encryptedAesSecretKey());
 
-			byte[] desPsk = in.readByteArray();
-			System.out.println("Deserialized PSK Length: " + desPsk.length + " bytes");
-			if (!Arrays.equals(psk, desPsk)) {
-				throw new AssertionError("PSK mismatch");
-			}
+			// Read encrypted payload
+			byte[] encryptedPayload = in.readByteArray();
 
-			int desTtl = in.readUnsignedShort();
-			System.out.println("Deserialized TTL: " + desTtl);
-			if (desTtl != ttl) {
-				throw new AssertionError("TTL mismatch");
-			}
+			// Decrypt inner payload with AES
+			byte[] innerPayload = AESUtil.process(Cipher.DECRYPT_MODE, encryptedPayload, aesKeyMaterial, envelope.iv(),
+					envelope.aesTransformation());
 
-			int relayCount = in.readUnsignedShort();
-			System.out.println("Deserialized Relay Count: " + relayCount);
-			if (relayCount != relays.size()) {
-				throw new AssertionError("Relay count mismatch");
-			}
+			// Parse inner payload
+			try (ByteArrayInputStream innerBais = new ByteArrayInputStream(innerPayload);
+					OmsDataInputStream innerIn = new OmsDataInputStream(innerBais)) {
 
-			for (int i = 0; i < relayCount; i++) {
-				String relay = in.readString();
-				System.out.println("  Relay [" + i + "]: " + relay);
-				if (!relays.get(i).equals(relay)) {
-					throw new AssertionError("Relay mismatch at index " + i);
+				int innerAppId = innerIn.readUnsignedShort();
+				System.out.println("Deserialized Inner App ID: " + innerAppId);
+				if (innerAppId != MessageComposer.APPLICATION_NOSTR_PAIRING) {
+					throw new AssertionError("Expected Inner App ID " + MessageComposer.APPLICATION_NOSTR_PAIRING + ", got " + innerAppId);
+				}
+
+				byte[] pairingData = innerIn.readByteArray();
+				try (ByteArrayInputStream pairBais = new ByteArrayInputStream(pairingData);
+						OmsDataInputStream pairIn = new OmsDataInputStream(pairBais)) {
+
+					String desTopic = pairIn.readString();
+					System.out.println("Deserialized Topic: " + desTopic);
+					if (!topicHex.equals(desTopic)) {
+						throw new AssertionError("Topic mismatch");
+					}
+
+					byte[] desPsk = pairIn.readByteArray();
+					System.out.println("Deserialized PSK Length: " + desPsk.length + " bytes");
+					if (!Arrays.equals(psk, desPsk)) {
+						throw new AssertionError("PSK mismatch");
+					}
+
+					int desTtl = pairIn.readUnsignedShort();
+					System.out.println("Deserialized TTL: " + desTtl);
+					if (desTtl != ttl) {
+						throw new AssertionError("TTL mismatch");
+					}
+
+					int relayCount = pairIn.readUnsignedShort();
+					System.out.println("Deserialized Relay Count: " + relayCount);
+					if (relayCount != relays.size()) {
+						throw new AssertionError("Relay count mismatch");
+					}
+
+					for (int i = 0; i < relayCount; i++) {
+						String relay = pairIn.readString();
+						System.out.println("  Relay [" + i + "]: " + relay);
+						if (!relays.get(i).equals(relay)) {
+							throw new AssertionError("Relay mismatch at index " + i);
+						}
+					}
 				}
 			}
 		}
-		System.out.println("Binary QR Serialization Test Passed!");
+		System.out.println("RSA-Encrypted Binary QR Serialization Test Passed!");
 	}
 
 	private static void testAesGcmPayloadEncryption() throws Exception {

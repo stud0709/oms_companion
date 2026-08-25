@@ -3,7 +3,9 @@ package omscompanion.crypto;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.security.SecureRandom;
+import java.security.interfaces.RSAPublicKey;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -17,6 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
@@ -33,7 +36,9 @@ import omscompanion.OmsDataOutputStream;
 import omscompanion.nostr.Bip340;
 import omscompanion.nostr.NostrConnectionPool;
 import omscompanion.nostr.NostrEvent;
+import omscompanion.openjfx.EncryptionToolBar;
 import omscompanion.openjfx.QRFrame;
+import omscompanion.openjfx.RSAPublicKeyItem;
 
 public class PairingInfo {
 	private static final Logger logger = Logger.getLogger(PairingInfo.class.getName());
@@ -67,6 +72,7 @@ public class PairingInfo {
 	private final int ttlSeconds;
 	private final List<String> relayUrls;
 	private final NostrConnectionPool connectionPool;
+	private final RSAPublicKey rsaPublicKey;
 
 	private final AtomicBoolean paired = new AtomicBoolean(false);
 	private final AtomicBoolean active = new AtomicBoolean(true);
@@ -78,14 +84,20 @@ public class PairingInfo {
 	}
 
 	public PairingInfo(int ttlSeconds, List<String> relays) {
-		this(ttlSeconds, relays, null, null, null);
+		this(ttlSeconds, relays, null, null, null, null);
 	}
 
 	public PairingInfo(int ttlSeconds, List<String> relays, byte[] psk, String topicHex, byte[] nostrPrivateKey) {
+		this(ttlSeconds, relays, psk, topicHex, nostrPrivateKey, null);
+	}
+
+	public PairingInfo(int ttlSeconds, List<String> relays, byte[] psk, String topicHex, byte[] nostrPrivateKey,
+			RSAPublicKey rsaPublicKey) {
 		this.ttlSeconds = ttlSeconds;
 		this.relayUrls = new ArrayList<>(relays);
 		this.nostrPrivateKey = nostrPrivateKey != null ? nostrPrivateKey : Bip340.generatePrivateKey();
 		this.myPubKeyHex = Bip340.bytesToHex(Bip340.getPublicKey(this.nostrPrivateKey));
+		this.rsaPublicKey = rsaPublicKey;
 
 		if (topicHex != null) {
 			this.topicHex = topicHex;
@@ -165,36 +177,78 @@ public class PairingInfo {
 		logger.info("PairingInfo terminated and disconnected");
 	}
 
-	public static byte[] createPairingPrompt(String topicHex, byte[] psk, int ttl, List<String> relays) throws IOException {
+	public static byte[] createPairingPrompt(String topicHex, byte[] psk, int ttl, List<String> relays,
+			RSAPublicKey rsaPublicKey, RsaTransformation rsaTransformation, int aesKeyLength,
+			AesTransformation aesTransformation) throws Exception {
+
+		byte[] rawPairingData;
 		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
 				OmsDataOutputStream dataOutputStream = new OmsDataOutputStream(baos)) {
 
-			// (1) Application ID 10
-			dataOutputStream.writeUnsignedShort(MessageComposer.APPLICATION_NOSTR_PAIRING);
-
-			// (2) Topic hex (64 hex characters)
+			// (1) Topic hex (64 hex characters)
 			dataOutputStream.writeString(topicHex);
 
-			// (3) Pre-Shared Key (32 bytes)
+			// (2) Pre-Shared Key (32 bytes)
 			dataOutputStream.writeByteArray(psk);
 
-			// (4) TTL in seconds
+			// (3) TTL in seconds
 			dataOutputStream.writeUnsignedShort(ttl);
 
-			// (5) Number of relays
+			// (4) Number of relays
 			dataOutputStream.writeUnsignedShort(relays.size());
 
-			// (6) Relay URLs
+			// (5) Relay URLs
 			for (String relay : relays) {
 				dataOutputStream.writeString(relay);
 			}
 
-			return baos.toByteArray();
+			rawPairingData = baos.toByteArray();
 		}
+
+		byte[] innerPayload = EncryptedMessage.createPayload(MessageComposer.APPLICATION_NOSTR_PAIRING, rawPairingData);
+
+		return MessageComposer.createRsaAesEnvelope(rsaPublicKey, rsaTransformation, aesKeyLength, aesTransformation,
+				innerPayload);
 	}
 
-	public void displayPrompt(Runnable andThen) throws IOException {
-		byte[] promptBytes = createPairingPrompt(topicHex, psk, ttlSeconds, relayUrls);
+	public RSAPublicKey getRsaPublicKey() throws Exception {
+		if (rsaPublicKey != null) {
+			return rsaPublicKey;
+		}
+		return getDefaultPublicKey();
+	}
+
+	public static RSAPublicKey getDefaultPublicKey() throws Exception {
+		if (!Files.exists(Main.PUBLIC_KEY_STORAGE)) {
+			throw new IllegalStateException("Public key directory does not exist: " + Main.PUBLIC_KEY_STORAGE);
+		}
+		var publicKeys = Files.list(Main.PUBLIC_KEY_STORAGE)
+				.filter(fn -> fn.getFileName().toString().toLowerCase()
+						.endsWith(EncryptionToolBar.FILE_TYPE_PUCLIC_KEY))
+				.map(p -> new RSAPublicKeyItem(p))
+				.filter(p -> p.publicKey != null)
+				.collect(Collectors.toList());
+
+		if (publicKeys.isEmpty()) {
+			throw new IllegalStateException(
+					String.format("Cannot pair: no RSA public keys found in %s", Main.PUBLIC_KEY_STORAGE.toAbsolutePath()));
+		}
+
+		String defaultKeyAlias = Main.getDefaultKeyAlias();
+		if (defaultKeyAlias != null) {
+			for (RSAPublicKeyItem item : publicKeys) {
+				if (item.toString().equals(defaultKeyAlias)) {
+					return item.publicKey;
+				}
+			}
+		}
+		return publicKeys.get(0).publicKey;
+	}
+
+	public void displayPrompt(Runnable andThen) throws Exception {
+		RSAPublicKey key = getRsaPublicKey();
+		byte[] promptBytes = createPairingPrompt(topicHex, psk, ttlSeconds, relayUrls, key,
+				RSAUtils.getTransformation(), AESUtil.getKeyLength(), AESUtil.getTransformation());
 
 		// Connect to Nostr relays and subscribe
 		connectionPool.connect(relayUrls);

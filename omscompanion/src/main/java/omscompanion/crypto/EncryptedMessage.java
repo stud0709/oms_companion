@@ -25,7 +25,7 @@ public class EncryptedMessage {
 				aesTransformation, createPayload(MessageComposer.APPLICATION_ENCRYPTED_MESSAGE, message));
 	}
 
-	private byte[] createPayload(int ai, byte[] message) {
+	public static byte[] createPayload(int ai, byte[] message) {
 		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
 				OmsDataOutputStream dataOutputStream = new OmsDataOutputStream(baos)) {
 
