@@ -3,10 +3,11 @@ package omscompanion.nostr;
 import java.net.http.HttpClient;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -14,10 +15,18 @@ import java.util.logging.Logger;
 
 public class NostrConnectionPool {
 	private static final Logger logger = Logger.getLogger(NostrConnectionPool.class.getName());
+	private static final int MAX_PROCESSED_EVENTS = 1000;
 
 	private final HttpClient httpClient;
 	private final List<NostrRelayClient> relayClients = new CopyOnWriteArrayList<>();
-	private final Set<String> processedEventIds = ConcurrentHashMap.newKeySet();
+	private final Set<String> processedEventIds = Collections.newSetFromMap(
+			Collections.synchronizedMap(new LinkedHashMap<String, Boolean>(MAX_PROCESSED_EVENTS, 0.75f, true) {
+				@Override
+				protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
+					return size() > MAX_PROCESSED_EVENTS;
+				}
+			})
+	);
 	private final List<Consumer<NostrEvent>> eventListeners = new CopyOnWriteArrayList<>();
 	private final AtomicBoolean closed = new AtomicBoolean(false);
 	private String activeTopic;

@@ -329,7 +329,7 @@ public class PairingInfo {
 			logger.log(Level.WARNING, "Failed to decode response base64 payload", e);
 		}
 
-		if (reqId != null && pendingRequests.containsKey(reqId)) {
+		if (reqId != null) {
 			CompletableFuture<byte[]> future = pendingRequests.remove(reqId);
 			if (future != null) {
 				future.complete(payload);
@@ -337,8 +337,10 @@ public class PairingInfo {
 		} else {
 			// If only one request is pending, complete it
 			for (Map.Entry<String, CompletableFuture<byte[]>> entry : pendingRequests.entrySet()) {
-				entry.getValue().complete(payload);
-				pendingRequests.remove(entry.getKey());
+				CompletableFuture<byte[]> future = pendingRequests.remove(entry.getKey());
+				if (future != null) {
+					future.complete(payload);
+				}
 				break;
 			}
 		}
