@@ -9,7 +9,10 @@ import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
+import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.control.TextArea;
@@ -19,6 +22,12 @@ import omscompanion.Main;
 import omscompanion.crypto.PairingInfo;
 
 public class NostrPairing {
+
+	@FXML
+	private ChoiceBox<RSAPublicKeyItem> choiceKey;
+
+	@FXML
+	private Button btnDefault;
 
 	@FXML
 	private Button btnStart;
@@ -54,6 +63,19 @@ public class NostrPairing {
 			}
 		};
 
+		try {
+			FxMain.initChoiceBox(choiceKey, Main.getDefaultKeyAlias());
+		} catch (Exception ex) {
+			FxMain.handleException(ex);
+		}
+
+		btnDefault.setOnAction(e -> {
+			var selected = choiceKey.getSelectionModel().getSelectedItem();
+			if (selected != null) {
+				Main.setDefaultKeyAlias(selected.toString());
+			}
+		});
+
 		spin_to_connect.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(30, 999));
 		spin_to_connect.getValueFactory().setValue(PairingInfo.getRequestTimeoutS());
 		spin_to_connect.getValueFactory().valueProperty()
@@ -78,6 +100,18 @@ public class NostrPairing {
 		});
 
 		btnStart.setOnAction(e -> {
+			var selectedKeyItem = choiceKey.getSelectionModel().getSelectedItem();
+			if (selectedKeyItem == null || selectedKeyItem.publicKey == null) {
+				Platform.runLater(() -> {
+					var alert = new Alert(AlertType.ERROR);
+					alert.setTitle(Main.APP_NAME);
+					alert.setHeaderText("No Public Key Selected");
+					alert.setContentText("Please select a valid RSA public key for pairing.");
+					alert.showAndWait();
+				});
+				return;
+			}
+
 			int timeout = spin_to_connect.getValue();
 			Main.properties.setProperty(PairingInfo.PROP_REQUEST_TIMEOUT_S, Integer.toString(timeout));
 
@@ -93,7 +127,7 @@ public class NostrPairing {
 			});
 
 			try {
-				new PairingInfo(timeout, relays).displayPrompt(andThen);
+				new PairingInfo(timeout, relays, null, null, null, selectedKeyItem.publicKey).displayPrompt(andThen);
 			} catch (Exception ex) {
 				FxMain.handleException(ex);
 			}

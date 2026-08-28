@@ -2,6 +2,7 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ChoiceBox?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.Spinner?>
 <?import javafx.scene.control.TextArea?>
@@ -21,17 +22,25 @@
          <rowConstraints>
             <RowConstraints vgrow="SOMETIMES" />
             <RowConstraints vgrow="SOMETIMES" />
+            <RowConstraints vgrow="SOMETIMES" />
          </rowConstraints>
          <children>
-            <Label text="Request Timeout:" />
+            <Label text="Public Key:" />
             <HBox alignment="CENTER_LEFT" spacing="6.0" GridPane.columnIndex="1">
+               <children>
+                  <ChoiceBox fx:id="choiceKey" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
+                  <Button fx:id="btnDefault" mnemonicParsing="false" text="Default" />
+               </children>
+            </HBox>
+            <Label text="Request Timeout:" GridPane.rowIndex="1" />
+            <HBox alignment="CENTER_LEFT" spacing="6.0" GridPane.columnIndex="1" GridPane.rowIndex="1">
                <children>
                   <Spinner fx:id="spin_to_connect" prefWidth="90.0" />
                   <Label text="seconds" />
                </children>
             </HBox>
-            <Label text="Nostr Relays:" GridPane.rowIndex="1" GridPane.valignment="TOP" />
-            <VBox spacing="5.0" GridPane.columnIndex="1" GridPane.rowIndex="1">
+            <Label text="Nostr Relays:" GridPane.rowIndex="2" GridPane.valignment="TOP" />
+            <VBox spacing="5.0" GridPane.columnIndex="1" GridPane.rowIndex="2">
                <children>
                   <TextArea fx:id="txtRelays" prefRowCount="4" promptText="Enter WebSocket relay URLs (one per line)" wrapText="true" />
                   <HBox alignment="CENTER_RIGHT" spacing="6.0">
