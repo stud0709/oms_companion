@@ -114,12 +114,24 @@ public class PairingInfo {
 			RANDOM.nextBytes(this.psk);
 		}
 
+		this.expiresAt = System.currentTimeMillis() + (ttlSeconds >= 86400 ? (long) ttlSeconds * 1000L : 24L * 60 * 60 * 1000L);
 		this.connectionPool = new NostrConnectionPool();
 		this.connectionPool.addEventListener(this::onNostrEvent);
 	}
 
+	private final long expiresAt;
+
+	public boolean isExpired() {
+		return System.currentTimeMillis() > expiresAt;
+	}
+
 	public static PairingInfo getInstance() {
 		synchronized (PairingInfo.class) {
+			if (instance != null && instance.isExpired()) {
+				logger.info("Pairing session expired after 24h. Disconnecting.");
+				disconnect();
+				return null;
+			}
 			return instance;
 		}
 	}
@@ -401,6 +413,13 @@ public class PairingInfo {
 	}
 
 	public void sendMessage(byte[] message, Consumer<byte[]> onReply) {
+		if (isExpired()) {
+			logger.info("Pairing session expired after 24h. Disconnecting.");
+			disconnect();
+			if (onReply != null) onReply.accept(null);
+			return;
+		}
+
 		if (!paired.get() || !active.get()) {
 			if (onReply != null) onReply.accept(null);
 			return;
