@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -27,8 +28,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import org.bouncycastle.util.encoders.Base64;
 
 import javafx.application.Platform;
 import javafx.beans.property.SimpleBooleanProperty;
@@ -533,7 +532,7 @@ public class ClipboardUtil {
 					return;
 				}
 
-				var keyResponse = Base64.decode(s);
+				var keyResponse = Base64.getDecoder().decode(s);
 
 				finalizeDecryptFile(encryptedFile, fos -> keyRequest.onReply(fos, keyResponse));
 			});

@@ -1,0 +1,104 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ master ]
+    tags:
+      - 'v*'
+      - '[0-9]*'
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag (e.g. v0.8-beta). If specified, a GitHub release will be published.'
+        required: false
+        default: ''
+      is_prerelease:
+        description: 'Mark release as pre-release'
+        type: boolean
+        default: false
+      is_draft:
+        description: 'Create release as draft'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Release omsCompanion
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'maven'
+
+      - name: Build with Maven
+        run: mvn -B clean package -DskipTests
+        working-directory: omscompanion
+
+      - name: Verify omscompanion.jar
+        run: |
+          if [ ! -f "omscompanion/target/omscompanion.jar" ]; then
+            echo "Error: omscompanion.jar was not generated!" >&2
+            exit 1
+          fi
+          echo "Build successful. Artifact size: $(ls -lh omscompanion/target/omscompanion.jar | awk '{print $5}')"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: omscompanion-jar
+          path: omscompanion/target/omscompanion.jar
+          retention-days: 14
+
+      - name: Determine Release Tag and Flags
+        id: release_meta
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_tag != ''
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG_NAME="${{ github.ref_name }}"
+          else
+            TAG_NAME="${{ github.event.inputs.release_tag }}"
+          fi
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+
+          # Determine pre-release
+          if [ "${{ github.event.inputs.is_prerelease }}" = "true" ] || [[ "$TAG_NAME" =~ -(alpha|beta|rc) ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Determine draft
+          if [ "${{ github.event.inputs.is_draft }}" = "true" ]; then
+            echo "is_draft=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_draft=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_tag != ''
+        with:
+          tag_name: ${{ steps.release_meta.outputs.tag_name }}
+          name: ${{ steps.release_meta.outputs.tag_name }}
+          draft: ${{ steps.release_meta.outputs.is_draft == 'true' }}
+          prerelease: ${{ steps.release_meta.outputs.is_prerelease == 'true' }}
+          generate_release_notes: true
+          files: |
+            omscompanion/target/omscompanion.jar
+            oms.cmd
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
