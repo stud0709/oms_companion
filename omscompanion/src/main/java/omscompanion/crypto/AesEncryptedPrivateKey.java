@@ -24,47 +24,16 @@ public class AesEncryptedPrivateKey {
 			AesTransformation aesTransformation, AesKeyAlgorithm aesKeyAlgorithm, int aesKeyLength,
 			int aesKeyspecIterations) throws NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException,
 			InvalidAlgorithmParameterException, BadPaddingException, IllegalBlockSizeException {
-		super();
-
-		// --- create message ---
-		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-				OmsDataOutputStream dataOutputStream = new OmsDataOutputStream(baos)) {
-			// (1) application-ID
-			dataOutputStream.writeUnsignedShort(MessageComposer.APPLICATION_AES_ENCRYPTED_PRIVATE_KEY_TRANSFER);
-
-			// (2) alias
-			dataOutputStream.writeString(alias);
-
-			// --- AES parameter ---
-
-			// (3) salt
-			dataOutputStream.writeByteArray(salt);
-
-			// (4) iv
-			dataOutputStream.writeByteArray(iv);
-
-			// (5) AES transformation index
-			dataOutputStream.writeUnsignedShort(aesTransformation.ordinal());
-
-			// (6) key algorithm index
-			dataOutputStream.writeUnsignedShort(aesKeyAlgorithm.ordinal());
-
-			// (7) keyspec length
-			dataOutputStream.writeUnsignedShort(aesKeyLength);
-
-			// (8) keyspec iterations
-			dataOutputStream.writeUnsignedShort(aesKeyspecIterations);
-
-			// --- encrypted data ---
-
-			// (9) cipher text
-			dataOutputStream.writeByteArray(getCipherText(rsaKeyPair, aesKeyMaterial, iv, aesTransformation));
-
-			this.message = baos.toByteArray();
-		} catch (IOException e) {
-			throw new RuntimeException(e);
-		}
-	}
+        if (alias.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 4096 || rsaKeyPair.getPrivate().getEncoded().length > 16384 || rsaKeyPair.getPublic().getEncoded().length > 16384) throw new IllegalArgumentException("Backup field too large");
+        org.onemoresecret.protocol.OmsProtocol.validateKeyPair(rsaKeyPair.getPrivate().getEncoded(), rsaKeyPair.getPublic().getEncoded());
+        try {
+            var body = new ByteArrayOutputStream(); var out = new java.io.DataOutputStream(body);
+            org.onemoresecret.protocol.OmsProtocol.writeBlob(out, alias.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            org.onemoresecret.protocol.OmsProtocol.writeBlob(out, rsaKeyPair.getPrivate().getEncoded());
+            org.onemoresecret.protocol.OmsProtocol.writeBlob(out, rsaKeyPair.getPublic().getEncoded());
+            message = org.onemoresecret.protocol.OmsProtocol.passwordSeal(aesKeyMaterial, salt, aesKeyspecIterations, 0, body.toByteArray());
+        } catch (IOException e) { throw new java.io.UncheckedIOException(e); }
+    }
 
 	private byte[] getCipherText(KeyPair rsaKeyPair, byte[] aesKeyMaterial, byte[] iv,
 			AesTransformation aesTransformation) throws InvalidAlgorithmParameterException, NoSuchPaddingException,

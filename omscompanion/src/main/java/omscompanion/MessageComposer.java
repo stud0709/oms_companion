@@ -1,5 +1,7 @@
 package omscompanion;
 
+import org.onemoresecret.protocol.OmsProtocol;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.security.InvalidAlgorithmParameterException;
@@ -33,60 +35,35 @@ public abstract class MessageComposer {
 			APPLICATION_TOTP_URI = 9, APPLICATION_NOSTR_PAIRING = 10, APPLICATION_KEY_REQUEST_PAIRING = 11, APPLICATION_ENCRYPTED_OTP = 12;
 
 	/**
-	 * Prefix of a text encoded message.
+	 * Prefix of a legacy v0 text encoded message. V1 messages are bare Base64.
 	 */
 	public static final String OMS_PREFIX = "oms00_";
 
-	public static final String OMS_FILE_TYPE = "oms00";
+	public static final String OMS_FILE_TYPE = "oms";
 
 	/**
-	 * Text encoded OMS messages begin with omsXX_ with XX being the protocol
-	 * version.
+	 * Legacy text prefix pattern. Current message detection uses OmsProtocol.decodeText.
 	 */
 	public static final Pattern OMS_PATTERN = Pattern.compile("oms([0-9a-f]{2})_");
 
 	public record RsaAesEnvelope(int applicationId, RsaTransformation rsaTransormation,
 			byte[] fingerprint, AesTransformation aesTransformation, byte[] iv,
-			byte[] encryptedAesSecretKey) {}
+			byte[] encryptedAesSecretKey, OmsProtocol.Header protocolHeader) {}
 	
 	public static byte[] decode(String omsText) {
-		var m = OMS_PATTERN.matcher(omsText);
-
-		if (!m.find()) // not a valid OMS message
-			return null;
-
-		byte[] result;
-
-		var version = Integer.parseInt(Objects.requireNonNull(m.group(1)));
-
-		// (1) remove prefix and line breaks
-		omsText = omsText.substring(m.group().length());
-		omsText = omsText.replaceAll("\\s+", "");
-
-		if (version == 0) {
-			// (2) convert to byte array
-			result = Base64.getDecoder().decode(omsText);
-		} else {
-			throw new UnsupportedOperationException("Unsupported version: " + version);
-		}
-
-		return result;
-	}
+        return OmsProtocol.decodeText(omsText);
+    }
 
 	/**
-	 * A OneMoreSecret text format begins with {@link MessageComposer#OMS_PREFIX}.
-	 * Version 00 of OMS protocol:
-	 * <ol>
-	 * <li>BASE64 encode {@code message}</li>
-	 * <li>prepend (1) with {@link MessageComposer#OMS_PREFIX}</li>
-	 * </ol>
+	 * Encode v1 messages as bare Base64. Legacy v0 messages retain
+	 * {@link MessageComposer#OMS_PREFIX} before their Base64 data.
 	 * 
 	 * @param message
 	 * @return
 	 */
 	public static String encodeAsOmsText(byte[] message) {
-		return OMS_PREFIX + Base64.getEncoder().encodeToString(message);
-	}
+        return OmsProtocol.encodeText(message);
+    }
 
 	/**
 	 * Wrap a byte array into RSA x AES Envelope.
@@ -138,23 +115,15 @@ public abstract class MessageComposer {
 			RsaTransformation rsaTransformation, int aesKeyLength, AesTransformation aesTransformation, byte[] payload)
 			throws NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException,
 			InvalidKeyException, InvalidAlgorithmParameterException {
-
-		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-				OmsDataOutputStream dataOutputStream = new OmsDataOutputStream(baos)) {
-
-			var aesEncryptionParameters = prepareRsaAesEnvelope(dataOutputStream, applicationId, rsaPublicKey,
-					rsaTransformation, aesKeyLength, aesTransformation);
-
-// (7) AES-encrypted message
-			dataOutputStream
-					.writeByteArray(AESUtil.process(Cipher.ENCRYPT_MODE, payload, aesEncryptionParameters.aesKeyMaterial(),
-							aesEncryptionParameters.iv(), aesTransformation));
-
-			return baos.toByteArray();
-		} catch (IOException ex) {
-			throw new RuntimeException(ex);
-		}
-	}
+        if (applicationId == APPLICATION_RSA_AES_GENERIC) {
+            try (var input = new OmsDataInputStream(new ByteArrayInputStream(payload))) {
+                int innerId = input.readUnsignedShort(); byte[] innerBody = input.readByteArray();
+                if (input.read() != -1) throw new IOException("Trailing generic payload");
+                return OmsProtocol.seal(rsaPublicKey, innerId, innerBody);
+            } catch (IOException e) { throw new java.io.UncheckedIOException(e); }
+        }
+        return OmsProtocol.seal(rsaPublicKey, applicationId, payload);
+    }
 
 	public record AesEncryptionParameters(byte[] aesKeyMaterial, byte[] iv) {
 	}
@@ -237,6 +206,12 @@ public abstract class MessageComposer {
 		System.out.println("Reading envelope:");
 		// (1) Application ID
 		var applicationId = dataInputStream.readUnsignedShort();
+        if (applicationId == 0x254f) {
+            var header = OmsProtocol.readHeader(dataInputStream, applicationId);
+            if (header.kind != OmsProtocol.RSA) throw new IOException("Not an RSA envelope");
+            return new RsaAesEnvelope(APPLICATION_RSA_AES_GENERIC, RsaTransformation.values()[2], header.fingerprint,
+                AesTransformation.values()[2], header.noncePrefix, header.wrappedKey, header);
+        }
 		System.out.println("application-ID: %d".formatted(applicationId));
 
 		// (2) RSA transformation index
@@ -264,6 +239,6 @@ public abstract class MessageComposer {
 		// (7) AES-encrypted message <= leave here
 
 		return new RsaAesEnvelope(applicationId, rsaTransformation, fingerprint,
-				aesTransformation, iv, encryptedAesSecretKey);
+				aesTransformation, iv, encryptedAesSecretKey, null);
 	}
 }

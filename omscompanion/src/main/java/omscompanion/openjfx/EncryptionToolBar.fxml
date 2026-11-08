@@ -28,7 +28,7 @@
       </HBox>
       <HBox spacing="5.0" GridPane.columnIndex="1" GridPane.rowIndex="1">
          <children>
-            <Button fx:id="btnAsText" mnemonicParsing="false" onAction="#onBtnAction" text="oms00_..." />
+            <Button fx:id="btnAsText" mnemonicParsing="false" onAction="#onBtnAction" text="Encrypted text" />
             <Button fx:id="btnAsGifFile" mnemonicParsing="false" onAction="#onBtnAction" text="GIF file" />
             <Button fx:id="btnAsGifBase64" mnemonicParsing="false" onAction="#onBtnAction" text="GIF BASE64" />
             <Button fx:id="btnPreviewQr" mnemonicParsing="false" onAction="#onBtnAction" text="Preview QR" />

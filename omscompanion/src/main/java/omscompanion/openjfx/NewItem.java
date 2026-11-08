@@ -10,7 +10,6 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import omscompanion.FxMain;
 import omscompanion.Main;
-import omscompanion.MessageComposer;
 
 public class NewItem {
 
@@ -21,9 +20,8 @@ public class NewItem {
 	private TextArea txtAreaInfo;
 
 	private void init(byte[] unprotected) throws Exception {
-		txtAreaInfo.setText(String.format(
-				"We have encrypted your data and copied them in %s... format back to the clipboard.\r\n\r\nUse the tool bar below to generate other formats (they will be copied to the clipboard as well).\r\n\r\nThe clipboard will be cleared as soon as you close this window.",
-				MessageComposer.OMS_PREFIX));
+		txtAreaInfo.setText(
+				"Your data has been encrypted and copied to the clipboard.\r\n\r\nUse the toolbar below to copy the encrypted text again or generate QR codes (these will also be copied to the clipboard).\r\n\r\nThe clipboard will be cleared as soon as you close this window.");
 
 		var encryptionToolBar = new EncryptionToolBar();
 		encryptionToolBar.init();

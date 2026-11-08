@@ -140,7 +140,7 @@ public class FxMain extends Application {
 		Platform.runLater(() -> {
 			var alert = new Alert(AlertType.INFORMATION);
 			alert.setTitle("Encryption result");
-			alert.setHeaderText("Successfully encrypted as " + MessageComposer.OMS_PREFIX + "...");
+			alert.setHeaderText("Encrypted text copied to the clipboard");
 			alert.setContentText("Clipboard has been set");
 			alert.showAndWait();
 		});

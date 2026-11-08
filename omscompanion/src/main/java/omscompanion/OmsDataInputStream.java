@@ -31,7 +31,7 @@ public class OmsDataInputStream extends DataInputStream {
 	 * @return
 	 */
 	public String readString() throws IOException {
-		return new String(readByteArray());
+		return new String(readByteArray(), java.nio.charset.StandardCharsets.UTF_8);
 	}
 
 	/**
@@ -41,7 +41,7 @@ public class OmsDataInputStream extends DataInputStream {
 	public byte[] readByteArray() throws IOException {
 		int size = readUnsignedShort();
 		byte[] bArr = new byte[size];
-		read(bArr);
+		readFully(bArr);
 		return bArr;
 	}
 

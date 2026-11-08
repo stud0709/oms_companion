@@ -32,7 +32,7 @@ public class OmsDataOutputStream extends DataOutputStream {
 	 * length.
 	 */
 	public void writeString(String s) throws IOException {
-		writeByteArray(s.getBytes());
+		writeByteArray(s.getBytes(java.nio.charset.StandardCharsets.UTF_8));
 	}
 
 	/**
@@ -45,7 +45,7 @@ public class OmsDataOutputStream extends DataOutputStream {
 	}
 
 	public void writeUnsignedShort(int value) throws IOException {
-		assert value < 65536;
+		if (value < 0 || value > 65535) throw new IllegalArgumentException("Unsigned short overflow: " + value);
 		writeShort((short) value);
 	}
 

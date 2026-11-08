@@ -38,6 +38,7 @@ public class KeyRequest {
 	private final KeyPair rsaKeyPair;
 	private final byte[] message;
 	private final File encryptedFile;
+    private final byte[] requestId = org.onemoresecret.protocol.OmsProtocol.random(16);
 
 	public KeyRequest(File encryptedFile) throws NoSuchAlgorithmException, IOException {
 		this.encryptedFile = encryptedFile;
@@ -80,7 +81,7 @@ public class KeyRequest {
 					"RSA transformation (file header): %s".formatted(envelope.rsaTransormation().transformation));
 
 			// (5) RSA transformation index for key request (compatible with this device)
-			dataOutputStream.writeUnsignedShort(RSAUtils.getTransformation().ordinal());
+			dataOutputStream.writeUnsignedShort(2);
 			System.out.println(
 					"RSA transformation (key request): %s".formatted(RSAUtils.getTransformation().transformation));
 
@@ -89,7 +90,7 @@ public class KeyRequest {
 			System.out.println("encrypted AES key (file header): %s"
 					.formatted(Main.byteArrayToHex(envelope.encryptedAesSecretKey())));
 
-			this.message = baos.toByteArray();
+			this.message = org.onemoresecret.protocol.OmsProtocol.request(baos.toByteArray(), envelope.protocolHeader() == null ? 0 : 1, requestId);
 		} catch (IOException ex) {
 			throw new RuntimeException(ex);
 		}
@@ -113,24 +114,16 @@ public class KeyRequest {
 
 			System.out.println("Processing key response");
 
-			// (1) Application Identifier
-			var applicationId = keyResponseInputStream.readUnsignedShort();
-			assert applicationId == MessageComposer.APPLICATION_KEY_RESPONSE;
-			System.out.println("Application-ID: %d".formatted(applicationId));
-
-			// (3) RSA encrypted AES key
-			var rsaEncryptedAesKey = keyResponseInputStream.readByteArray();
-			System.out.println("encrypted AES key: %s".formatted(Main.byteArrayToHex(rsaEncryptedAesKey)));
-
-			// Decrypt AES key
-			var aesKeyMaterial = RSAUtils.process(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate(), RSAUtils.getTransformation(),
-					rsaEncryptedAesKey);
+            byte[] wrapped = org.onemoresecret.protocol.OmsProtocol.readReply(keyResponse, requestId, false);
+            byte[] aesKeyMaterial = org.onemoresecret.protocol.OmsProtocol.rsa(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate(), wrapped);
 
 			// Read file header once again, position at start of (encrypted) payload
 			var envelope = MessageComposer.readRsaAesEnvelope(dataInputStream);
 
-			AESUtil.process(Cipher.DECRYPT_MODE, dataInputStream, osDecryptedFile, aesKeyMaterial, envelope.iv(),
-					envelope.aesTransformation(), null);
+			try {
+                if (envelope.protocolHeader() != null) org.onemoresecret.protocol.OmsProtocol.decryptFile(envelope.protocolHeader(), aesKeyMaterial, dataInputStream, osDecryptedFile, null, null);
+                else AESUtil.process(Cipher.DECRYPT_MODE, dataInputStream, osDecryptedFile, aesKeyMaterial, envelope.iv(), envelope.aesTransformation(), null);
+            } finally { Arrays.fill(aesKeyMaterial, (byte)0); }
 
 			Arrays.fill(aesKeyMaterial, (byte) 0); // wipe AES key data
 		}

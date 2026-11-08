@@ -250,10 +250,10 @@ public class ClipboardUtil {
 			suspendClipboardCheck();
 
 			var containsOmsFile = listOfFile.stream()
-					.anyMatch(f -> f.getName().endsWith(".".concat(MessageComposer.OMS_FILE_TYPE)));
+					.anyMatch(f -> isEncryptedFile(f));
 
 			var containsOther = listOfFile.stream()
-					.anyMatch(f -> f.isDirectory() || !f.getName().endsWith(".".concat(MessageComposer.OMS_FILE_TYPE)));
+					.anyMatch(f -> f.isDirectory() || !isEncryptedFile(f));
 
 			if (containsOmsFile && containsOther) {
 				Platform.runLater(() -> {
@@ -562,9 +562,15 @@ public class ClipboardUtil {
 		}
 	}
 
+    private static boolean isEncryptedFile(File file) {
+        if (file.getName().endsWith(".oms") || file.getName().endsWith(".oms00")) return true;
+        if (!file.isFile()) return false;
+        try (var in = new java.io.FileInputStream(file)) { return org.onemoresecret.protocol.OmsProtocol.hasMagic(in.readNBytes(5)); }
+        catch (IOException e) { return false; }
+    }
+
 	private static void finalizeDecryptFile(File encryptedFile, ConsumerEx<FileOutputStream> decryptor) {
-		var decryptedFileName = encryptedFile.getName().substring(0,
-				encryptedFile.getName().length() - (MessageComposer.OMS_FILE_TYPE.length() + 1 /* the dot */));
+		var decryptedFileName = encryptedFile.getName().replaceFirst("\\.oms(?:00)?$", "");
 
 		var dialogResult = new CompletableFuture<File>();
 
@@ -574,8 +580,13 @@ public class ClipboardUtil {
 			File outfile = dialogResult.get();
 
 			if (outfile != null) {
-				try (FileOutputStream fos = new FileOutputStream(outfile)) {
-					decryptor.accept(fos);
+                var staging = java.nio.file.Files.createTempFile(outfile.toPath().toAbsolutePath().getParent(), ".decrypt-", ".part");
+                try {
+                try (FileOutputStream fos = new FileOutputStream(staging.toFile())) {
+                    decryptor.accept(fos);
+                }
+                java.nio.file.Files.move(staging, outfile.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                {
 
 					Platform.runLater(() -> {
 						var doneDialog = new Alert(AlertType.CONFIRMATION);
@@ -608,6 +619,7 @@ public class ClipboardUtil {
 						resumeClipboardCheck();
 					});
 				}
+                } finally { java.nio.file.Files.deleteIfExists(staging); }
 			}
 		} catch (Exception ex) {
 			ex.printStackTrace();

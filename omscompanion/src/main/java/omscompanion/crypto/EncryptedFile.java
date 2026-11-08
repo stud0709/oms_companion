@@ -23,21 +23,13 @@ public class EncryptedFile {
 			int aesKeyLength, AesTransformation aesTransformation, Supplier<Boolean> cancelled)
 			throws NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException,
 			InvalidKeyException, InvalidAlgorithmParameterException, IOException {
-
-		try (var fos = new FileOutputStream(oFile); var dataOutputStream = new OmsDataOutputStream(fos)) {
-
-			var aesEncryptionParameters = MessageComposer.prepareRsaAesEnvelope(dataOutputStream,
-					MessageComposer.APPLICATION_ENCRYPTED_FILE, rsaPublicKey, rsaTransformation, aesKeyLength,
-					aesTransformation);
-
-			AESUtil.process(Cipher.ENCRYPT_MODE, fis, dataOutputStream, aesEncryptionParameters.aesKeyMaterial(),
-					aesEncryptionParameters.iv(),aesTransformation,
-					cancelled);
-		} catch (IOException ex) {
-			throw new RuntimeException(ex);
-		}
-
-		if (cancelled != null && cancelled.get())
-			oFile.delete();
-	}
+        var target = oFile.toPath();
+        var staging = java.nio.file.Files.createTempFile(target.toAbsolutePath().getParent(), ".oms-", ".part");
+        try {
+            try (var out = new FileOutputStream(staging.toFile())) {
+                org.onemoresecret.protocol.OmsProtocol.encrypt(rsaPublicKey, 3, fis, out, cancelled, null);
+            }
+            java.nio.file.Files.move(staging, target, java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } finally { java.nio.file.Files.deleteIfExists(staging); }
+    }
 }

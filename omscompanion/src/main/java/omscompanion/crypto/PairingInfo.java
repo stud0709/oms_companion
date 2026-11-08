@@ -77,7 +77,8 @@ public class PairingInfo {
 	private final AtomicBoolean paired = new AtomicBoolean(false);
 	private final AtomicBoolean active = new AtomicBoolean(true);
 
-	private final Map<String, CompletableFuture<byte[]>> pendingRequests = new ConcurrentHashMap<>();
+	private final org.onemoresecret.protocol.NostrTransport.ReplayWindow replay = new org.onemoresecret.protocol.NostrTransport.ReplayWindow("", System.currentTimeMillis() / 1000L);
+    private final Map<String, CompletableFuture<byte[]>> pendingRequests = new ConcurrentHashMap<>();
 
 	public PairingInfo() {
 		this(getRequestTimeoutS(), getPreferredRelays());
@@ -157,11 +158,14 @@ public class PairingInfo {
 		try {
 			Map<String, Object> discObj = Map.of("type", "disconnect");
 			String jsonStr = MAPPER.writeValueAsString(discObj);
-			String encryptedContent = encryptPayload(jsonStr, psk);
+			long timestamp = System.currentTimeMillis() / 1000L;
+            var json = (com.fasterxml.jackson.databind.node.ObjectNode) MAPPER.readTree(jsonStr);
+            json.put("v", 1); json.put("msg_id", UUID.randomUUID().toString());
+            String encryptedContent = Base64.getEncoder().encodeToString(org.onemoresecret.protocol.NostrTransport.encrypt(json.toString().getBytes(StandardCharsets.UTF_8), psk, topicHex, myPubKeyHex, timestamp));
 			List<List<String>> tags = List.of(
 					List.of("t", topicHex)
 			);
-			NostrEvent event = NostrEvent.create(nostrPrivateKey, 25000, tags, encryptedContent);
+			NostrEvent event = NostrEvent.create(nostrPrivateKey, 25000, tags, encryptedContent, timestamp);
 			var futures = connectionPool.broadcast(event);
 			if (!futures.isEmpty()) {
 				CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
@@ -193,29 +197,7 @@ public class PairingInfo {
 			RSAPublicKey rsaPublicKey, RsaTransformation rsaTransformation, int aesKeyLength,
 			AesTransformation aesTransformation) throws Exception {
 
-		byte[] rawPairingData;
-		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-				OmsDataOutputStream dataOutputStream = new OmsDataOutputStream(baos)) {
-
-			// (1) Topic hex (64 hex characters)
-			dataOutputStream.writeString(topicHex);
-
-			// (2) Pre-Shared Key (32 bytes)
-			dataOutputStream.writeByteArray(psk);
-
-			// (3) TTL in seconds
-			dataOutputStream.writeUnsignedShort(ttl);
-
-			// (4) Number of relays
-			dataOutputStream.writeUnsignedShort(relays.size());
-
-			// (5) Relay URLs
-			for (String relay : relays) {
-				dataOutputStream.writeString(relay);
-			}
-
-			rawPairingData = baos.toByteArray();
-		}
+        byte[] rawPairingData = org.onemoresecret.protocol.NostrPairing.create(topicHex, psk, ttl, 86400, relays);
 
 		byte[] innerPayload = EncryptedMessage.createPayload(MessageComposer.APPLICATION_NOSTR_PAIRING, rawPairingData);
 
@@ -311,7 +293,7 @@ public class PairingInfo {
 	}
 
 	private void onNostrEvent(NostrEvent event) {
-		if (event == null || !active.get()) return;
+		if (event == null || !active.get() || event.kind != 25000 || !event.verify() || event.content == null || event.content.length() > 1500000) return;
 
 		// Ignore events sent by ourselves (echoed back by relays)
 		if (event.pubkey != null && event.pubkey.equalsIgnoreCase(myPubKeyHex)) {
@@ -329,7 +311,7 @@ public class PairingInfo {
 
 		String decryptedJson;
 		try {
-			decryptedJson = decryptPayload(event.content, psk);
+			decryptedJson = new String(org.onemoresecret.protocol.NostrTransport.decrypt(Base64.getDecoder().decode(event.content), psk, topicHex, event.pubkey, event.createdAt, System.currentTimeMillis() / 1000L), StandardCharsets.UTF_8);
 		} catch (Exception e) {
 			logger.log(Level.FINE, "Failed to decrypt event content with PSK", e);
 			return;
@@ -345,7 +327,7 @@ public class PairingInfo {
 			return;
 		}
 
-		if (type == null) return;
+		if (type == null || rootNode.path("v").asInt() != 1 || !replay.accept(rootNode.path("msg_id").asText(null), event.createdAt, System.currentTimeMillis() / 1000L)) return;
 
 		switch (type) {
 		case "paired" -> handlePaired(rootNode);
@@ -400,15 +382,6 @@ public class PairingInfo {
 			if (future != null) {
 				future.complete(payload);
 			}
-		} else {
-			// If only one request is pending, complete it
-			for (Map.Entry<String, CompletableFuture<byte[]>> entry : pendingRequests.entrySet()) {
-				CompletableFuture<byte[]> future = pendingRequests.remove(entry.getKey());
-				if (future != null) {
-					future.complete(payload);
-				}
-				break;
-			}
 		}
 	}
 
@@ -437,11 +410,14 @@ public class PairingInfo {
 					"payload", base64Payload
 			);
 			String jsonStr = MAPPER.writeValueAsString(reqObj);
-			String encryptedContent = encryptPayload(jsonStr, psk);
+			long timestamp = System.currentTimeMillis() / 1000L;
+            var json = (com.fasterxml.jackson.databind.node.ObjectNode) MAPPER.readTree(jsonStr);
+            json.put("v", 1); json.put("msg_id", UUID.randomUUID().toString());
+            String encryptedContent = Base64.getEncoder().encodeToString(org.onemoresecret.protocol.NostrTransport.encrypt(json.toString().getBytes(StandardCharsets.UTF_8), psk, topicHex, myPubKeyHex, timestamp));
 			List<List<String>> tags = List.of(
 					List.of("t", topicHex)
 			);
-			NostrEvent requestEvent = NostrEvent.create(nostrPrivateKey, 25000, tags, encryptedContent);
+			NostrEvent requestEvent = NostrEvent.create(nostrPrivateKey, 25000, tags, encryptedContent, timestamp);
 			connectionPool.broadcast(requestEvent);
 			logger.info("Sent encrypted request to Nostr relays");
 

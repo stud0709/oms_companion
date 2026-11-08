@@ -257,16 +257,17 @@ public class NewPrivateKey {
 				byte[] iv = AESUtil.generateIv(aesTransformation);
 				System.out.println("iv: " + Main.byteArrayToHex(iv));
 
-				var salt = AESUtil.generateSalt(AESUtil.getSaltLength());
+				var salt = AESUtil.generateSalt(16);
 				System.out.println("salt: " + Main.byteArrayToHex(salt));
 
-				var aesKeyLength = AESUtil.getKeyLength();
+				var aesKeyLength = 256;
 				System.out.println("key length: " + aesKeyLength);
 
 				var aesKeyspecIterations = AESUtil.getKeyspecIterations();
+                if (aesKeyspecIterations < 1 || aesKeyspecIterations > org.onemoresecret.protocol.OmsProtocol.MAX_ITERATIONS) throw new IllegalArgumentException("Unsupported PBKDF2 iteration count");
 				System.out.println("iterations: " + aesKeyspecIterations);
 
-				var keyAlgorithm = AESUtil.getAesKeyAlgorithm().keyAlgorithm;
+				var keyAlgorithm = "PBKDF2WithHmacSHA256";
 				System.out.println("key algorithm: " + keyAlgorithm);
 
 				var secretKey = AESUtil.getSecretKeyFromPassword(transportPwd.toCharArray(), salt, keyAlgorithm,
@@ -363,8 +364,8 @@ public class NewPrivateKey {
 				p(b("Key alias: " + alias)), p(b("RSA Fingerprint: " + Main.byteArrayToHex(fingerprint))),
 				p("Scan this with your OneMoreSecret App:"), qrCodes, h2("Long-Term Backup and Technical Details"),
 				p("Base64 Encoded Message: "), messageChunks,
-				p("Message format: " + MessageComposer.OMS_PREFIX + "[base64 encoded data]"),
-				p("Data format: see https://github.com/stud0709/oms_companion/blob/master/omscompanion/src/main/java/omscompanion/crypto/AesEncryptedPrivateKey.java")))
+				p("Message format: bare Base64 containing %OMS- protocol version 1"),
+				p("OMS protocol v1: bare Base64; AES-256-GCM; PBKDF2-HMAC-SHA256; unsigned 32-bit iteration count. See https://github.com/stud0709/OneMoreSecret/blob/master/docs/protocol-v1.md")))
 				.render();
 	}
 

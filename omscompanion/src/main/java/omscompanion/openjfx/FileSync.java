@@ -12,7 +12,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -58,9 +57,6 @@ import javafx.stage.Stage;
 import omscompanion.FxMain;
 import omscompanion.Main;
 import omscompanion.MessageComposer;
-import omscompanion.crypto.AESUtil;
-import omscompanion.crypto.EncryptedFile;
-import omscompanion.crypto.RSAUtils;
 
 public class FileSync {
 	// icons by https://www.iconfinder.com/search?q=&iconset=heroicons-solid
@@ -863,7 +859,7 @@ public class FileSync {
 
 	@FXML
 	void actn_start_sync(ActionEvent event) {
-		info("Processing data, please wait...");
+		info("Processing data and upgrading legacy mirrors, please wait...");
 		stateProperty.set(State.SYNCING);
 
 		new Thread(() -> {
@@ -933,45 +929,25 @@ public class FileSync {
 				var targetPath = keyPath.getNameCount() == 1 ? destinationDir.get().resolve(encryptedFileName)
 						: destinationDir.get().resolve(keyPath.getParent()).resolve(encryptedFileName);
 
-				// lookup reference data
-				BiConsumer<SyncEntry, Path> fileProcessor = null;
-
-				PathAndChecksum pathAndChecksum;
-
-				try (FileInputStream fis = new FileInputStream(sourcePath.toFile())) {
-					var md = MessageDigest.getInstance("SHA-256");
-					var bArr = new byte[1024];
-					int cnt;
-					while ((cnt = fis.read(bArr)) != -1) {
-						md.update(bArr, 0, cnt);
-					}
-					pathAndChecksum = new PathAndChecksum(keyPath, md.digest());
-				}
-
-				if (Files.exists(targetPath)) {
-					var checksumRef = pathAndChecksumRef.get(pathAndChecksum.getReadableHash());
-					if (checksumRef == null || !Arrays.equals(checksumRef, pathAndChecksum.checksum) ||
-					/*
-					 * if public key changes, all data has to be encrypted with the new one
-					 */
-							!currentProfileProperty.get().settings.publicKeyName
-									.equals(currentProfileProperty.get().backup.settings.publicKeyName)) {
-						fileProcessor = mirrorFile;
-					}
-				} else {
-					fileProcessor = mirrorFile;
-				}
-
-				if (fileProcessor == null) {
-					syncEntry.compareProperty.set(new CompareResult(Result.MATCH));
-					pathAndChecksumNew.add(pathAndChecksum);
-				} else {
-					fileProcessor.accept(syncEntry, targetPath);
-					if (syncEntry.compareProperty.get().result != Result.ERROR) {
-						// all is well, update hash maps
-						pathAndChecksumNew.add(pathAndChecksum);
-					}
-				}
+                PathAndChecksum pathAndChecksum;
+                try (FileInputStream fis = new FileInputStream(sourcePath.toFile())) {
+                    var digest = MessageDigest.getInstance("SHA-256");
+                    var buffer = new byte[65536]; int count;
+                    while ((count = fis.read(buffer)) != -1) {
+                        if (stateProperty.get() != State.SYNCING) throw new java.io.InterruptedIOException("FileSync cancelled");
+                        digest.update(buffer, 0, count);
+                    }
+                    pathAndChecksum = new PathAndChecksum(keyPath, digest.digest());
+                }
+                var checksumRef = pathAndChecksumRef.get(pathAndChecksum.getReadableHash());
+                boolean changed = checksumRef == null || !Arrays.equals(checksumRef, pathAndChecksum.checksum)
+                    || !java.util.Objects.equals(currentProfileProperty.get().settings.publicKeyName,
+                        currentProfileProperty.get().backup.settings.publicKeyName);
+                boolean written = omscompanion.crypto.FileSyncMirror.sync(sourcePath, targetPath,
+                    choice_public_key.getSelectionModel().getSelectedItem().publicKey, changed,
+                    () -> stateProperty.get() != State.SYNCING);
+                syncEntry.compareProperty.set(new CompareResult(written ? Result.MIRRORED : Result.MATCH));
+                pathAndChecksumNew.add(pathAndChecksum);
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -999,12 +975,11 @@ public class FileSync {
 						 * we are walking through the encrypted directory. Directory names are
 						 * unchanged, but file names end with OMS_FILE_TYPE
 						 */
-						if (!Files.isDirectory(p)) {
+						if (!Files.isDirectory(destPath.resolve(p))) {
 							var fn = p.getFileName().toString();
 
-							if (fn.endsWith("." + MessageComposer.OMS_FILE_TYPE)) {
-								var fn_original = Path.of(fn.substring(0,
-										fn.length() - MessageComposer.OMS_FILE_TYPE.length() - 1 /* the dot */));
+							if (fn.endsWith(".oms") || fn.endsWith(".oms00")) {
+                                var fn_original = Path.of(fn.replaceFirst("\\.oms(?:00)?$", ""));
 
 								if (p.getNameCount() == 1) {
 									p = fn_original;
@@ -1041,17 +1016,6 @@ public class FileSync {
 		}
 	}
 
-	private BiConsumer<SyncEntry, Path> mirrorFile = (syncEntry, targetPath) -> {
-		try (FileInputStream fis = new FileInputStream(syncEntry.sourcePathProperty.get().toFile())) {
-			EncryptedFile.create(fis, targetPath.toFile(),
-					choice_public_key.getSelectionModel().getSelectedItem().publicKey, RSAUtils.getTransformation(),
-					AESUtil.getKeyLength(), AESUtil.getTransformation(), () -> stateProperty.get() != State.SYNCING);
-			syncEntry.compareProperty.set(new CompareResult(Result.MIRRORED));
-		} catch (Exception e) {
-			e.printStackTrace();
-			syncEntry.compareProperty.set(new CompareResult(e));
-		}
-	};
 
 	@FXML
 	void actn_stop(ActionEvent event) {

@@ -21,8 +21,7 @@ public class EncryptedMessage {
 			AesTransformation aesTransformation) throws NoSuchAlgorithmException, NoSuchPaddingException,
 			IllegalBlockSizeException, BadPaddingException, InvalidKeyException, InvalidAlgorithmParameterException {
 
-		this.message = MessageComposer.createRsaAesEnvelope(rsaPublicKey, rsaTransformation, aesKeyLength,
-				aesTransformation, createPayload(MessageComposer.APPLICATION_ENCRYPTED_MESSAGE, message));
+		this.message = org.onemoresecret.protocol.OmsProtocol.seal(rsaPublicKey, MessageComposer.APPLICATION_ENCRYPTED_MESSAGE, message);
 	}
 
 	public static byte[] createPayload(int ai, byte[] message) {

@@ -34,6 +34,7 @@ import omscompanion.OmsDataOutputStream;
 public class KeyRequestPairing {
 	private final byte[] message;
 	private final File encryptedFile;
+    private final byte[] requestId = org.onemoresecret.protocol.OmsProtocol.random(16);
 
 	public KeyRequestPairing(File encryptedFile) throws NoSuchAlgorithmException, IOException {
 		this.encryptedFile = encryptedFile;
@@ -60,7 +61,7 @@ public class KeyRequestPairing {
 			// (6) encrypted AES key from the file header
 			dataOutputStream.writeByteArray(envelope.encryptedAesSecretKey());
 
-			this.message = baos.toByteArray();
+			this.message = org.onemoresecret.protocol.OmsProtocol.request(baos.toByteArray(), envelope.protocolHeader() == null ? 0 : 1, requestId);
 		} catch (IOException ex) {
 			throw new RuntimeException(ex);
 		}
@@ -88,10 +89,12 @@ public class KeyRequestPairing {
 			// ***** Read reply data *****
 
 			// (1) AES key
-			var aesKeyMaterial = replyInputStream.readByteArray();
+			var aesKeyMaterial = org.onemoresecret.protocol.OmsProtocol.readReply(keyResponse, requestId, true);
 
-			AESUtil.process(Cipher.DECRYPT_MODE, dataInputStream, osDecryptedFile, aesKeyMaterial,
-					envelope.iv(), envelope.aesTransformation(), null);
+			try {
+                if (envelope.protocolHeader() != null) org.onemoresecret.protocol.OmsProtocol.decryptFile(envelope.protocolHeader(), aesKeyMaterial, dataInputStream, osDecryptedFile, null, null);
+                else AESUtil.process(Cipher.DECRYPT_MODE, dataInputStream, osDecryptedFile, aesKeyMaterial, envelope.iv(), envelope.aesTransformation(), null);
+            } finally { Arrays.fill(aesKeyMaterial, (byte)0); }
 			
 			Arrays.fill(aesKeyMaterial, (byte)0);
 		}

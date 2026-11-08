@@ -52,9 +52,11 @@ public class NostrEvent {
 	}
 
 	public static NostrEvent create(byte[] privateKey, int kind, List<List<String>> tags, String content) {
+        return create(privateKey, kind, tags, content, Instant.now().getEpochSecond());
+    }
+    public static NostrEvent create(byte[] privateKey, int kind, List<List<String>> tags, String content, long now) {
 		byte[] pubKeyBytes = Bip340.getPublicKey(privateKey);
 		String pubKeyHex = Bip340.bytesToHex(pubKeyBytes);
-		long now = Instant.now().getEpochSecond();
 
 		List<List<String>> safeTags = tags != null ? tags : new ArrayList<>();
 		String safeContent = content != null ? content : "";
